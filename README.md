@@ -1,5 +1,7 @@
 # AHA-GUI
-The GUI portion of the AHA project which visualizes results from the AHA-Scraper, and allows you to interactively inspect the graph, view connections, and gauge relative vulnerability of the components. 
+The GUI portion of the AHA project which visualizes results from the AHA-Scraper [AHA-Scraper](https://github.com/ESIC-DA/AHA-Scraper "AHA-Scraper").
+
+AHA-GUI allows you to interactively inspect the graph, view connections, and gauge relative vulnerability of the components. 
 
 Developed by ESIC, Washington State University.
 
