@@ -71,6 +71,13 @@
 			<copy todir="${build.dir}/lib">
 				<fileset dir="${lib.dir}"/>
 			</copy>
+			<copy todir="${build.dir}/lib">
+				<fileset dir="./deps/org.graphstream/">
+					<include name="*"/>
+					<type type="file"/>
+				</fileset>
+			</copy>
+			<copy file="LICENSE" tofile="${build.dir}/LICENSE"/>
 		</parallel>
 	</target>
 	
