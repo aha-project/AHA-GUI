@@ -6,6 +6,8 @@ AHA-GUI allows you to interactively inspect the graph, view connections, and gau
 Developed by ESIC, Washington State University.
 
 # Build Instructions
+(Builds are periodically posted under [releases](https://github.com/ESIC-DA/AHA-GUI/releases "releases").)
+
 ## Prerequisites
 - Install Java 1.8
 - Install apache ant
