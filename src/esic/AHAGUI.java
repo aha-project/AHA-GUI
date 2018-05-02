@@ -1,5 +1,7 @@
 package esic;
 
+//Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
+
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.event.ActionEvent;

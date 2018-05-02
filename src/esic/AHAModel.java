@@ -1,5 +1,7 @@
 package esic;
 
+//Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
+
 import org.graphstream.graph.Edge;
 import org.graphstream.graph.Graph;
 import org.graphstream.graph.Node;
