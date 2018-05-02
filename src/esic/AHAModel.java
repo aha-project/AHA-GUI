@@ -197,6 +197,13 @@ public class AHAModel
 		catch (Exception e) { e.printStackTrace(); }
 		return ret;
 	}
+	
+	public static String substringBeforeInstanceOf(String s, String separator)
+	{
+		int index=s.lastIndexOf(separator);
+		if (index > 1) { s=s.substring(0, index); }
+		return s;
+	}
 
 	protected void start()
 	{
@@ -231,10 +238,22 @@ public class AHAModel
 					{
 						m_listeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
 						if (m_debug) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
+						
 						if( localAddr.equals("0.0.0.0") || localAddr.equals("::")) 
 						{ 
 							Edge e=m_graph.addEdge(node+"_external",node.toString(),"external");
 							e.addAttribute("ui.class", "external");
+							String extListeningPorts=node.getAttribute("ui.extListeningPorts");
+							if (extListeningPorts==null ) { extListeningPorts="";}
+							else { extListeningPorts+=", ";}
+							node.setAttribute("ui.extListeningPorts", extListeningPorts+protoLocalPort);
+						}
+						else 
+						{
+							String listeningPorts=node.getAttribute("ui.localListeningPorts");
+							if (listeningPorts==null ) { listeningPorts="";}
+							else { listeningPorts+=", ";}
+							node.setAttribute("ui.localListeningPorts", listeningPorts+protoLocalPort);
 						}
 					}
 					for (int i=0;i<processTokens.length && i<header.length;i++)
