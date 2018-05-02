@@ -1,5 +1,24 @@
 package esic;
 
+/*
+ * This class is built upon a modified version of a mouse adapter class which only exists in the git master for graph stream
+ * so is back ported here, and then modified to meet our needs. Original CeCILL-C / LGPL license applies to this class only. 
+ * source back ported from: https://github.com/graphstream/gs-core/blob/master/src/org/graphstream/ui/view/util/MouseOverMouseManager.java
+ * 
+ * Original license from class we modified:
+ * This program is free software distributed under the terms of two licenses, the
+ * CeCILL-C license that fits European law, and the GNU Lesser General Public
+ * License. You can  use, modify and/ or redistribute the software under the terms
+ * of the CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
+ * URL <http://www.cecill.info> or under the terms of the GNU LGPL as published by
+ * the Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * See graphstream website/repo or licenses in /deps/org.graphstream/ for full info
+ * 
+ * We (ESIC @ WSU) relinquish any copyright claims to this modified class and defer to the original copywrights/licenses
+ */
+
 public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMouseManager 
 {
 	public AHAGUIMouseAdapter(final long delay, AHAGUI target) 
@@ -67,10 +86,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 		}
 	}
 	
-	
-	
-	//This feature only exists in the git head, so is back ported here. Original CeCILL-C / LGPL license applies to this class only. source back ported from: https://github.com/graphstream/gs-core/blob/master/src/org/graphstream/ui/view/util/MouseOverMouseManager.java
-  private org.graphstream.ui.graphicGraph.GraphicElement hoveredElement;
+	private org.graphstream.ui.graphicGraph.GraphicElement hoveredElement;
   private long hoveredElementLastChanged;
   private java.util.concurrent.locks.ReentrantLock hoverLock = new java.util.concurrent.locks.ReentrantLock();
   private java.util.Timer hoverTimer = new java.util.Timer(true);
