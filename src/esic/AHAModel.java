@@ -5,12 +5,13 @@ package esic;
 import org.graphstream.graph.Edge;
 import org.graphstream.graph.Graph;
 import org.graphstream.graph.Node;
-
-//√ remove score (now shows "N/A") for external nodes
-//√ ReFactor GUI separate from scoring model
-//√ update 'formatToolTipText' so that it <BR>s every 100 chars or so, preferably at a ',' or a ' '
+import org.graphstream.algorithm.measure.*;
 
 //TODO: SOON items
+//TODO: Figure out way to show tool tips/etc for different scoring methods
+//TODO: Read in tables for scoring
+
+//TODO: null out scoreReason(s) for methods that do not base on 'normal', since right now 'normal' reasons persist for any scoring method that does not explicitly state.
 //TODO: look into possibly using different auto layout algorithm(s)
 //TODO: look at SIDs for services and treat per service ID favorably
 //TODO: overlay on hover of a node? ToolTips maybe?
@@ -32,9 +33,12 @@ import org.graphstream.graph.Node;
 
 public class AHAModel
 {
-	protected boolean m_debug=false, m_multi=true, m_useCustomScore=false, m_hideOSProcs=false; //flags for verbose output, hiding of operating system procs, and drawing of multiple edges between verticies
+	public static enum ScoreMethod {Normal,WorstCommonProc,ECScore}
+	
+	protected boolean m_debug=false, m_multi=true, m_overlayCustomScoreFile=false, m_hideOSProcs=false; //flags for verbose output, hiding of operating system procs, and drawing of multiple edges between verticies
 	protected String m_inputFileName="BinaryAnalysis.csv", m_scoreFileName="scorefile.csv";
-	protected int m_minScoreLowVuln=25, m_minScoreMedVuln=15, m_scoringMode=0;
+	protected int m_minScoreLowVuln=25, m_minScoreMedVuln=15;
+	
 	protected java.util.TreeMap<String,String> m_listeningProcessMap=new java.util.TreeMap<String,String>(), m_osProcs=new java.util.TreeMap<String,String>();
 	protected Graph m_graph=null;
 	protected AHAGUI m_gui=null;
@@ -61,69 +65,69 @@ public class AHAModel
 			"edge.duplicateExternal { fill-color: #553030; }"+
 			"edge.duplicateExternaltw { fill-color: #553030; stroke-mode: dashes; }";
 
+	public static String scrMethdAttr(ScoreMethod m) { 	return "ui.ScoreMethod"+m; }
+	
 	protected void exploreAndScore(Graph graph) //explores the node graph and assigns a scaryness score
 	{
+		long time=System.currentTimeMillis();
 		java.util.TreeMap<String, Integer> lowestScoreForUserName=new java.util.TreeMap<String, Integer>();
-		for (Node next:graph)
+		for (Node node : graph) //Stage 1 of scoring, either the entirety of a scoring algorithm, such as "Normal", or the first pass for multi stage algs
 		{
-			int score=generateNodeScore(next);
-			String nodeUserName=next.getAttribute("username");
-			if (nodeUserName!=null && m_scoringMode==1)
+			String nodeClass=node.getAttribute("ui.class"); 
+			int score=generateNormalNodeScore(node);
+			node.setAttribute(scrMethdAttr(ScoreMethod.Normal), Integer.toString(score)); //if we didn't have a custom score from another file, use our computed score
+			
+			//Begin WorstUserProc stage1 scoring
+			String nodeUserName=node.getAttribute("username");
+			if ( nodeUserName!=null )
 			{
 				Integer lowScore=lowestScoreForUserName.remove(nodeUserName);
 				if (lowScore!=null && score>lowScore) { score=lowScore.intValue(); }
 				lowestScoreForUserName.put(nodeUserName,score);
 			}
-
-			if (m_scoringMode==0)
+			//End WorstUserProc stage1 scoring
+			
+			//Begin EC Method stage1 scoring
 			{
-				if (next.getAttribute(CUSTOMSTYLE)==null || !m_useCustomScore) { next.setAttribute("score", Integer.toString(score)); } //if we didn't have a custom score from another file, use our computed score
-				else { System.out.println("Preexisting score found, ignoring computed score"); }
-				styleNode(next,null);
+				if(nodeClass!=null && nodeClass.equalsIgnoreCase("external")) { node.setAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", Integer.toString(200)); }
+				else { node.setAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", Double.toString(100-score)); } 
 			}
+			//End EC Method stage 1 scoring
 		}
 
-		if (m_scoringMode==1)
+		EigenvectorCentrality ec = new EigenvectorCentrality(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", org.graphstream.algorithm.measure.AbstractCentrality.NormalizationMode.MAX_1_MIN_0, 100, scrMethdAttr(ScoreMethod.Normal));
+		ec.init(graph);
+		ec.compute();
+		System.out.println("Worst User Scores="+lowestScoreForUserName);
+		
+		for (Node node:graph) //Stage 2 of scoring, for scoring algorithms that need to make a seccond pass over the graph
 		{
-			System.out.println("Scores="+lowestScoreForUserName);
-			for (Node next:graph)
+			//Begin WorstUserProc stage2 scoring
+			String nodeUserName=node.getAttribute("username");
+			if (nodeUserName!=null)
 			{
-				String nodeUserName=next.getAttribute("username");
-				if (nodeUserName!=null)
-				{
-					Integer lowScore=lowestScoreForUserName.get(next.getAttribute("username"));
-					if (lowScore==null) { System.out.println("no low score found, this should not happen"); continue; }
-
-					if (next.getAttribute(CUSTOMSTYLE)==null || !m_useCustomScore) { next.setAttribute("score", lowScore.toString()); } //if we didn't have a custom score from another file, use our computed score
-					else { System.out.println("Preexisting score found, ignoring computed score"); }
-					styleNode(next,null);
-				}
+				Integer lowScore=lowestScoreForUserName.get(node.getAttribute("username"));
+				if (lowScore==null) { System.out.println("no low score found, this should not happen"); continue; }
+				node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProc), lowScore.toString()); 
 			}
-		}
-		if (m_useCustomScore)
-		{
-			for (Node next:graph)
+			//End WorstUserProc stage2 scoring
+			
+			//Begin EC stage2 scoring
 			{
-				try
-				{
-					if (next.getAttribute(CUSTOMSTYLE)!=null)
-					{
-						System.out.println("Custom style found for node="+next.getId());
-						next.removeAttribute("ui.class");
-						next.setAttribute("ui.style",next.getAttribute(CUSTOMSTYLE+".style"));
-						next.setAttribute("score",next.getAttribute(CUSTOMSTYLE+".score"));
-						styleNode(next,null);
-					}
-				}catch(Exception e) {}
+				double nodeScore   = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
+				double ecNodeScore = node.getAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp");
+				ecNodeScore = nodeScore * (1-2*ecNodeScore);
+				node.setAttribute(scrMethdAttr(ScoreMethod.ECScore), ((Integer)((Double)ecNodeScore).intValue()).toString());
 			}
+			//End EC stage2 scoring
 		}
-		System.out.println("Scoring completed using method="+m_scoringMode+" with useCustomScoring="+Boolean.toString(m_useCustomScore));
+		swapNodeStyles(ScoreMethod.Normal, time); //since we just finished doing the scores, swap to the 'Normal' score style when we're done.
 	}
 
-	protected int generateNodeScore(Node n)
+	protected int generateNormalNodeScore(Node n)
 	{
 		int score = 0;
-		String scoreReason="";
+		String scoreReason="", extendedReason="";
 		System.out.println("Process: "+n.getId());
 		if(n.getAttribute("username") != null)
 		{
@@ -134,6 +138,7 @@ public class AHAModel
 		{
 			try
 			{
+				boolean scoredTrue=false;
 				String s=m_increaseScoreKey[i].toLowerCase();
 				if(n.getAttribute(s) != null)
 				{
@@ -142,47 +147,66 @@ public class AHAModel
 					{ 
 						score+=m_increaseScoreIfTrueValues[i]; 
 						scoreReason+=", "+s+"="+m_increaseScoreValue[i].toLowerCase();
+						scoredTrue=true;
 					}
 				}
+				extendedReason+=", "+s+"("+m_increaseScoreIfTrueValues[i]+")"+"="+Boolean.toString(scoredTrue);
 			}
 			catch (Exception e) { System.out.println(e.getMessage()); }
 		}
 		System.out.println("  Score: " + score);
-		n.setAttribute("ScoreReason", "FinalScore="+score+scoreReason);
+		n.setAttribute(scrMethdAttr(ScoreMethod.Normal)+"Reason", "FinalScore="+score+scoreReason);
+		n.setAttribute(scrMethdAttr(ScoreMethod.Normal)+"ExtendedReason", "FinalScore="+score+extendedReason);
 		return score;
 	}
 
-	protected void styleNode(Node n, String overrideUiClass)
+	public void swapNodeStyles(ScoreMethod m, long startTime)
 	{
-		String currentClass=n.getAttribute("ui.class"); 
-
-		String sScore=n.getAttribute("score");
-		Integer ptrScore=null;
-		try {ptrScore=Integer.parseInt(sScore);}
-		catch (Exception e) {} 
-		if (currentClass==null || !currentClass.equalsIgnoreCase("external") || ptrScore!=null || overrideUiClass!=null)
+		System.out.println("Beginning swapNodeStyles()");
+		for (Node n : m_graph)
 		{
-			if (currentClass!=null && currentClass.equalsIgnoreCase("external")) 
-			{ 
-				//n.addAttribute("ui.class", "external");
-				//	for (Edge e : n.getEachEdge()) { e.addAttribute("ui.class", "external");	} //so far this no longer seems required. remove in the future?
-				//System.out.printf("Sorry, %s is already classified as external, not changing.\n", n.getId()); 
-			}
-			else if (overrideUiClass!=null)
+			try
 			{
-				n.setAttribute("ui.class", overrideUiClass);
+				String currentClass=n.getAttribute("ui.class"), customStyle=n.getAttribute(CUSTOMSTYLE);
+				String sScore=n.getAttribute(scrMethdAttr(m)), sScoreReason=n.getAttribute(scrMethdAttr(m)+"Reason"), sScoreExtendedReason=n.getAttribute(scrMethdAttr(m)+"ExtendedReason"); 
+				Integer intScore=null;
+				try {intScore=Integer.parseInt(sScore);}
+				catch (Exception e) {} 
+				if (currentClass==null || !currentClass.equalsIgnoreCase("external") || intScore!=null)
+				{
+					if (currentClass!=null && currentClass.equalsIgnoreCase("external"))
+					{ 
+						n.setAttribute("ui.score", "0");
+						n.setAttribute("ui.scoreReason", "External Node");
+						n.setAttribute("ui.scoreExtendedReason", "External Node");
+					}
+					else if (m_overlayCustomScoreFile==true && customStyle!=null && customStyle.equalsIgnoreCase("yes"))
+					{
+						String score=n.getAttribute(CUSTOMSTYLE+".score");
+						String style=n.getAttribute(CUSTOMSTYLE+".style");
+						n.removeAttribute("ui.class");
+						n.addAttribute("ui.style", style);
+						n.addAttribute("ui.score", score);
+						n.setAttribute("ui.scoreReason", "Custom Scorefile Overlay");
+						n.setAttribute("ui.scoreExtendedReason", "Custom Scorefile Overlay");
+					}
+					else if (intScore!=null)
+					{ 
+						int score=intScore.intValue();
+						n.addAttribute("ui.score", score);
+						if (sScoreReason!=null) { n.setAttribute("ui.scoreReason", sScoreReason); } //TODO: since scoreReason only really exists for 'normal' this means that 'normal' reason persists in other scoring modes. For modes that do not base their reasoning on 'normal' this is probably incorrect.
+						if (sScoreExtendedReason!=null) { n.setAttribute("ui.scoreExtendedReason", sScoreExtendedReason); }
+						System.out.print(n.getId()+" Applying Score: " + score);
+						n.setAttribute("ui.class", "high"); //default
+						if(score > m_minScoreLowVuln) { n.setAttribute("ui.class", "low"); System.out.println("   Scored: low");}
+						else if(score > m_minScoreMedVuln) { n.setAttribute("ui.class", "medium"); System.out.println("   Scored: medium");} 
+						else { System.out.println("   Scored: high"); }
+					}
+				}
 			}
-			else if (ptrScore!=null)
-			{ 
-				int score=ptrScore.intValue();
-				System.out.println("  Applying Score: " + score);
-				n.setAttribute("ui.class", "high"); //default
-				if (score > 99) { n.setAttribute("ui.class", "custom"); System.out.println("   Scored: custom"); }
-				else if(score > m_minScoreLowVuln) { n.setAttribute("ui.class", "low"); System.out.println("   Scored: low");}
-				else if(score > m_minScoreMedVuln) { n.setAttribute("ui.class", "medium"); System.out.println("   Scored: medium");} 
-				else { System.out.println("   Scored: high"); }
-			}
+			catch(Exception e) { e.printStackTrace(); }
 		}
+		System.out.println("Graph score complete using method="+m+" with useCustomScoring="+Boolean.toString(m_overlayCustomScoreFile)+". Took "+(System.currentTimeMillis()-startTime)+"ms.\n");
 	}
 
 	protected static String[] fixCSVLine(String s) //helper function to split, lower case, and clean lines of CSV into tokens
@@ -190,10 +214,10 @@ public class AHAModel
 		String[] ret=null;
 		try
 		{
-			ret=s.toLowerCase().split("\",\"");
+			ret=s.replaceAll("\ufeff", "").toLowerCase().split("\",\""); //the replace of ("\ufeff", "") removes the unicode encoding char at the beginning of the file, if it exists in the line. bleh.
 			for (int i=0;i<ret.length;i++)
 			{
-				if (ret[i]!=null) { ret[i]=ret[i].replaceAll("\"", ""); } //remove double quotes as we break into tokens
+				if (ret[i]!=null) { ret[i]=ret[i].replaceAll("\"", "").trim(); } //remove double quotes as we break into tokens
 			}
 		}
 		catch (Exception e) { e.printStackTrace(); }
@@ -222,14 +246,17 @@ public class AHAModel
 		{
 			br = new java.io.BufferedReader(new java.io.FileReader(m_inputFileName));
 			String line = "", header[]=fixCSVLine(br.readLine());
+			java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<String,Integer>();
+			for (int i=0;i<header.length;i++) { hdr.put(header[i], Integer.valueOf(i)); }
 
-			while ((line = br.readLine()) != null) //this is the first loop, in this loop we're loading all the vertexes and their metadata, so we can then later connect the verticies
+			while ((line = br.readLine()) != null) //this is the first loop, in this loop we're loading all the vertexes and their meta data, so we can then later connect the vertices
 			{
-				String[] processTokens = fixCSVLine(line); 
-				if(processTokens!=null && !processTokens[0].isEmpty() && !processTokens[0].contains("processname"))
+				try
 				{
-					String fromNode=processTokens[0]+"_"+processTokens[1], protoLocalPort=processTokens[3]+"_"+processTokens[5];
-					String connectionState=processTokens[11], localAddr=processTokens[4];
+					String[] tokens = fixCSVLine(line); 
+					String fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], protoLocalPort=tokens[hdr.get("protocol")]+"_"+tokens[hdr.get("localport")];
+					String connectionState=tokens[hdr.get("state")], localAddr=tokens[hdr.get("localaddress")];
+				
 					Node node = m_graph.getNode(fromNode);
 					if(node == null)
 					{
@@ -240,32 +267,27 @@ public class AHAModel
 					{
 						m_listeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
 						if (m_debug) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
-						
+						String portMapKey="ui.localListeningPorts";
 						if( localAddr.equals("0.0.0.0") || localAddr.equals("::")) 
 						{ 
 							Edge e=m_graph.addEdge(node+"_external",node.toString(),"external");
 							e.addAttribute("ui.class", "external");
-							String extListeningPorts=node.getAttribute("ui.extListeningPorts");
-							if (extListeningPorts==null ) { extListeningPorts="";}
-							else { extListeningPorts+=", ";}
-							node.setAttribute("ui.extListeningPorts", extListeningPorts+protoLocalPort);
+							portMapKey="ui.extListeningPorts"; //since this is external, change the key we read/write when we store this new info
 						}
-						else 
-						{
-							String listeningPorts=node.getAttribute("ui.localListeningPorts");
-							if (listeningPorts==null ) { listeningPorts="";}
-							else { listeningPorts+=", ";}
-							node.setAttribute("ui.localListeningPorts", listeningPorts+protoLocalPort);
-						}
+						java.util.TreeMap<String,String> listeningPorts=node.getAttribute(portMapKey);
+						if (listeningPorts==null ) { listeningPorts=new java.util.TreeMap<String,String>(); }
+						listeningPorts.put(protoLocalPort, protoLocalPort);
+						node.setAttribute(portMapKey, listeningPorts);
 					}
-					for (int i=0;i<processTokens.length && i<header.length;i++)
+					for (int i=0;i<tokens.length && i<header.length;i++)
 					{
-						String processToken=processTokens[i];
+						String processToken=tokens[i];
 						if (  processToken==null || processToken.isEmpty() ) { processToken="null"; }
-						if (m_debug) { System.out.printf("   Setting attribute %s for process %s\n",header[i],processTokens[i]); }
+						if (m_debug) { System.out.printf("   Setting attribute %s for process %s\n",header[i],tokens[i]); }
 						node.setAttribute(header[i],processToken);
 					}
 				}
+				catch (Exception e) { e.printStackTrace(); }
 			}
 		} 
 		catch (Exception e) { e.printStackTrace(); } 
@@ -287,17 +309,19 @@ public class AHAModel
 		try 
 		{
 			br = new java.io.BufferedReader(new java.io.FileReader(m_inputFileName));
-			String line = "";
-
+			String line = "", header[]=fixCSVLine(br.readLine());
+			java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<String,Integer>();
+			for (int i=0;i<header.length;i++) { hdr.put(header[i], Integer.valueOf(i)); }
 			while ((line = br.readLine()) != null)  //this is the second loop, in this loop we're loading the connections between nodes
 			{
-				lineNumber++;
-				String[] processTokens = fixCSVLine(line);
-				if(processTokens!=null && !processTokens[0].isEmpty() && !processTokens[0].contains("processname"))
+				try
 				{
-					String toNode, fromNode=processTokens[0]+"_"+processTokens[1], proto=processTokens[3], localPort=processTokens[5], remotePort=processTokens[8];
+					lineNumber++;
+					String[] tokens = fixCSVLine(line);
+					String toNode, fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], proto=tokens[hdr.get("protocol")], localPort=tokens[hdr.get("localport")], remotePort=tokens[hdr.get("remoteport")];
 					String protoLocalPort=proto+"_"+localPort, protoRemotePort=proto+"_"+remotePort;
-					String remoteAddr=processTokens[7], localAddr=processTokens[4], connectionState=processTokens[11], remoteHostname=processTokens[9];
+					String remoteAddr=tokens[hdr.get("remoteaddress")], localAddr=tokens[hdr.get("localaddress")], connectionState=tokens[hdr.get("state")], remoteHostname=tokens[hdr.get("remotehostname")];
+					
 					Node node = m_graph.getNode(fromNode);
 					if(node == null)
 					{
@@ -372,6 +396,7 @@ public class AHAModel
 						//	{ //System.out.printf("WARNING: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
 					}
 				}
+				catch (Exception e) { e.printStackTrace(); }
 			}
 		} 
 		catch (Exception e) { e.printStackTrace(); } 
@@ -408,6 +433,19 @@ public class AHAModel
 			i++;
 		}
 	}
+	
+	public static String getCommaSepKeysFromStringMap(java.util.Map<String, String> map)
+	{
+		StringBuilder sb=new StringBuilder("");
+		if (map==null) { return "None"; } //right now this makes for optimal code on the clients of this function, may not be the case in the future. 
+		java.util.Iterator<String> it=map.keySet().iterator();
+		while (it.hasNext())
+		{
+			sb.append(it.next());
+			if (it.hasNext()) { sb.append(", "); }
+		}
+		return sb.toString();
+	}
 
 	protected void readCustomScorefile()
 	{
@@ -423,7 +461,7 @@ public class AHAModel
 				try
 				{
 					String[] tokens = fixCSVLine(line);
-					String directive=tokens[0], color=tokens[2], nodePathName=tokens[3];
+					String directive=tokens[0], style=tokens[2], nodePathName=tokens[3];
 					String score=tokens[1].split("=")[1];
 
 					lineNumber++; //we will now be on line 1.
@@ -436,13 +474,13 @@ public class AHAModel
 							{
 								if(directive.equals("node") && nodePathName!=null)
 								{
-									node.addAttribute("score", score);
-									node.removeAttribute("ui.class");
-									node.addAttribute("ui.style", color);
+									//node.addAttribute("score", score);
+									//node.removeAttribute("ui.class");
+									//node.addAttribute("ui.style", color);
 									node.addAttribute(CUSTOMSTYLE,"yes");
 									node.addAttribute(CUSTOMSTYLE+".score", score);
-									node.addAttribute(CUSTOMSTYLE+".style", color);
-									System.out.printf("scorefile: found node=%s path=%s, setting score=%s color=%s\n", node.getId(),nodePathName,score, color);
+									node.addAttribute(CUSTOMSTYLE+".style", style);
+									System.out.printf("scorefile: found node=%s path=%s, setting score=%s color=%s\n", node.getId(),nodePathName,score, style);
 								}
 								else if (directive.equals("edge") && nodePathName!=null)
 								{
@@ -453,12 +491,12 @@ public class AHAModel
 										String toNodeProcessPath=toNode.getAttribute("processpath");
 										if ( toNodeProcessPath.equalsIgnoreCase(toName) )
 										{
-											e.addAttribute("score", score);
-											e.removeAttribute("ui.class");
-											e.addAttribute("ui.style", color);
+											//e.addAttribute("score", score);
+											//e.removeAttribute("ui.class");
+											//e.addAttribute("ui.style", color);
 											e.addAttribute(CUSTOMSTYLE,"yes");
 											e.addAttribute(CUSTOMSTYLE+".score", score);
-											e.addAttribute(CUSTOMSTYLE+".style", color);
+											e.addAttribute(CUSTOMSTYLE+".style", style);
 											System.out.printf("scorefile: found edge from=%s to=%s score=%s\n", nodePathName,toName,score);
 										}
 									}
@@ -569,7 +607,7 @@ public class AHAModel
 				if (argTokens[0].equalsIgnoreCase("--debug")) { m_debug=true; } //print more debugs while running
 				if (argTokens[0].equalsIgnoreCase("--single")) { m_multi=false; } //draw single lines between nodes
 				if (argTokens[0].equalsIgnoreCase("--bigfont")) { bigfont=true; } //use 18pt font instead of default
-				if (argTokens[0].equalsIgnoreCase("scorefile")) { m_scoreFileName=argTokens[1]; m_useCustomScore=true; } //path to custom score file, and enable since...that makes sense in this case
+				if (argTokens[0].equalsIgnoreCase("scorefile")) { m_scoreFileName=argTokens[1]; m_overlayCustomScoreFile=true; } //path to custom score file, and enable since...that makes sense in this case
 				if (argTokens[0].equalsIgnoreCase("inputFile")) { m_inputFileName=argTokens[1]; } //path to input file
 				if (argTokens[0].equalsIgnoreCase("lowVulnThreshold")) { m_minScoreLowVuln=Integer.parseInt(argTokens[1]); } //set the minimum score to attain low vulnerability status
 				if (argTokens[0].equalsIgnoreCase("medVulnThreshold")) { m_minScoreMedVuln=Integer.parseInt(argTokens[1]); } //set the minimum score to attain medium vulnerability status

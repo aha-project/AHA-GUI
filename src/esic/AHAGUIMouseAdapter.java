@@ -16,7 +16,7 @@ package esic;
  *
  * See graphstream website/repo or licenses in /deps/org.graphstream/ for full info
  * 
- * We (ESIC @ WSU) relinquish any copyright claims to this modified class and defer to the original copywrights/licenses
+ * We (ESIC @ WSU) relinquish any copyright claims to this modified class and defer to the original copyrights/licenses
  */
 
 public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMouseManager 

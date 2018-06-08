@@ -90,6 +90,12 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			inspectorBtn.setFont(uiFont);
 			inspectorBtn.setToolTipText(styleToolTipText("Show the graph detail inspector."));
 			
+			javax.swing.JComboBox<AHAModel.ScoreMethod> scoreMethod=new javax.swing.JComboBox<AHAModel.ScoreMethod>(AHAModel.ScoreMethod.values());
+			scoreMethod.setActionCommand("scoreMethod");
+			scoreMethod.addActionListener(this);
+			scoreMethod.setFont(uiFont);
+			scoreMethod.setToolTipText(styleToolTipText("Select the scoring method used to calculate node scores"));
+			
 			m_hideOSProcsCheckbox.setForeground(s_foregroundColor);
 			m_hideOSProcsCheckbox.setBackground(s_backgroundColor);
 			m_hideOSProcsCheckbox.setActionCommand("hideOSProcs");
@@ -111,19 +117,11 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			m_showFQDN.setFont(uiFont);
 			m_showFQDN.setToolTipText(styleToolTipText("Show the DNS names of external nodes rather than IPs."));
 			
-			javax.swing.JCheckBox worstUserPriv=new javax.swing.JCheckBox("WorstUserProc Score");
-			worstUserPriv.setActionCommand("worstUserPriv");
-			worstUserPriv.setForeground(s_foregroundColor);
-			worstUserPriv.setBackground(s_backgroundColor);
-			worstUserPriv.addActionListener(this);
-			worstUserPriv.setFont(uiFont);
-			worstUserPriv.setToolTipText(styleToolTipText("The score from the worst node of any set of linked nodes will apply to all of the nodes of that linked set. The 'weakest link' in the chain scoring method."));
-			
 			javax.swing.JCheckBox useCustom=new javax.swing.JCheckBox("Custom ScoreFile");
 			useCustom.setActionCommand("useCustom");
 			useCustom.setForeground(s_foregroundColor);
 			useCustom.setBackground(s_backgroundColor);
-			useCustom.setSelected(m_model.m_useCustomScore);
+			useCustom.setSelected(m_model.m_overlayCustomScoreFile);
 			useCustom.addActionListener(this);
 			useCustom.setFont(uiFont);
 			useCustom.setToolTipText(styleToolTipText("If a custom score file was loaded, this option will apply those custom directives to the graph view."));
@@ -132,10 +130,10 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			bottomButtons.add(fwBtn);
 			bottomButtons.add(resetBtn);
 			bottomButtons.add(inspectorBtn);
+			bottomButtons.add(scoreMethod);
 			bottomButtons.add(m_hideOSProcsCheckbox);
 			bottomButtons.add(m_hideExtCheckbox);
 			bottomButtons.add(m_showFQDN);
-			bottomButtons.add(worstUserPriv);
 			bottomButtons.add(useCustom);
 			bottomButtons.setBorder(null);
 			
@@ -158,7 +156,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		javax.swing.ToolTipManager.sharedInstance().setDismissDelay(Integer.MAX_VALUE);
 		javax.swing.ToolTipManager.sharedInstance().setInitialDelay(500);
 		this.add(bottomPanel, java.awt.BorderLayout.SOUTH);
-		this.setSize(1024, 768);
+		this.setSize(1200, 768);
 		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		this.setVisible(true);
 		getRootPane().setBorder(new javax.swing.border.CompoundBorder(new javax.swing.border.LineBorder(java.awt.Color.gray),new javax.swing.border.EmptyBorder(0,0,0,0))); //TODO: tried this to clean up the weird dashed appearance of the right gray border on macOS, but to no avail. figure it out later.
@@ -236,15 +234,10 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		if (e.getActionCommand().equals("listenerWindow")) { showListenerSocketWindow(); }
 		if (e.getActionCommand().equals("resetZoom")) { m_viewPanel.getCamera().resetView(); }
 		if (e.getActionCommand().equals("showInspector")) { m_inspectorWindow.setVisible(true); }
-		if (e.getActionCommand().equals("worstUserPriv"))
-		{
-			if (((javax.swing.JCheckBox)e.getSource()).isSelected()) { m_model.m_scoringMode=1; }
-			else { m_model.m_scoringMode=0; }
-			m_model.exploreAndScore(m_model.m_graph);
-		}
+		if (e.getActionCommand().equals("scoreMethod")) { m_model.swapNodeStyles(((AHAModel.ScoreMethod)((javax.swing.JComboBox<?>)e.getSource()).getSelectedItem()), System.currentTimeMillis()); }
 		if (e.getActionCommand().equals("useCustom"))
 		{
-			m_model.m_useCustomScore=((javax.swing.JCheckBox)e.getSource()).isSelected();
+			m_model.m_overlayCustomScoreFile=((javax.swing.JCheckBox)e.getSource()).isSelected();
 			m_model.exploreAndScore(m_model.m_graph);
 		}
 	}
@@ -310,7 +303,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			this.add(m_changeOnMouseOver, gbc);
 			
 			this.setLocation(parent.getLocation().x+parent.getWidth(), 0);
-			this.setSize(m_changeOnMouseOver.getPreferredSize().width+40,320);
+			this.setSize(m_changeOnMouseOver.getPreferredSize().width+60,400);
 			this.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 			this.setVisible(true);
 		}
@@ -324,26 +317,23 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 				public void run()
 				{
 					m_name.setText(getNameString(node,"\n"));
-					String internal=element.getAttribute("ui.localListeningPorts");
-					if (internal==null) { internal="None"; }
-					m_internalPorts.setText("Internal Ports: "+internal);
-					String external=element.getAttribute("ui.extListeningPorts");
-					if (external==null) { external="None"; }
-					m_externalPorts.setText("External Ports: "+external);
+					m_internalPorts.setText("Internal Ports: "+AHAModel.getCommaSepKeysFromStringMap(element.getAttribute("ui.localListeningPorts")));
+					m_externalPorts.setText("External Ports: "+AHAModel.getCommaSepKeysFromStringMap(element.getAttribute("ui.extListeningPorts")));
 					m_connections.setText(getNodeConnectionString(node,model));
-					m_score.setText(getNodeScoreRasonString(node));
+					m_score.setText(getNodeScoreRasonString(node, true));
 				}
 			});
 		}
 	}
 	
-	public static String getNodeScoreRasonString(Node node)
+	public static String getNodeScoreRasonString(Node node, boolean extendedReason)
 	{ 
 		if (node==null) { return " "; }
-		String score=node.getAttribute("ScoreReason");
+		String score=node.getAttribute("ui.scoreReason");
+		if (extendedReason) { score=node.getAttribute("ui.scoreExtendedReason"); }
 		if (score==null) { score=" "; }
 		else { score="Score: "+score; }
-		if (node.getAttribute("ui.class").toString().toLowerCase().equals("external")) { score="Score: N/A"; } //this was requested to make the UI feel cleaner, since nothing can be done to help the score of an external node anyway.
+		if (node.getAttribute("ui.class")!=null && node.getAttribute("ui.class").toString().toLowerCase().equals("external")) { score="Score: N/A"; } //this was requested to make the UI feel cleaner, since nothing can be done to help the score of an external node anyway.
 		return score;
 	}
 	
@@ -374,9 +364,10 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	{
 		if (node==null) { return " "; }
 		String nameTxt="Name: "+node.getAttribute("ui.label")+separator+"User: "+node.getAttribute("username")+separator+"Path: "+node.getAttribute("processpath"), services=node.getAttribute("processservices");
-		if (node.getAttribute("ui.class").toString().toLowerCase().equals("external")) 
+		String uiclass=node.getAttribute("ui.class");
+		nameTxt="Name: "+node.getAttribute("ui.label"); //TODO: we should use the name here, not the id for most calls of getId() in this function
+		if (uiclass!=null && uiclass.toString().toLowerCase().equals("external")) 
 		{ 
-			nameTxt="Name: "+node.getAttribute("ui.label"); //TODO: we should use the name here, not the id for most calls of getId() in this function
 			if (node.getAttribute("IP")!=null)
 			{
 				nameTxt+=separator+"IP: "+node.getAttribute("IP")+separator+"DNS Name: "+node.getAttribute("hostname"); 
@@ -395,7 +386,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		if (id==null || id.equals("")) { return; }
 		Node node=m_model.m_graph.getNode(id);
 		if (node==null) { return; }
-		final String connections=getNodeConnectionString(node,m_model), nameText=getNameString(node,"  "), scoreReason=getNodeScoreRasonString(node);
+		final String connections=getNodeConnectionString(node,m_model), nameText=getNameString(node,"  "), scoreReason=getNodeScoreRasonString(node, false);
 
 		javax.swing.SwingUtilities.invokeLater(new Runnable() //perform task on gui thread
 		{
