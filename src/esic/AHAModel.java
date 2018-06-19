@@ -33,8 +33,20 @@ import org.graphstream.algorithm.measure.*;
 
 public class AHAModel
 {
-	public static enum ScoreMethod {Normal,WorstCommonProc,ECScore}
+	private static class ScoreItem
+	{
+		String criteria="", criteriaValue="";
+		int scoreDelta=0;
+		public ScoreItem(String crit, String critval, int sD)
+		{
+			criteria=crit;
+			criteriaValue=critval;
+			scoreDelta=sD;
+		}
+	}
 	
+	public static enum ScoreMethod {Normal,WorstCommonProc,ECScore}
+
 	protected boolean m_debug=false, m_multi=true, m_overlayCustomScoreFile=false, m_hideOSProcs=false; //flags for verbose output, hiding of operating system procs, and drawing of multiple edges between verticies
 	protected String m_inputFileName="BinaryAnalysis.csv", m_scoreFileName="scorefile.csv";
 	protected int m_minScoreLowVuln=25, m_minScoreMedVuln=15;
@@ -43,9 +55,7 @@ public class AHAModel
 	protected Graph m_graph=null;
 	protected AHAGUI m_gui=null;
 	
-	protected String[] m_increaseScoreKey=   {"aslr", "dep","authenticode","strongnaming","safeseh",  "arch", "ControlFlowGuard","HighentropyVA",};
-	protected String[] m_increaseScoreValue= {"true","true",        "true",        "true",   "true", "amd64",             "true",         "true",};
-	protected int[] m_increaseScoreIfTrueValues= {10,     1,            10,             1,        1,      10,                 30,             10,};
+	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<ScoreItem>(32);
 	
 	protected static final String CUSTOMSTYLE="ui.weAppliedCustomStyle";
 	protected String styleSheet = 	"graph { fill-color: black; }"+
@@ -66,6 +76,37 @@ public class AHAModel
 			"edge.duplicateExternaltw { fill-color: #553030; stroke-mode: dashes; }";
 
 	public static String scrMethdAttr(ScoreMethod m) { 	return "ui.ScoreMethod"+m; }
+	
+	private void readScoreTable(String filename)
+	{
+		if (filename==null || filename.equals("")) { filename="MetricsTable.cfg"; }
+		java.io.BufferedReader buff=null;
+		try 
+		{
+			buff = new java.io.BufferedReader(new java.io.FileReader(filename));
+			String line="";
+			while ((line = buff.readLine()) != null)
+			{
+				line=line.trim();
+				if (line.startsWith("//") || line.startsWith("#")) { /*System.out.println("Comment");*/ continue; }
+				String[] tokens=fixCSVLine(line);
+				if (tokens.length<2) { /*System.out.println("skip, insufficeint tokens");*/ continue;}
+				int scoreDelta=-10000;
+				try { scoreDelta=Integer.parseInt(tokens[2]); }
+				catch (Exception e) { e.printStackTrace(); }
+				
+				if (scoreDelta > -101 && scoreDelta < 101) //valid range is only -100 to 100
+				{
+					System.out.println("ScoreConfig Line: criterion="+tokens[0]+" value="+tokens[1]+" score="+tokens[2]);
+					m_scoreTable.add(new ScoreItem(tokens[0],tokens[1],scoreDelta)); //TODO this should probably get cleaned up, as comments and/or anything after the first main 3 fields will consume memory even though we never use them.
+				}
+			}
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
 	
 	protected void exploreAndScore(Graph graph) //explores the node graph and assigns a scaryness score
 	{
@@ -95,10 +136,12 @@ public class AHAModel
 			//End EC Method stage 1 scoring
 		}
 
+		//Begin EC between loop compute
 		EigenvectorCentrality ec = new EigenvectorCentrality(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", org.graphstream.algorithm.measure.AbstractCentrality.NormalizationMode.MAX_1_MIN_0, 100, scrMethdAttr(ScoreMethod.Normal));
 		ec.init(graph);
 		ec.compute();
 		System.out.println("Worst User Scores="+lowestScoreForUserName);
+		//END EC between 
 		
 		for (Node node:graph) //Stage 2 of scoring, for scoring algorithms that need to make a seccond pass over the graph
 		{
@@ -129,28 +172,22 @@ public class AHAModel
 		int score = 0;
 		String scoreReason="", extendedReason="";
 		System.out.println("Process: "+n.getId());
-		if(n.getAttribute("username") != null)
-		{
-			System.out.println("    priv: " + n.getAttribute("username"));
-			if(n.getAttribute("username").equals("NT AUTHORITY\\LOCAL SERVICE".toLowerCase())) { score++; } //TODO: probably more can be done here...really we probably want to look for bad users and remove score...but that requires research into what bad users are
-		}
-		for (int i=0; i<m_increaseScoreKey.length; i++) //any strings matched in this loop will increase the score
+		for (ScoreItem si : m_scoreTable) 
 		{
 			try
 			{
 				boolean scoredTrue=false;
-				String s=m_increaseScoreKey[i].toLowerCase();
-				if(n.getAttribute(s) != null)
+				if(n.getAttribute(si.criteria) != null)
 				{
-					System.out.println("    "+s+": " + n.getAttribute(s));
-					if(n.getAttribute(s).toString().equals(m_increaseScoreValue[i].toLowerCase())) 
+					System.out.println("    "+si.criteria+": " + n.getAttribute(si.criteria));
+					if(n.getAttribute(si.criteria).toString().equals(si.criteriaValue)) 
 					{ 
-						score+=m_increaseScoreIfTrueValues[i]; 
-						scoreReason+=", "+s+"="+m_increaseScoreValue[i].toLowerCase();
+						score+=si.scoreDelta; 
+						scoreReason+=", "+si.criteria+"="+si.scoreDelta;
 						scoredTrue=true;
 					}
 				}
-				extendedReason+=", "+s+"("+m_increaseScoreIfTrueValues[i]+")"+"="+Boolean.toString(scoredTrue);
+				extendedReason+=", "+si.criteria+"("+si.scoreDelta+")"+"="+Boolean.toString(scoredTrue);
 			}
 			catch (Exception e) { System.out.println(e.getMessage()); }
 		}
@@ -409,6 +446,7 @@ public class AHAModel
 			}
 		}
 
+		readScoreTable(null);
 		readCustomScorefile();
 		useFQDNLabels(m_graph, m_gui.m_showFQDN.isSelected());
 		exploreAndScore(m_graph);

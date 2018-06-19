@@ -156,7 +156,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		javax.swing.ToolTipManager.sharedInstance().setDismissDelay(Integer.MAX_VALUE);
 		javax.swing.ToolTipManager.sharedInstance().setInitialDelay(500);
 		this.add(bottomPanel, java.awt.BorderLayout.SOUTH);
-		this.setSize(1200, 768);
+		this.setSize(1140, 768);
 		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		this.setVisible(true);
 		getRootPane().setBorder(new javax.swing.border.CompoundBorder(new javax.swing.border.LineBorder(java.awt.Color.gray),new javax.swing.border.EmptyBorder(0,0,0,0))); //TODO: tried this to clean up the weird dashed appearance of the right gray border on macOS, but to no avail. figure it out later.
@@ -363,10 +363,11 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public static String getNameString(Node node, String separator)
 	{
 		if (node==null) { return " "; }
-		String nameTxt="Name: "+node.getAttribute("ui.label")+separator+"User: "+node.getAttribute("username")+separator+"Path: "+node.getAttribute("processpath"), services=node.getAttribute("processservices");
+		String nameTxt="Name: "+node.getAttribute("ui.label")+separator+"User: "+node.getAttribute("username")+separator+"Path: "+node.getAttribute("processpath");
+		String services=node.getAttribute("processservices");
 		String uiclass=node.getAttribute("ui.class");
-		nameTxt="Name: "+node.getAttribute("ui.label"); //TODO: we should use the name here, not the id for most calls of getId() in this function
-		if (uiclass!=null && uiclass.toString().toLowerCase().equals("external")) 
+		//nameTxt="Name: "+node.getAttribute("ui.label"); //TODO: we should use the name here, not the id for most calls of getId() in this function
+		if (uiclass!=null && uiclass.equalsIgnoreCase("external")) 
 		{ 
 			if (node.getAttribute("IP")!=null)
 			{
