@@ -7,6 +7,10 @@ import org.graphstream.graph.Graph;
 import org.graphstream.graph.Node;
 import org.graphstream.algorithm.measure.*;
 
+// BETA: (revisit soon):
+//  UTF8 csv input handling (BOM issues): if this works consistently, make sure all files are opened the same way.
+
+
 //TODO: SOON items
 //TODO: Figure out way to show tool tips/etc for different scoring methods
 //TODO: Read in tables for scoring
@@ -179,7 +183,7 @@ public class AHAModel
 				boolean scoredTrue=false;
 				if(n.getAttribute(si.criteria) != null)
 				{
-					System.out.println("    "+si.criteria+": " + n.getAttribute(si.criteria));
+					System.out.println("    "+si.criteria+": " + n.getAttribute(si.criteria)); //TODO make printout more obvious here
 					if(n.getAttribute(si.criteria).toString().equals(si.criteriaValue)) 
 					{ 
 						score+=si.scoreDelta; 
@@ -251,13 +255,13 @@ public class AHAModel
 		String[] ret=null;
 		try
 		{
-			ret=s.replaceAll("\ufeff", "").toLowerCase().split("\",\""); //the replace of ("\ufeff", "") removes the unicode encoding char at the beginning of the file, if it exists in the line. bleh.
+			ret=s.replace('\ufeff', ' ').toLowerCase().split("\",\""); //the replace of ("\ufeff", "") removes the unicode encoding char at the beginning of the file, if it exists in the line. bleh.
 			for (int i=0;i<ret.length;i++)
 			{
-				if (ret[i]!=null) { ret[i]=ret[i].replaceAll("\"", "").trim(); } //remove double quotes as we break into tokens
+				if (ret[i]!=null) { ret[i]=ret[i].replaceAll("\"", "").trim(); } //remove double quotes as we break into tokens, trim any whitespace on the outsides
 			}
 		}
-		catch (Exception e) { e.printStackTrace(); }
+		catch (Exception e) { System.out.print("fixCSVLine:"); e.printStackTrace(); }
 		return ret;
 	}
 	
@@ -277,14 +281,27 @@ public class AHAModel
 		ext.addAttribute("ui.class", "external"); //Add a node for "external"
 		ext.addAttribute("processpath","external"); //add fake process path
 		
+		System.out.println("JRE: Vendor="+System.getProperty("java.vendor")+", Version="+System.getProperty("java.version"));
+		System.out.println("OS: Arch="+System.getProperty("os.arch")+" Name="+System.getProperty("os.name")+" Vers="+System.getProperty("os.version"));
+		System.out.println("AHA-GUI Version: "+AHAModel.class.getPackage().getImplementationVersion()+" starting up.");
 		System.out.println("Using inputFile="+m_inputFileName);
 		java.io.BufferedReader br = null;
+		int lineNumber=1;
+		java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<String,Integer>();
 		try 
 		{
-			br = new java.io.BufferedReader(new java.io.FileReader(m_inputFileName));
+			//br = new java.io.BufferedReader(new java.io.FileReader(m_inputFileName));
+			br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(m_inputFileName),"UTF8"));
 			String line = "", header[]=fixCSVLine(br.readLine());
-			java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<String,Integer>();
-			for (int i=0;i<header.length;i++) { hdr.put(header[i], Integer.valueOf(i)); }
+			for (int i=0;i<header.length;i++) 
+			{ 
+				String headerToken=header[i];
+				if (headerToken.contains("processname") && !headerToken.equals("processname") && headerToken.length()=="processname".length() ) { System.out.println("Had to fix up 'processname' headertoken due to ByteOrderMark issues.");headerToken="processname"; }
+				if (headerToken.contains("processname") && !headerToken.equals("processname") && Math.abs(headerToken.length()-"processname".length())<5) { System.out.println("Had to fix up 'processname' headertoken due to ByteOrderMark issues. hdrlen="+headerToken.length()+" ptlen="+"processname".length()); headerToken="processname"; }
+				hdr.put(headerToken, Integer.valueOf(i)); 
+			}
+			String[] required={"processname","pid","protocol","state","localport","localaddress","remoteaddress","remoteport","remotehostname"};
+			for (String s:required) { if (hdr.get(s)==null) { System.out.println("Input file: required column header field=\""+s+"\" was not detected, this will not go well."); } }
 
 			while ((line = br.readLine()) != null) //this is the first loop, in this loop we're loading all the vertexes and their meta data, so we can then later connect the vertices
 			{
@@ -324,14 +341,15 @@ public class AHAModel
 						node.setAttribute(header[i],processToken);
 					}
 				}
-				catch (Exception e) { e.printStackTrace(); }
+				catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
+				lineNumber++;
 			}
 		} 
-		catch (Exception e) { e.printStackTrace(); } 
+		catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); } 
 		finally 
 		{
 				try { if (br!=null) br.close(); } 
-				catch (Exception e) {  }
+				catch (Exception e) { System.out.print("Failed to close file: "); e.printStackTrace(); }
 		}
 
 		if (m_debug)
@@ -341,19 +359,19 @@ public class AHAModel
 			System.out.println("-------\n");
 		}
 
-		int connectionNumber=0, lineNumber=0;
+		int connectionNumber=0;
+		lineNumber=1;
 		br = null;
 		try 
 		{
-			br = new java.io.BufferedReader(new java.io.FileReader(m_inputFileName));
-			String line = "", header[]=fixCSVLine(br.readLine());
-			java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<String,Integer>();
-			for (int i=0;i<header.length;i++) { hdr.put(header[i], Integer.valueOf(i)); }
+			//br = new java.io.BufferedReader(new java.io.FileReader(m_inputFileName));
+			br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(m_inputFileName),"UTF8"));
+			String line = "";
+			br.readLine(); //consume first line
 			while ((line = br.readLine()) != null)  //this is the second loop, in this loop we're loading the connections between nodes
 			{
 				try
 				{
-					lineNumber++;
 					String[] tokens = fixCSVLine(line);
 					String toNode, fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], proto=tokens[hdr.get("protocol")], localPort=tokens[hdr.get("localport")], remotePort=tokens[hdr.get("remoteport")];
 					String protoLocalPort=proto+"_"+localPort, protoRemotePort=proto+"_"+remotePort;
@@ -433,16 +451,17 @@ public class AHAModel
 						//	{ //System.out.printf("WARNING: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
 					}
 				}
-				catch (Exception e) { e.printStackTrace(); }
+				catch (Exception e) { System.out.print("start: second readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
+				lineNumber++;
 			}
 		} 
-		catch (Exception e) { e.printStackTrace(); } 
+		catch (Exception e) { System.out.print("start: second readthrough: input line "+lineNumber+":"); e.printStackTrace(); } 
 		finally 
 		{
 			if (br != null) 
 			{
 				try { br.close(); } 
-				catch (Exception e) { e.printStackTrace(); }
+				catch (Exception e) { System.out.print("Failed to close file: "); e.printStackTrace(); }
 			}
 		}
 
@@ -455,7 +474,7 @@ public class AHAModel
 		for (Node n : m_graph) 
 		{
 			if (n.getId().contains("Ext_")) { leftSideNodes.add(n); }
-			n.setAttribute("layout.weight", 6);
+			n.addAttribute("layout.weight", 6); //switched to add attribute rather than set attribute since it seems to prevent a possible race condition.
 		}
 		int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
 		leftSideNodes.insertElementAt(m_graph.getNode("external"),leftSideNodes.size()/2);
