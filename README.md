@@ -1,12 +1,12 @@
 # AHA-GUI
-The GUI portion of the AHA (AttackSurface Host Analyzer) project which visualizes results from [AHA-Scraper](https://github.com/ESIC-DA/AHA-Scraper "AHA-Scraper").
+The GUI portion of the AHA (AttackSurface Host Analyzer) project which visualizes results from [AHA-Scraper](https://github.com/aha-project/AHA-Scraper "AHA-Scraper").
 
 AHA-GUI allows you to interactively inspect the graph, view connections, and gauge relative vulnerability of the components. 
 
 Developed by ESIC, Washington State University.
 
 # Build Instructions
-(Builds are periodically posted under [releases](https://github.com/ESIC-DA/AHA-GUI/releases "releases").)
+(Builds are periodically posted under [releases](https://github.com/aha-project/AHA-GUI/releases "releases").)
 
 ## Prerequisites
 - Install Java 1.8
