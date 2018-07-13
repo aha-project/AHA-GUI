@@ -5,6 +5,9 @@ AHA-GUI allows you to interactively inspect the graph, view connections, and gau
 
 Developed by ESIC, Washington State University.
 
+# User Instructions
+[Click here for user walkthrough / documentation](https://aha-project.github.io/)
+
 # Build Instructions
 (Builds are periodically posted under [releases](https://github.com/aha-project/AHA-GUI/releases "releases").)
 
