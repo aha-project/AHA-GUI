@@ -7,13 +7,11 @@ import org.graphstream.graph.Graph;
 import org.graphstream.graph.Node;
 import org.graphstream.algorithm.measure.*;
 
-// BETA: (revisit soon):
-//  UTF8 csv input handling (BOM issues): if this works consistently, make sure all files are opened the same way.
-
-
 //TODO: SOON items
 //TODO: Figure out way to show tool tips/etc for different scoring methods
-//TODO: Read in tables for scoring
+//TODO: figure out a way to support the new Test-Privilege info
+//TODO: Linux support stuff
+//TODO: write out a report containing the node scoring
 
 //TODO: null out scoreReason(s) for methods that do not base on 'normal', since right now 'normal' reasons persist for any scoring method that does not explicitly state.
 //TODO: look into possibly using different auto layout algorithm(s)
@@ -21,11 +19,9 @@ import org.graphstream.algorithm.measure.*;
 //TODO: overlay on hover of a node? ToolTips maybe?
 
 //TODO: Intermediate time frame: custom scoring CSV:
-//TODO:    support reading in score criteria for security items (ASLR=10pts for instance)
 //TODO:    support reading in score criteria for user IDs?
 //TODO:    support setting node color thresholds in custom score.csv file
 //TODO:    support max bounds if feature is missing (AKA ASLR cap to 30pts or something)
-//TODO:    break scoring stuff out into score file (with default)
 //TODO:    move CSS to score file?
 
 //TODO: possible FUTURE features
@@ -55,7 +51,8 @@ public class AHAModel
 	protected String m_inputFileName="BinaryAnalysis.csv", m_scoreFileName="scorefile.csv";
 	protected int m_minScoreLowVuln=25, m_minScoreMedVuln=15;
 	
-	protected java.util.TreeMap<String,String> m_listeningProcessMap=new java.util.TreeMap<String,String>(), m_osProcs=new java.util.TreeMap<String,String>();
+	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>(), m_osProcs=new java.util.TreeMap<String,String>();
+	protected java.util.TreeMap<String,String> m_intListeningProcessMap=new java.util.TreeMap<String,String>(), m_extListeningProcessMap=new java.util.TreeMap<String,String>();
 	protected Graph m_graph=null;
 	protected AHAGUI m_gui=null;
 	
@@ -87,14 +84,14 @@ public class AHAModel
 		java.io.BufferedReader buff=null;
 		try 
 		{
-			buff = new java.io.BufferedReader(new java.io.FileReader(filename));
+			buff = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(filename),"UTF8"));//new java.io.BufferedReader(new java.io.FileReader(filename));
 			String line="";
 			while ((line = buff.readLine()) != null)
 			{
 				line=line.trim();
 				if (line.startsWith("//") || line.startsWith("#")) { /*System.out.println("Comment");*/ continue; }
 				String[] tokens=fixCSVLine(line);
-				if (tokens.length<2) { /*System.out.println("skip, insufficeint tokens");*/ continue;}
+				if (tokens.length<2) { /*System.out.println("skip, insufficient tokens");*/ continue;}
 				int scoreDelta=-10000;
 				try { scoreDelta=Integer.parseInt(tokens[2]); }
 				catch (Exception e) { e.printStackTrace(); }
@@ -290,7 +287,6 @@ public class AHAModel
 		java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<String,Integer>();
 		try 
 		{
-			//br = new java.io.BufferedReader(new java.io.FileReader(m_inputFileName));
 			br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(m_inputFileName),"UTF8"));
 			String line = "", header[]=fixCSVLine(br.readLine());
 			for (int i=0;i<header.length;i++) 
@@ -319,7 +315,7 @@ public class AHAModel
 					}
 					if (connectionState.equals("listening") || connectionState.equals("") )
 					{
-						m_listeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
+						m_allListeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
 						if (m_debug) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
 						String portMapKey="ui.localListeningPorts";
 						if( localAddr.equals("0.0.0.0") || localAddr.equals("::")) 
@@ -327,7 +323,9 @@ public class AHAModel
 							Edge e=m_graph.addEdge(node+"_external",node.toString(),"external");
 							e.addAttribute("ui.class", "external");
 							portMapKey="ui.extListeningPorts"; //since this is external, change the key we read/write when we store this new info
+							m_extListeningProcessMap.put(protoLocalPort,fromNode);
 						}
+						else { m_intListeningProcessMap.put(protoLocalPort,fromNode); }
 						java.util.TreeMap<String,String> listeningPorts=node.getAttribute(portMapKey);
 						if (listeningPorts==null ) { listeningPorts=new java.util.TreeMap<String,String>(); }
 						listeningPorts.put(protoLocalPort, protoLocalPort);
@@ -354,8 +352,12 @@ public class AHAModel
 
 		if (m_debug)
 		{
-			System.out.println("Listeners:");
-			for (java.util.Map.Entry<String, String> entry : m_listeningProcessMap.entrySet()) { System.out.println(entry.getKey()+"="+entry.getValue()); }
+			System.out.println("\nAll Listeners:");
+			for (java.util.Map.Entry<String, String> entry : m_allListeningProcessMap.entrySet()) { System.out.println(entry.getKey()+"="+entry.getValue()); }
+			System.out.println("-------\nInternal Listeners:");
+			for (java.util.Map.Entry<String, String> entry : m_intListeningProcessMap.entrySet()) { System.out.println(entry.getKey()+"="+entry.getValue()); }
+			System.out.println("-------\nExternal Listeners:");
+			for (java.util.Map.Entry<String, String> entry : m_extListeningProcessMap.entrySet()) { System.out.println(entry.getKey()+"="+entry.getValue()); }
 			System.out.println("-------\n");
 		}
 
@@ -364,7 +366,6 @@ public class AHAModel
 		br = null;
 		try 
 		{
-			//br = new java.io.BufferedReader(new java.io.FileReader(m_inputFileName));
 			br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(m_inputFileName),"UTF8"));
 			String line = "";
 			br.readLine(); //consume first line
@@ -387,7 +388,7 @@ public class AHAModel
 					{
 						if ( remoteAddr.equals("127.0.0.1") || remoteAddr.equals("::1") )
 						{
-							if ( (toNode=m_listeningProcessMap.get(protoRemotePort))!=null )
+							if ( (toNode=m_allListeningProcessMap.get(protoRemotePort))!=null )
 							{
 								Node tempNode=m_graph.getNode(fromNode);
 								boolean duplicateEdge=false, timewait=false;
@@ -414,7 +415,7 @@ public class AHAModel
 							{
 								System.out.printf("WARNING: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);
 							}
-							else if ( (localAddr.equals("127.0.0.1") || localAddr.equals("::1")) && (m_listeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
+							else if ( (localAddr.equals("127.0.0.1") || localAddr.equals("::1")) && (m_allListeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
 							else { System.out.printf("WARNING: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
 						}
 						else // if (connectionState.equalsIgnoreCase("established") && !(remoteAddr.trim().equals("127.0.0.1") || remoteAddr.trim().equals("::1")) )
@@ -501,7 +502,8 @@ public class AHAModel
 			sb.append(it.next());
 			if (it.hasNext()) { sb.append(", "); }
 		}
-		return sb.toString();
+		if (sb.length()>2) { return sb.toString(); }
+		return "None";
 	}
 
 	protected void readCustomScorefile()
@@ -510,7 +512,7 @@ public class AHAModel
 		java.io.BufferedReader br = null;
 		try 
 		{
-			br = new java.io.BufferedReader(new java.io.FileReader(m_scoreFileName));
+			br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(m_scoreFileName),"UTF8"));
 			String line = "";
 			int lineNumber=0;
 			while ((line = br.readLine()) != null)  //this is the second loop, in this loop we're loading the connections between nodes
@@ -531,9 +533,6 @@ public class AHAModel
 							{
 								if(directive.equals("node") && nodePathName!=null)
 								{
-									//node.addAttribute("score", score);
-									//node.removeAttribute("ui.class");
-									//node.addAttribute("ui.style", color);
 									node.addAttribute(CUSTOMSTYLE,"yes");
 									node.addAttribute(CUSTOMSTYLE+".score", score);
 									node.addAttribute(CUSTOMSTYLE+".style", style);
@@ -548,9 +547,6 @@ public class AHAModel
 										String toNodeProcessPath=toNode.getAttribute("processpath");
 										if ( toNodeProcessPath.equalsIgnoreCase(toName) )
 										{
-											//e.addAttribute("score", score);
-											//e.removeAttribute("ui.class");
-											//e.addAttribute("ui.style", color);
 											e.addAttribute(CUSTOMSTYLE,"yes");
 											e.addAttribute(CUSTOMSTYLE+".score", score);
 											e.addAttribute(CUSTOMSTYLE+".style", style);
@@ -674,6 +670,7 @@ public class AHAModel
 					System.out.println
 					(
 							"Arguments are as follows:"+
+							"--debug : print additional information to console while running"+
 							"--single : use single lines between nodes with multiple connections "+
 							"--bigfont : use 18pt font instead of the default 12pt font (good for demos) "+
 							"scorefile=scorefile.csv : use the scorefile specified after the equals sign "+
