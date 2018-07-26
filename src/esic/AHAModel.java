@@ -495,15 +495,14 @@ public class AHAModel
 	public static String getCommaSepKeysFromStringMap(java.util.Map<String, String> map)
 	{
 		StringBuilder sb=new StringBuilder("");
-		if (map==null) { return "None"; } //right now this makes for optimal code on the clients of this function, may not be the case in the future. 
+		if (map==null || map.isEmpty()) { return "None"; } //right now this makes for optimal code on the clients of this function, may not be the case in the future. 
 		java.util.Iterator<String> it=map.keySet().iterator();
 		while (it.hasNext())
 		{
 			sb.append(it.next());
 			if (it.hasNext()) { sb.append(", "); }
 		}
-		if (sb.length()>2) { return sb.toString(); }
-		return "None";
+		return sb.toString();
 	}
 
 	protected void readCustomScorefile()

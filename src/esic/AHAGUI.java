@@ -22,11 +22,11 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	protected org.graphstream.ui.view.ViewerPipe m_graphViewPump=null;
 	protected AHAModel m_model=null;
 	protected InspectorWindow m_inspectorWindow=null;
+	public static Font s_uiFont=new Font(Font.MONOSPACED,Font.PLAIN,12);
 	
 	public AHAGUI(boolean bigFonts, AHAModel model)
 	{
-		Font uiFont=new Font(Font.MONOSPACED,Font.PLAIN,12);
-		if (bigFonts) { uiFont=new Font(Font.MONOSPACED,Font.PLAIN,18); }
+		if (bigFonts) { s_uiFont=new Font(Font.MONOSPACED,Font.PLAIN,18); }
 		m_model=model;
 		this.getContentPane().setBackground(s_backgroundColor);
 		this.setBackground(s_backgroundColor);
@@ -77,46 +77,46 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			javax.swing.JButton fwBtn=new javax.swing.JButton("FW Suggestions");
 			fwBtn.setActionCommand("listenerWindow");
 			fwBtn.addActionListener(this);
-			fwBtn.setFont(uiFont);
+			fwBtn.setFont(s_uiFont);
 			fwBtn.setToolTipText(styleToolTipText("Shows the list of listening processes to aid in creation of firewall rules."));
 			
 			javax.swing.JButton resetBtn=new javax.swing.JButton("Reset Zoom");
 			resetBtn.setActionCommand("resetZoom");
 			resetBtn.addActionListener(this);
-			resetBtn.setFont(uiFont);
+			resetBtn.setFont(s_uiFont);
 			resetBtn.setToolTipText(styleToolTipText("Resets the zoom of the graph view to default."));
 
 			javax.swing.JButton inspectorBtn=new javax.swing.JButton("Show Inspector");
 			inspectorBtn.setActionCommand("showInspector");
 			inspectorBtn.addActionListener(this);
-			inspectorBtn.setFont(uiFont);
+			inspectorBtn.setFont(s_uiFont);
 			inspectorBtn.setToolTipText(styleToolTipText("Show the graph detail inspector."));
 			
 			javax.swing.JComboBox<AHAModel.ScoreMethod> scoreMethod=new javax.swing.JComboBox<AHAModel.ScoreMethod>(AHAModel.ScoreMethod.values());
 			scoreMethod.setActionCommand("scoreMethod");
 			scoreMethod.addActionListener(this);
-			scoreMethod.setFont(uiFont);
+			scoreMethod.setFont(s_uiFont);
 			scoreMethod.setToolTipText(styleToolTipText("Select the scoring method used to calculate node scores"));
 			
 			m_hideOSProcsCheckbox.setForeground(s_foregroundColor);
 			m_hideOSProcsCheckbox.setBackground(s_backgroundColor);
 			m_hideOSProcsCheckbox.setActionCommand("hideOSProcs");
 			m_hideOSProcsCheckbox.addActionListener(this);
-			m_hideOSProcsCheckbox.setFont(uiFont);
+			m_hideOSProcsCheckbox.setFont(s_uiFont);
 			m_hideOSProcsCheckbox.setToolTipText(styleToolTipText("Hides the usual Windows™ operating system processes, while interesting these processes can get in the way of other analysis."));
 			
 			m_hideExtCheckbox.setForeground(s_foregroundColor);
 			m_hideExtCheckbox.setBackground(s_backgroundColor);
 			m_hideExtCheckbox.setActionCommand("hideExtNode");
 			m_hideExtCheckbox.addActionListener(this);
-			m_hideExtCheckbox.setFont(uiFont);
+			m_hideExtCheckbox.setFont(s_uiFont);
 			m_hideExtCheckbox.setToolTipText(styleToolTipText("Hides the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to."));
 			
 			m_showFQDN.setForeground(s_foregroundColor);
 			m_showFQDN.setBackground(s_backgroundColor);
 			m_showFQDN.setActionCommand("showFQDN");
 			m_showFQDN.addActionListener(this);
-			m_showFQDN.setFont(uiFont);
+			m_showFQDN.setFont(s_uiFont);
 			m_showFQDN.setToolTipText(styleToolTipText("Show the DNS names of external nodes rather than IPs."));
 			
 			javax.swing.JCheckBox useCustom=new javax.swing.JCheckBox("Custom ScoreFile");
@@ -125,7 +125,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			useCustom.setBackground(s_backgroundColor);
 			useCustom.setSelected(m_model.m_overlayCustomScoreFile);
 			useCustom.addActionListener(this);
-			useCustom.setFont(uiFont);
+			useCustom.setFont(s_uiFont);
 			useCustom.setToolTipText(styleToolTipText("If a custom score file was loaded, this option will apply those custom directives to the graph view."));
 			
 			bottomButtons.setBackground(s_backgroundColor);
@@ -141,15 +141,15 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			
 			gbc.gridx=0; gbc.gridy=0; gbc.anchor=java.awt.GridBagConstraints.WEST; gbc.weightx=10;
 			m_name.setForeground(s_foregroundColor);
-			m_name.setFont(uiFont);
+			m_name.setFont(s_uiFont);
 			bottomPanel.add(m_name, gbc);
 			gbc.gridy++;
 			m_connections.setForeground(s_foregroundColor);
-			m_connections.setFont(uiFont);
+			m_connections.setFont(s_uiFont);
 			bottomPanel.add(m_connections, gbc);
 			gbc.gridy++;
 			m_score.setForeground(s_foregroundColor);
-			m_score.setFont(uiFont);
+			m_score.setFont(s_uiFont);
 			bottomPanel.add(m_score, gbc);
 			gbc.gridy++;
 			bottomPanel.add(bottomButtons, gbc);
@@ -199,46 +199,41 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			{
 				setLayout(new java.awt.BorderLayout());
 				{
-					javax.swing.JTable listeningProcessesTable=new javax.swing.JTable();
-					String[] columns={"Listening Process", "PID", "Protocol", "Port"};
-					javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)listeningProcessesTable.getModel();
-					listeningProcessesTable.setForeground(AHAGUI.s_foregroundColor);
-					listeningProcessesTable.setBackground(AHAGUI.s_backgroundColor);
-					listeningProcessesTable.getTableHeader().setForeground(AHAGUI.s_foregroundColor);
-					listeningProcessesTable.getTableHeader().setBackground(AHAGUI.s_backgroundColor);
-					listeningProcessesTable.getTableHeader().setBorder(null);
-					listeningProcessesTable.setGridColor(Color.DARK_GRAY);
-					listeningProcessesTable.setFont(new Font(Font.MONOSPACED,Font.PLAIN,12));
-					listeningProcessesTable.getTableHeader().setBackground(Color.DARK_GRAY);
-					listeningProcessesTable.setPreferredScrollableViewportSize(listeningProcessesTable.getPreferredSize());
-					listeningProcessesTable.setAutoscrolls(true);
 					
-					java.util.TreeMap<String,String[]> sortMe=new java.util.TreeMap<String,String[]>();
-					for (java.util.Map.Entry<String, String> entry : m_model.m_allListeningProcessMap.entrySet())
+//				listeningProcessesTable.setFont(new Font(Font.MONOSPACED,Font.PLAIN,12));
+					javax.swing.JTable[] tableRefs=new javax.swing.JTable[2];
+					tableRefs[0]=new javax.swing.JTable();
+					tableRefs[1]=new javax.swing.JTable();
+					String[] intColumns={"Processes Listening Internally", "PID", "Protocol", "Port"}, extColumns={"Processes Listening Externally", "PID", "Protocol", "Port"};
+					String[][] columnHeaders=new String[2][];
+					columnHeaders[0]=intColumns; columnHeaders[1]=extColumns;
+					String[][][] tableData=new String[2][][];
+					java.util.TreeMap<String,String> dataset=m_model.m_intListeningProcessMap;
+					for (int i=0;i<2;i++)
 					{
-						String key=entry.getKey(), value=entry.getValue();
-						String[] keyTokens=key.split("_"), valueTokens=value.split("_");
-						String strArrVal[]=new String[4];
-						strArrVal[0]=valueTokens[0];
-						strArrVal[1]=valueTokens[1];
-						strArrVal[2]=keyTokens[0].toUpperCase();
-						strArrVal[3]=keyTokens[1];
-						String newKey=valueTokens[0]+valueTokens[1]+"-"+keyTokens[0].toUpperCase()+keyTokens[1];
-						sortMe.put(newKey, strArrVal);
+						java.util.TreeMap<String,String[]> sortMe=new java.util.TreeMap<String,String[]>();
+						for (java.util.Map.Entry<String, String> entry : dataset.entrySet() )
+						{
+							String key=entry.getKey(), value=entry.getValue();
+							String[] keyTokens=key.split("_"), valueTokens=value.split("_");
+							String strArrVal[]=new String[4];
+							strArrVal[0]=valueTokens[0];
+							strArrVal[1]=valueTokens[1];
+							strArrVal[2]=keyTokens[0].toUpperCase();
+							strArrVal[3]=keyTokens[1];
+							String newKey=valueTokens[0]+valueTokens[1]+"-"+keyTokens[0].toUpperCase()+keyTokens[1];
+							sortMe.put(newKey, strArrVal);
+						}
+						String[][] data = new String[sortMe.size()][4];
+						int j=0;
+						for (String[] str : sortMe.values()) { data[j++]=str; }
+						tableData[i]=data;
+						dataset=m_model.m_extListeningProcessMap;
 					}
-					String[][] data = new String[sortMe.size()][4];
-					int i=0;
-					for (String[] str : sortMe.values()) { data[i++]=str; }
-					dm.setDataVector(data, columns);
-					listeningProcessesTable.getColumnModel().getColumn(0).setPreferredWidth(160);
 					
-					javax.swing.JScrollPane scrollPane=new javax.swing.JScrollPane(listeningProcessesTable);
-					scrollPane.setForeground(AHAGUI.s_foregroundColor);
-					scrollPane.setBackground(AHAGUI.s_backgroundColor);
-					scrollPane.getViewport().setForeground(AHAGUI.s_foregroundColor);
-					scrollPane.getViewport().setBackground(AHAGUI.s_backgroundColor);
-					add(scrollPane, java.awt.BorderLayout.CENTER);
-					java.awt.Dimension size=listeningProcessesTable.getPreferredSize();
+					javax.swing.JScrollPane jsp=createTablesInScrollPane(columnHeaders, tableData, tableRefs);
+					add(jsp, java.awt.BorderLayout.CENTER);
+					java.awt.Dimension size=jsp.getPreferredSize();
 					size.setSize(size.getWidth()+20,size.getHeight()+20);
 					setSize(size);
 					setBackground(s_backgroundColor);
@@ -273,84 +268,85 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public void buttonReleased(String id) {} //graph mouse function
 	public void viewClosed(String arg0) {} //graph viewer interface function
 	
+	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][][] initialData, javax.swing.JTable[] tableRefs)
+	{
+		javax.swing.JPanel scrollContent=new javax.swing.JPanel();
+		scrollContent.setLayout(new javax.swing.BoxLayout(scrollContent, javax.swing.BoxLayout.Y_AXIS));
+		scrollContent.setBackground(AHAGUI.s_backgroundColor);
+		
+		for (int i=0; i<tableRefs.length; i++)
+		{
+			javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)tableRefs[i].getModel();
+			dm.setDataVector(initialData[i], columnHeaders[i]);
+			tableRefs[i].setForeground(AHAGUI.s_foregroundColor);
+			tableRefs[i].setBackground(AHAGUI.s_backgroundColor);
+			tableRefs[i].getTableHeader().setForeground(AHAGUI.s_foregroundColor);
+			tableRefs[i].getTableHeader().setBackground(AHAGUI.s_backgroundColor);
+			tableRefs[i].getTableHeader().setBorder(null);
+			tableRefs[i].setGridColor(Color.DARK_GRAY);
+			tableRefs[i].setBorder(null);
+			tableRefs[i].setFont(s_uiFont);
+			tableRefs[i].getColumnModel().getColumn(0).setPreferredWidth(200);
+			if (columnHeaders[i].length > 1)
+			{
+				tableRefs[i].getColumnModel().getColumn(1).setPreferredWidth(60);
+			}
+			tableRefs[i].getTableHeader().setBackground(Color.DARK_GRAY);
+			tableRefs[i].setPreferredScrollableViewportSize(tableRefs[i].getPreferredSize());
+			tableRefs[i].setAlignmentY(TOP_ALIGNMENT);
+			tableRefs[i].getTableHeader().setAlignmentY(TOP_ALIGNMENT);
+			scrollContent.add(tableRefs[i].getTableHeader());
+			scrollContent.add(tableRefs[i]);
+		}
+		JScrollPane scrollPane = new JScrollPane(scrollContent);
+		scrollPane.setForeground(AHAGUI.s_foregroundColor);
+		scrollPane.setBackground(AHAGUI.s_backgroundColor);
+		scrollPane.getViewport().setForeground(AHAGUI.s_foregroundColor);
+		scrollPane.getViewport().setBackground(AHAGUI.s_backgroundColor);
+		scrollPane.setViewportBorder(javax.swing.BorderFactory.createEmptyBorder());
+		scrollPane.setBorder(javax.swing.BorderFactory.createEmptyBorder());
+		return scrollPane;
+	}
+	
 	public static class InspectorWindow extends JFrame
 	{
-		private javax.swing.JTextArea m_name=new javax.swing.JTextArea(1,1);
 		private javax.swing.JCheckBox m_changeOnMouseOver=new javax.swing.JCheckBox("Update Inspector on MouseOver",false);
-		private javax.swing.JTable  m_internalPortsTable=new javax.swing.JTable(), m_extPortsTable=new javax.swing.JTable(), m_connectionTable=new javax.swing.JTable(), m_scoreTable=new javax.swing.JTable();
-		private String[][] m_columnHeaders=new String[4][];
-		private javax.swing.JTable[] m_tableRefs= new javax.swing.JTable[4];
-		private static final int INTERNAL_PORTS_TABLE=0, EXTERNAL_PORTS_TABLE=1, CONNECTIONS_TABLE=2, SCORE_TABLE=3;
+		private javax.swing.JTable  m_infoTable=new javax.swing.JTable(), m_internalPortsTable=new javax.swing.JTable(), m_extPortsTable=new javax.swing.JTable(), m_connectionTable=new javax.swing.JTable(), m_scoreTable=new javax.swing.JTable();
+		private String[][] m_columnHeaders=new String[5][];
+		private javax.swing.JTable[] m_tableRefs= new javax.swing.JTable[5];
+		private static final int INFO_TABLE=0, INTERNAL_PORTS_TABLE=1, EXTERNAL_PORTS_TABLE=2, CONNECTIONS_TABLE=3, SCORE_TABLE=4;
+		
 		public InspectorWindow(javax.swing.JFrame parent)
 		{
-			this.setTitle("Inspector Window");
-			this.setBackground(AHAGUI.s_backgroundColor);
-			this.getContentPane().setBackground(s_backgroundColor);
+			setTitle("Inspector Window");
+			setBackground(AHAGUI.s_backgroundColor);
+			getContentPane().setBackground(s_backgroundColor);
 			getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.gray));
-			this.setLayout(new java.awt.GridBagLayout());
+			setLayout(new java.awt.GridBagLayout());
 			java.awt.GridBagConstraints gbc=new java.awt.GridBagConstraints();
-			
+			gbc.insets = new java.awt.Insets(2, 5, 2, 5);
 			gbc.fill=gbc.fill=GridBagConstraints.BOTH;
-			gbc.gridx=0; gbc.gridy=0;  gbc.weightx=10; gbc.weighty=10;
+			gbc.gridx=0; gbc.gridy=0;  gbc.weightx=1; gbc.weighty=10;
 			
-			javax.swing.JPanel scrollContent=new javax.swing.JPanel();
-			scrollContent.setLayout(new java.awt.GridBagLayout());
-			scrollContent.setBackground(AHAGUI.s_backgroundColor);
 			
-			m_name.setForeground(AHAGUI.s_foregroundColor);
-			m_name.setBackground(AHAGUI.s_backgroundColor);
-			m_name.setLineWrap(true);
-			m_name.setText("Name: ");
-			scrollContent.add(m_name, gbc);
-			gbc.gridy++;
-			gbc.weighty=100;
-			
-			String[][] emptyData=new String[1][2];
-			String[] intPortsTblHdr={"Open Internal Port", "Proto"}, extPortsTblHdr={"Open External Port", "Proto"}, connectionTblHdr={"Connected Process Name", "PID"}, scoreTblHdr={"Score Metric", "Value"};
+			String[] infoTblHdr= {"Info"}, intPortsTblHdr={"Open Internal Port", "Proto"}, extPortsTblHdr={"Open External Port", "Proto"}, connectionTblHdr={"Connected Process Name", "PID"}, scoreTblHdr={"Score Metric", "Value"};
+			m_columnHeaders[INFO_TABLE]=infoTblHdr;
 			m_columnHeaders[INTERNAL_PORTS_TABLE]=intPortsTblHdr;
 			m_columnHeaders[EXTERNAL_PORTS_TABLE]=extPortsTblHdr;
 			m_columnHeaders[CONNECTIONS_TABLE]=connectionTblHdr;
 			m_columnHeaders[SCORE_TABLE]=scoreTblHdr;
 			
+			m_tableRefs[INFO_TABLE]=m_infoTable;
 			m_tableRefs[INTERNAL_PORTS_TABLE]=m_internalPortsTable;
 			m_tableRefs[EXTERNAL_PORTS_TABLE]=m_extPortsTable;
 			m_tableRefs[CONNECTIONS_TABLE]=m_connectionTable;
 			m_tableRefs[SCORE_TABLE]=m_scoreTable;
 			
-			for (int i=0; i<m_tableRefs.length; i++)
-			{
-				javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)m_tableRefs[i].getModel();
-				dm.setDataVector(emptyData, m_columnHeaders[i]);
-				m_tableRefs[i].setForeground(AHAGUI.s_foregroundColor);
-				m_tableRefs[i].setBackground(AHAGUI.s_backgroundColor);
-				m_tableRefs[i].getTableHeader().setForeground(AHAGUI.s_foregroundColor);
-				m_tableRefs[i].getTableHeader().setBackground(AHAGUI.s_backgroundColor);
-				m_tableRefs[i].getTableHeader().setBorder(null);
-				m_tableRefs[i].setGridColor(Color.DARK_GRAY);
-				m_tableRefs[i].setBorder(null);
-				m_tableRefs[i].getColumnModel().getColumn(0).setPreferredWidth(200);
-				m_tableRefs[i].getColumnModel().getColumn(1).setPreferredWidth(60);
-				m_tableRefs[i].getTableHeader().setBackground(Color.DARK_GRAY);
-				m_tableRefs[i].setPreferredScrollableViewportSize(m_tableRefs[i].getPreferredSize());
-				gbc.fill=java.awt.GridBagConstraints.HORIZONTAL;
-				gbc.weighty=1;
-				scrollContent.add(m_tableRefs[i].getTableHeader(), gbc);
-				gbc.fill=java.awt.GridBagConstraints.BOTH;
-				gbc.weighty=100;
-				gbc.gridy++;
-				scrollContent.add(m_tableRefs[i], gbc);
-				gbc.gridy++;
-			}
+			String[][][] emptyData=new String[5][1][1];
+			for (int i=0; i<emptyData.length;i++) { emptyData[i][0][0]="None"; }
 			
-			JScrollPane scrollPane = new JScrollPane(scrollContent);
-			scrollPane.setForeground(AHAGUI.s_foregroundColor);
-			scrollPane.setBackground(AHAGUI.s_backgroundColor);
-			scrollPane.getViewport().setForeground(AHAGUI.s_foregroundColor);
-			scrollPane.getViewport().setBackground(AHAGUI.s_backgroundColor);
-			scrollPane.setViewportBorder(javax.swing.BorderFactory.createEmptyBorder());
-			scrollPane.setBorder(javax.swing.BorderFactory.createEmptyBorder());
-			gbc.insets = new java.awt.Insets(2, 5, 2, 5);
-			this.add(scrollPane, gbc);
+			gbc.weighty=100;
+			this.add(createTablesInScrollPane(m_columnHeaders, emptyData, m_tableRefs), gbc);
 			
 			m_changeOnMouseOver.setForeground(AHAGUI.s_foregroundColor);
 			m_changeOnMouseOver.setBackground(AHAGUI.s_backgroundColor);
@@ -364,13 +360,22 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			this.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 			this.setVisible(true);
 		}
+		
 		public void updateDisplayForGraphElement(org.graphstream.ui.graphicGraph.GraphicElement element, boolean occuredFromMouseOver, AHAModel model)
 		{
 			if (element==null || occuredFromMouseOver && !m_changeOnMouseOver.isSelected()) { return; }
 			Node node=model.m_graph.getNode(element.getId());
 			if (node==null) { return; }
 			
-			String[][] intPorts=null, extPorts=null, connectionData=null, scoreReasons=null;
+			String[][] infoData=null, intPorts=null, extPorts=null, connectionData=null, scoreReasons=null;
+			
+			try
+			{
+				String[] infoLines=getNameString(node,"\n").trim().split("\n");
+				infoData=new String[infoLines.length][1];
+				for (int i=0;i<infoLines.length;i++) { infoData[i][0]=infoLines[i]; }
+			} catch (Exception e) { e.printStackTrace(); }
+			
 			try
 			{
 				String[] ports=AHAModel.getCommaSepKeysFromStringMap(element.getAttribute("ui.localListeningPorts")).split(", ");
@@ -417,7 +422,8 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 				for (int i=0;i<scores.length;i++) { scoreReasons[i]=scores[i].split("="); }
 			} catch (Exception e) { e.printStackTrace(); }
 			
-			final String[][][] data=new String[4][][];
+			final String[][][] data=new String[5][][];
+			data[INFO_TABLE]=infoData; 
 			data[INTERNAL_PORTS_TABLE]=intPorts; 
 			data[EXTERNAL_PORTS_TABLE]=extPorts;
 			data[CONNECTIONS_TABLE]=connectionData;
@@ -427,15 +433,17 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			{
 				public void run()
 				{
-					m_name.setText(getNameString(node,"\n"));
 					for (int i=0;i<data.length;i++)
 					{
 						try
 						{
 							javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)m_tableRefs[i].getModel();
 							dm.setDataVector(data[i], m_columnHeaders[i]);
-							m_tableRefs[i].getColumnModel().getColumn(0).setPreferredWidth(200);
-							m_tableRefs[i].getColumnModel().getColumn(1).setPreferredWidth(60);
+							if (i>0)
+							{
+								m_tableRefs[i].getColumnModel().getColumn(0).setPreferredWidth(200);
+								m_tableRefs[i].getColumnModel().getColumn(1).setPreferredWidth(60);
+							}
 						} catch (Exception e) { e.printStackTrace(); }
 					}
 				}
@@ -449,7 +457,6 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		String score=node.getAttribute("ui.scoreReason");
 		if (extendedReason) { score=node.getAttribute("ui.scoreExtendedReason"); }
 		if (score==null) { score=" "; }
-		//else { score="Score: "+score; }
 		if (node.getAttribute("ui.class")!=null && node.getAttribute("ui.class").toString().toLowerCase().equals("external")) { score="Score: N/A"; } //this was requested to make the UI feel cleaner, since nothing can be done to help the score of an external node anyway.
 		return score;
 	}
@@ -484,16 +491,15 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		String nameTxt="Name: "+node.getAttribute("ui.label")+separator+"User: "+node.getAttribute("username")+separator+"Path: "+node.getAttribute("processpath");
 		String services=node.getAttribute("processservices");
 		String uiclass=node.getAttribute("ui.class");
-		//nameTxt="Name: "+node.getAttribute("ui.label"); //TODO: we should use the name here, not the id for most calls of getId() in this function
 		if (uiclass!=null && uiclass.equalsIgnoreCase("external")) 
 		{ 
 			if (node.getAttribute("IP")!=null)
 			{
-				nameTxt+=separator+"IP: "+node.getAttribute("IP")+separator+"DNS Name: "+node.getAttribute("hostname"); 
+				nameTxt="Name: "+node.getAttribute("ui.label")+separator+"IP: "+node.getAttribute("IP")+separator+"DNS Name: "+node.getAttribute("hostname"); 
 			}
 			else if (node.getId().toLowerCase().equals("external"))
 			{
-				nameTxt+=" - dummy node which connects to any node listening for outside connections. This can be hidden using 'Hide Ext Node' checkbox.";
+				nameTxt="Name:"+node.getAttribute("ui.label")+separator+"dummy node which connects to any node listening for outside connections. This can be hidden using 'Hide Ext Node' checkbox.";
 			}
 		}
 		if (services!=null && !services.equals("") && !services.equals("null")) { nameTxt+=separator+"Services: "+services; }
