@@ -9,7 +9,7 @@ Developed by ESIC, Washington State University.
 [Click here for user walkthrough / documentation](https://aha-project.github.io/)
 
 # Build Instructions
-Note: if you're just looking to run AHA-GUI builds are periodically posted under [releases](https://github.com/aha-project/AHA-GUI/releases "releases").
+Note: if you're just looking to run AHA-GUI builds are periodically posted under [the GitHub Repo's releases tab](https://github.com/aha-project/AHA-GUI/releases).
 
 ## Prerequisites
 - Install Java 1.8
