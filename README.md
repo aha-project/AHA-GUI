@@ -11,14 +11,15 @@ Developed by ESIC, Washington State University.
 # Build Instructions
 Note: if you're just looking to run AHA-GUI builds are periodically posted under [the GitHub Repo's releases tab](https://github.com/aha-project/AHA-GUI/releases).
 
-## Prerequisites
-- Install Java 1.8
-- Install apache ant
+## Build Prerequisites
+- Install Java 1.8 (required to build and run)
+- Install apache ant (only required to build)
 - Clone the repo
 
 ## Build
-- cd to the directory with the build.xml in it
+- `cd` to the directory with the `build.xml` in it
 - run `ant`
+- the `build` directory will contain the resulting built project
 - (if you'd like to clean after making changes and before rebuilding you can run `ant clean`)
 
 # NOTE:
