@@ -89,9 +89,9 @@ public class AHAModel
 			while ((line = buff.readLine()) != null)
 			{
 				line=line.trim();
-				if (line.startsWith("//") || line.startsWith("#")) { /*System.out.println("Comment");*/ continue; }
+				if (line.startsWith("//") || line.startsWith("#")) { continue; }
 				String[] tokens=fixCSVLine(line);
-				if (tokens.length<2) { /*System.out.println("skip, insufficient tokens");*/ continue;}
+				if (tokens.length<2) { continue;}
 				int scoreDelta=-10000;
 				try { scoreDelta=Integer.parseInt(tokens[2]); }
 				catch (Exception e) { e.printStackTrace(); }
@@ -115,26 +115,26 @@ public class AHAModel
 		java.util.TreeMap<String, Integer> lowestScoreForUserName=new java.util.TreeMap<String, Integer>();
 		for (Node node : graph) //Stage 1 of scoring, either the entirety of a scoring algorithm, such as "Normal", or the first pass for multi stage algs
 		{
-			String nodeClass=node.getAttribute("ui.class"); 
-			int score=generateNormalNodeScore(node);
-			node.setAttribute(scrMethdAttr(ScoreMethod.Normal), Integer.toString(score)); //if we didn't have a custom score from another file, use our computed score
-			
-			//Begin WorstUserProc stage1 scoring
-			String nodeUserName=node.getAttribute("username");
-			if ( nodeUserName!=null )
+			try
 			{
-				Integer lowScore=lowestScoreForUserName.remove(nodeUserName);
-				if (lowScore!=null && score>lowScore) { score=lowScore.intValue(); }
-				lowestScoreForUserName.put(nodeUserName,score);
-			}
-			//End WorstUserProc stage1 scoring
-			
-			//Begin EC Method stage1 scoring
-			{
-				if(nodeClass!=null && nodeClass.equalsIgnoreCase("external")) { node.setAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", Integer.toString(200)); }
-				else { node.setAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", Double.toString(100-score)); } 
-			}
-			//End EC Method stage 1 scoring
+				String nodeClass=node.getAttribute("ui.class"); 
+				int score=generateNormalNodeScore(node);
+				node.addAttribute(scrMethdAttr(ScoreMethod.Normal), Integer.toString(score)); //if we didn't have a custom score from another file, use our computed score
+				
+				//Begin WorstUserProc stage1 scoring
+				String nodeUserName=node.getAttribute("username");
+				if ( nodeUserName!=null )
+				{
+					Integer lowScore=lowestScoreForUserName.remove(nodeUserName);
+					if (lowScore!=null && score>lowScore) { score=lowScore.intValue(); }
+					lowestScoreForUserName.put(nodeUserName,score);
+				} //End WorstUserProc stage1 scoring
+				
+				{ //Begin EC Method stage1 scoring
+					if(nodeClass!=null && nodeClass.equalsIgnoreCase("external")) { node.addAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", Integer.toString(200)); }
+					else { node.addAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", Double.toString(100-score)); } 
+				} //End EC Method stage 1 scoring
+			} catch (Exception e) { e.printStackTrace(); }
 		}
 
 		//Begin EC between loop compute
@@ -144,26 +144,24 @@ public class AHAModel
 		System.out.println("Worst User Scores="+lowestScoreForUserName);
 		//END EC between 
 		
-		for (Node node:graph) //Stage 2 of scoring, for scoring algorithms that need to make a seccond pass over the graph
+		for (Node node:graph) //Stage 2 of scoring, for scoring algorithms that need to make a second pass over the graph
 		{
-			//Begin WorstUserProc stage2 scoring
-			String nodeUserName=node.getAttribute("username");
-			if (nodeUserName!=null)
-			{
-				Integer lowScore=lowestScoreForUserName.get(node.getAttribute("username"));
-				if (lowScore==null) { System.out.println("no low score found, this should not happen"); continue; }
-				node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProc), lowScore.toString()); 
-			}
-			//End WorstUserProc stage2 scoring
-			
-			//Begin EC stage2 scoring
-			{
-				double nodeScore   = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
-				double ecNodeScore = node.getAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp");
-				ecNodeScore = nodeScore * (1-2*ecNodeScore);
-				node.setAttribute(scrMethdAttr(ScoreMethod.ECScore), ((Integer)((Double)ecNodeScore).intValue()).toString());
-			}
-			//End EC stage2 scoring
+			try
+			{ //Begin WorstUserProc stage2 scoring
+				String nodeUserName=node.getAttribute("username");
+				if (nodeUserName!=null)
+				{
+					Integer lowScore=lowestScoreForUserName.get(node.getAttribute("username"));
+					if (lowScore==null) { System.out.println("no low score found, this should not happen"); continue; }
+					node.addAttribute(scrMethdAttr(ScoreMethod.WorstCommonProc), lowScore.toString());
+				} //End WorstUserProc stage2 scoring
+				{ //Begin EC stage2 scoring
+					double nodeScore   = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
+					double ecNodeScore = node.getAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp");
+					ecNodeScore = nodeScore * (1-2*ecNodeScore);
+					node.addAttribute(scrMethdAttr(ScoreMethod.ECScore), ((Integer)((Double)ecNodeScore).intValue()).toString());
+				} //End EC stage2 scoring
+			} catch (Exception e) { e.printStackTrace(); }
 		}
 		swapNodeStyles(ScoreMethod.Normal, time); //since we just finished doing the scores, swap to the 'Normal' score style when we're done.
 	}
@@ -193,8 +191,8 @@ public class AHAModel
 			catch (Exception e) { System.out.println(e.getMessage()); }
 		}
 		System.out.println("  Score: " + score);
-		n.setAttribute(scrMethdAttr(ScoreMethod.Normal)+"Reason", "FinalScore="+score+scoreReason);
-		n.setAttribute(scrMethdAttr(ScoreMethod.Normal)+"ExtendedReason", "FinalScore="+score+extendedReason);
+		n.addAttribute(scrMethdAttr(ScoreMethod.Normal)+"Reason", "FinalScore="+score+scoreReason);
+		n.addAttribute(scrMethdAttr(ScoreMethod.Normal)+"ExtendedReason", "FinalScore="+score+extendedReason);
 		return score;
 	}
 
@@ -214,9 +212,9 @@ public class AHAModel
 				{
 					if (currentClass!=null && currentClass.equalsIgnoreCase("external"))
 					{ 
-						n.setAttribute("ui.score", "0");
-						n.setAttribute("ui.scoreReason", "External Node");
-						n.setAttribute("ui.scoreExtendedReason", "External Node");
+						n.addAttribute("ui.score", "0");
+						n.addAttribute("ui.scoreReason", "External Node");
+						n.addAttribute("ui.scoreExtendedReason", "External Node");
 					}
 					else if (m_overlayCustomScoreFile==true && customStyle!=null && customStyle.equalsIgnoreCase("yes"))
 					{
@@ -225,19 +223,19 @@ public class AHAModel
 						n.removeAttribute("ui.class");
 						n.addAttribute("ui.style", style);
 						n.addAttribute("ui.score", score);
-						n.setAttribute("ui.scoreReason", "Custom Scorefile Overlay");
-						n.setAttribute("ui.scoreExtendedReason", "Custom Scorefile Overlay");
+						n.addAttribute("ui.scoreReason", "Custom Scorefile Overlay");
+						n.addAttribute("ui.scoreExtendedReason", "Custom Scorefile Overlay");
 					}
 					else if (intScore!=null)
 					{ 
 						int score=intScore.intValue();
 						n.addAttribute("ui.score", score);
-						if (sScoreReason!=null) { n.setAttribute("ui.scoreReason", sScoreReason); } //TODO: since scoreReason only really exists for 'normal' this means that 'normal' reason persists in other scoring modes. For modes that do not base their reasoning on 'normal' this is probably incorrect.
-						if (sScoreExtendedReason!=null) { n.setAttribute("ui.scoreExtendedReason", sScoreExtendedReason); }
+						if (sScoreReason!=null) { n.addAttribute("ui.scoreReason", sScoreReason); } //TODO: since scoreReason only really exists for 'normal' this means that 'normal' reason persists in other scoring modes. For modes that do not base their reasoning on 'normal' this is probably incorrect.
+						if (sScoreExtendedReason!=null) { n.addAttribute("ui.scoreExtendedReason", sScoreExtendedReason); }
 						System.out.print(n.getId()+" Applying Score: " + score);
-						n.setAttribute("ui.class", "high"); //default
-						if(score > m_minScoreLowVuln) { n.setAttribute("ui.class", "low"); System.out.println("   Scored: low");}
-						else if(score > m_minScoreMedVuln) { n.setAttribute("ui.class", "medium"); System.out.println("   Scored: medium");} 
+						n.addAttribute("ui.class", "high"); //default
+						if(score > m_minScoreLowVuln) { n.addAttribute("ui.class", "low"); System.out.println("   Scored: low");}
+						else if(score > m_minScoreMedVuln) { n.addAttribute("ui.class", "medium"); System.out.println("   Scored: medium");} 
 						else { System.out.println("   Scored: high"); }
 					}
 				}
@@ -329,14 +327,14 @@ public class AHAModel
 						java.util.TreeMap<String,String> listeningPorts=node.getAttribute(portMapKey);
 						if (listeningPorts==null ) { listeningPorts=new java.util.TreeMap<String,String>(); }
 						listeningPorts.put(protoLocalPort, protoLocalPort);
-						node.setAttribute(portMapKey, listeningPorts);
+						node.addAttribute(portMapKey, listeningPorts);
 					}
 					for (int i=0;i<tokens.length && i<header.length;i++)
 					{
 						String processToken=tokens[i];
 						if (  processToken==null || processToken.isEmpty() ) { processToken="null"; }
 						if (m_debug) { System.out.printf("   Setting attribute %s for process %s\n",header[i],tokens[i]); }
-						node.setAttribute(header[i],processToken);
+						node.addAttribute(header[i],processToken);
 					}
 				}
 				catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
@@ -392,7 +390,7 @@ public class AHAModel
 							{
 								Node tempNode=m_graph.getNode(fromNode);
 								boolean duplicateEdge=false, timewait=false;
-								if (connectionState.toLowerCase().contains("time")) { timewait=true; }
+								if (connectionState.toLowerCase().contains("wait")) { timewait=true; }
 								if (tempNode!=null)
 								{
 									for (Edge e : tempNode.getEdgeSet())
@@ -403,11 +401,11 @@ public class AHAModel
 								Edge e=m_graph.addEdge(String.valueOf(++connectionNumber),fromNode,toNode);
 								if (e!=null)
 								{
-									e.setAttribute("layout.weight", 10); //try to make internal edges longer
-									if (duplicateEdge) { e.setAttribute("layout.weight", 5); }
-									if (timewait && !duplicateEdge) { e.setAttribute("ui.class", "tw"); }
-									if (!timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate"); }
-									if (timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicatetw"); }
+									e.addAttribute("layout.weight", 10); //try to make internal edges longer
+									if (duplicateEdge) { e.addAttribute("layout.weight", 5); }
+									if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "tw"); }
+									if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate"); }
+									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicatetw"); }
 									if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode); }
 								}
 							}
@@ -424,7 +422,7 @@ public class AHAModel
 							toNode="Ext_"+remoteAddr;
 							if (remoteHostname==null || remoteHostname.equals("")) { remoteHostname=remoteAddr; } //cover the case that there is no FQDN
 							boolean duplicateEdge=false, timewait=false;
-							if (connectionState.toLowerCase().contains("time")) { timewait=true; }
+							if (connectionState.toLowerCase().contains("wait")) { timewait=true; }
 							if (tempNode!=null)
 							{
 								for (Edge e : tempNode.getEdgeSet())
@@ -440,12 +438,12 @@ public class AHAModel
 							m_graph.getNode(toNode).addAttribute("IP", remoteAddr);
 							if (e!=null)
 							{
-								e.setAttribute("layout.weight", 9); //try to make internal edges longer
-								if (duplicateEdge) { e.setAttribute("layout.weight", 4); }
+								e.addAttribute("layout.weight", 9); //try to make internal edges longer
+								if (duplicateEdge) { e.addAttribute("layout.weight", 4); }
 								if (!timewait && !duplicateEdge) { e.addAttribute("ui.class", "external"); }
-								if (!timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicateExternal"); }
-								if (timewait && !duplicateEdge) { e.setAttribute("ui.class", "externaltw"); } 
-								if (timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicateExternaltw"); }
+								if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicateExternal"); }
+								if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "externaltw"); } 
+								if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicateExternaltw"); }
 							}
 						}
 						//else if (m_listeningProcessMap.get(protoLocalPort)==null) //if we have a local port in the listeners we can ignore this connection
@@ -470,7 +468,18 @@ public class AHAModel
 		readCustomScorefile();
 		useFQDNLabels(m_graph, m_gui.m_showFQDN.isSelected());
 		exploreAndScore(m_graph);
-
+		new Thread(){
+			public void run()
+			{
+				while (!Thread.interrupted())
+				{
+					try { m_gui.m_graphViewPump.blockingPump(); }
+					catch (Exception e) { e.printStackTrace(); }
+				}
+			}
+		}.start();
+		
+		
 		java.util.Vector<Node> leftSideNodes=new java.util.Vector<Node>();
 		for (Node n : m_graph) 
 		{
@@ -487,7 +496,7 @@ public class AHAModel
 		for (Node n : leftSideNodes)
 		{ 
 			org.graphstream.ui.geom.Point3 loc=m_gui.m_viewPanel.getCamera().transformPxToGu(30, (m_gui.m_viewPanel.getHeight()/numLeftNodes)*i);
-			n.setAttribute("xyz", loc.x,loc.y,loc.z);
+			n.addAttribute("xyz", loc.x,loc.y,loc.z);
 			i++;
 		}
 	}

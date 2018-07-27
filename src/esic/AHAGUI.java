@@ -54,16 +54,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		m_model.m_graph.addAttribute("ui.antialias", true); //enable anti aliasing (looks way better this way)
 		this.add(m_viewPanel, java.awt.BorderLayout.CENTER);
 		
-		new Thread(){
-			public void run()
-			{
-				while (!Thread.interrupted())
-				{
-					try { m_graphViewPump.blockingPump(); }
-					catch (Exception e) { e.printStackTrace(); }
-				}
-			}
-		}.start();
+		
 
 		javax.swing.JPanel bottomPanel=new javax.swing.JPanel();
 		{
@@ -194,17 +185,13 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 
 	private void showListenerSocketWindow() //shows the window that lists the listening sockets
 	{
-		new JFrame()
+		new JFrame("Listening Processes")
 		{
 			{
 				setLayout(new java.awt.BorderLayout());
 				{
-					
-//				listeningProcessesTable.setFont(new Font(Font.MONOSPACED,Font.PLAIN,12));
 					javax.swing.JTable[] tableRefs=new javax.swing.JTable[2];
-					tableRefs[0]=new javax.swing.JTable();
-					tableRefs[1]=new javax.swing.JTable();
-					String[] intColumns={"Processes Listening Internally", "PID", "Protocol", "Port"}, extColumns={"Processes Listening Externally", "PID", "Protocol", "Port"};
+					String[] intColumns={"Listening Internally", "PID", "Proto", "Port"}, extColumns={"Listening Externally", "PID", "Proto", "Port"};
 					String[][] columnHeaders=new String[2][];
 					columnHeaders[0]=intColumns; columnHeaders[1]=extColumns;
 					String[][][] tableData=new String[2][][];
@@ -231,11 +218,10 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 						dataset=m_model.m_extListeningProcessMap;
 					}
 					
-					javax.swing.JScrollPane jsp=createTablesInScrollPane(columnHeaders, tableData, tableRefs);
+					javax.swing.JScrollPane jsp=createTablesInScrollPane(columnHeaders, tableData, tableRefs, new int[]{200,50,50,50});
 					add(jsp, java.awt.BorderLayout.CENTER);
 					java.awt.Dimension size=jsp.getPreferredSize();
-					size.setSize(size.getWidth()+20,size.getHeight()+20);
-					setSize(size);
+					setSize(new java.awt.Dimension((int)size.getWidth()+40,768));
 					setBackground(s_backgroundColor);
 					getContentPane().setBackground(s_backgroundColor);
 					getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.gray));
@@ -268,7 +254,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public void buttonReleased(String id) {} //graph mouse function
 	public void viewClosed(String arg0) {} //graph viewer interface function
 	
-	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][][] initialData, javax.swing.JTable[] tableRefs)
+	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][][] initialData, javax.swing.JTable[] tableRefs, int[] columnWidths)
 	{
 		javax.swing.JPanel scrollContent=new javax.swing.JPanel();
 		scrollContent.setLayout(new javax.swing.BoxLayout(scrollContent, javax.swing.BoxLayout.Y_AXIS));
@@ -276,6 +262,23 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		
 		for (int i=0; i<tableRefs.length; i++)
 		{
+			if (tableRefs[i]==null) 
+			{ 
+				tableRefs[i]=new javax.swing.JTable() 
+				{
+					public java.awt.Component prepareRenderer(javax.swing.table.TableCellRenderer renderer, int row, int column) 
+					{
+						java.awt.Component c = super.prepareRenderer(renderer, row, column);
+		        if (c instanceof javax.swing.JComponent) 
+		        {
+	            javax.swing.JComponent jc = (javax.swing.JComponent) c;
+	            Object o=getValueAt(row, column);
+	            if (o!=null) {  jc.setToolTipText(o.toString()); }
+		        }
+		        return c;
+					}
+				}; 
+			}
 			javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)tableRefs[i].getModel();
 			dm.setDataVector(initialData[i], columnHeaders[i]);
 			tableRefs[i].setForeground(AHAGUI.s_foregroundColor);
@@ -286,15 +289,12 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			tableRefs[i].setGridColor(Color.DARK_GRAY);
 			tableRefs[i].setBorder(null);
 			tableRefs[i].setFont(s_uiFont);
-			tableRefs[i].getColumnModel().getColumn(0).setPreferredWidth(200);
-			if (columnHeaders[i].length > 1)
-			{
-				tableRefs[i].getColumnModel().getColumn(1).setPreferredWidth(60);
-			}
+			for (int j=0;j<tableRefs[i].getColumnModel().getColumnCount() && j<columnWidths.length; j++) { tableRefs[i].getColumnModel().getColumn(j).setPreferredWidth(columnWidths[j]); }
 			tableRefs[i].getTableHeader().setBackground(Color.DARK_GRAY);
 			tableRefs[i].setPreferredScrollableViewportSize(tableRefs[i].getPreferredSize());
 			tableRefs[i].setAlignmentY(TOP_ALIGNMENT);
 			tableRefs[i].getTableHeader().setAlignmentY(TOP_ALIGNMENT);
+			tableRefs[i].setAutoCreateRowSorter(true);
 			scrollContent.add(tableRefs[i].getTableHeader());
 			scrollContent.add(tableRefs[i]);
 		}
@@ -311,7 +311,6 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public static class InspectorWindow extends JFrame
 	{
 		private javax.swing.JCheckBox m_changeOnMouseOver=new javax.swing.JCheckBox("Update Inspector on MouseOver",false);
-		private javax.swing.JTable  m_infoTable=new javax.swing.JTable(), m_internalPortsTable=new javax.swing.JTable(), m_extPortsTable=new javax.swing.JTable(), m_connectionTable=new javax.swing.JTable(), m_scoreTable=new javax.swing.JTable();
 		private String[][] m_columnHeaders=new String[5][];
 		private javax.swing.JTable[] m_tableRefs= new javax.swing.JTable[5];
 		private static final int INFO_TABLE=0, INTERNAL_PORTS_TABLE=1, EXTERNAL_PORTS_TABLE=2, CONNECTIONS_TABLE=3, SCORE_TABLE=4;
@@ -336,17 +335,11 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			m_columnHeaders[CONNECTIONS_TABLE]=connectionTblHdr;
 			m_columnHeaders[SCORE_TABLE]=scoreTblHdr;
 			
-			m_tableRefs[INFO_TABLE]=m_infoTable;
-			m_tableRefs[INTERNAL_PORTS_TABLE]=m_internalPortsTable;
-			m_tableRefs[EXTERNAL_PORTS_TABLE]=m_extPortsTable;
-			m_tableRefs[CONNECTIONS_TABLE]=m_connectionTable;
-			m_tableRefs[SCORE_TABLE]=m_scoreTable;
-			
 			String[][][] emptyData=new String[5][1][1];
 			for (int i=0; i<emptyData.length;i++) { emptyData[i][0][0]="None"; }
 			
 			gbc.weighty=100;
-			this.add(createTablesInScrollPane(m_columnHeaders, emptyData, m_tableRefs), gbc);
+			this.add(createTablesInScrollPane(m_columnHeaders, emptyData, m_tableRefs, new int[]{160,40}), gbc);
 			
 			m_changeOnMouseOver.setForeground(AHAGUI.s_foregroundColor);
 			m_changeOnMouseOver.setBackground(AHAGUI.s_backgroundColor);
@@ -439,10 +432,10 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 						{
 							javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)m_tableRefs[i].getModel();
 							dm.setDataVector(data[i], m_columnHeaders[i]);
-							if (i>0)
+							m_tableRefs[i].getColumnModel().getColumn(0).setPreferredWidth(140);
+							if (m_tableRefs[i].getColumnModel().getColumnCount() > 1)
 							{
-								m_tableRefs[i].getColumnModel().getColumn(0).setPreferredWidth(200);
-								m_tableRefs[i].getColumnModel().getColumn(1).setPreferredWidth(60);
+								m_tableRefs[i].getColumnModel().getColumn(1).setPreferredWidth(40);
 							}
 						} catch (Exception e) { e.printStackTrace(); }
 					}
