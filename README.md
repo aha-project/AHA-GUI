@@ -17,7 +17,7 @@ Note: if you're just looking to run AHA-GUI builds are periodically posted under
 - Clone the repo
 
 ## Build
-- `cd` to the directory with the `build.xml` in it
+- `cd` to the cloned AHA-GUI directory with`build.xml` in it
 - run `ant`
 - the `build` directory will contain the resulting built project
 - (if you'd like to clean after making changes and before rebuilding you can run `ant clean`)
