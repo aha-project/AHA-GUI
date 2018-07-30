@@ -6,7 +6,7 @@
 	<property name="build.numThreads" value="1" />
 	<property name="src.dir" value="./src"/>
 	<property name="lib.dir" value="./deps/org.graphstream/lib"/>
-	<property name="build.version" value="AHA-GUI Version 0.5.5b1"/>
+	<property name="build.version" value="AHA-GUI Version 0.5.6b1"/>
 	<property name="CP" value="."/>
 	<tstamp>
 		<format property="TODAY" pattern="yyyy-MM-dd HH:mm" />
@@ -66,7 +66,11 @@
 					<attribute name="Application-Name" value="AHA-GUI"/>
 					<attribute name="Implementation-Version" value="${build.version} ${build.timestamp}" />
 					<attribute name="Main-Class" value="esic/AHAGUI"/>
+					<attribute name="SplashScreen-Image" value="images/splash.png"/>
 				</manifest>
+				<fileset dir="${src.dir}">
+			        <include name="images/splash.png"/>
+			    </fileset>
 			</jar>
 			<copy todir="${build.dir}/lib">
 				<fileset dir="${lib.dir}"/>
