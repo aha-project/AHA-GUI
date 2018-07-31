@@ -147,7 +147,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		javax.swing.UIManager.put("CheckBox.background", backgroundColor);
 		javax.swing.UIManager.put("CheckBox.focus", backgroundColor);
 		javax.swing.UIManager.put("CheckBox.font", uiFont); 
-		javax.swing.UIManager.put("CheckBox.gradient", java.util.Arrays.asList( new Object[] {new Float(0f), new Float(0f), java.awt.Color.LIGHT_GRAY, java.awt.Color.LIGHT_GRAY, java.awt.Color.GRAY.brighter() }));
+		javax.swing.UIManager.put("CheckBox.gradient", java.util.Arrays.asList( new Object[] {Float.valueOf(0f),Float.valueOf(0f), java.awt.Color.LIGHT_GRAY, java.awt.Color.LIGHT_GRAY, java.awt.Color.GRAY.brighter() }));
 		//		javax.swing.Icon i=javax.swing.UIManager.getIcon("CheckBox.icon"); //eventually figure out some way to green the icon up?
 		//		javax.swing.GrayFilter gf=new javax.swing.GrayFilter(true,100);
 		javax.swing.UIManager.put("ComboBox.background", accentColor.brighter().brighter());
@@ -198,11 +198,11 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 //		javax.swing.UIManager.put("Table.ascendingSortIcon","");
 //		javax.swing.UIManager.put("Table.descendingSortIcon","");
 //		javax.swing.ImageIcon i= new javax.swing.ImageIcon();
-		try
-		{ //temporary work around to make the tables have sort icons that are visible. Need to find a way to do this without using sun private API soon
-			javax.swing.UIManager.put("Table.ascendingSortIcon",new sun.swing.SwingLazyValue("sun.swing.icon.SortArrowIcon",null, new Object[] { Boolean.TRUE, "Table.sortIconColor" }));
-			javax.swing.UIManager.put("Table.descendingSortIcon",new sun.swing.SwingLazyValue("sun.swing.icon.SortArrowIcon",null,new Object[] { Boolean.FALSE, "Table.sortIconColor" }));
-		} catch (Exception e) {}
+//		try
+//		{ //temporary work around to make the tables have sort icons that are visible. Need to find a way to do this without using sun private API soon
+//			javax.swing.UIManager.put("Table.ascendingSortIcon",new sun.swing.SwingLazyValue("sun.swing.icon.SortArrowIcon",null, new Object[] { Boolean.TRUE, "Table.sortIconColor" }));
+//			javax.swing.UIManager.put("Table.descendingSortIcon",new sun.swing.SwingLazyValue("sun.swing.icon.SortArrowIcon",null,new Object[] { Boolean.FALSE, "Table.sortIconColor" }));
+//		} catch (Exception e) {}
 		javax.swing.UIManager.put("TableHeaderUI", javax.swing.plaf.basic.BasicTableHeaderUI.class.getName() );
 		javax.swing.UIManager.put("TableHeader.foreground", foregroundColor);
 		javax.swing.UIManager.put("TableHeader.background", accentColor);
