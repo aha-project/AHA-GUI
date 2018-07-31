@@ -5,11 +5,16 @@ package esic;
 import org.graphstream.graph.Edge;
 import org.graphstream.graph.Graph;
 import org.graphstream.graph.Node;
-import java.awt.Font;
 import org.graphstream.algorithm.measure.*;
 
 public class AHAModel
 {
+	protected static class TableDataHolder
+	{
+		protected String[][] columnNames=null;
+		protected Object[][][] tableData=null;
+	}
+	
 	private static class ScoreItem
 	{
 		String criteria="", criteriaValue="";
@@ -581,6 +586,8 @@ public class AHAModel
 		return Character.toString(s.charAt(0)).toUpperCase()+s.substring(1);
 	}
 	
+
+	
 	protected void start()
 	{
 		m_graph.addAttribute("ui.stylesheet", styleSheet);
@@ -599,7 +606,6 @@ public class AHAModel
 		readCustomScorefile();
 		useFQDNLabels(m_graph, m_gui.m_showFQDN.isSelected());
 		exploreAndScore(m_graph);
-		m_gui.m_report.set(m_gui.generateReport());
 		new Thread(){ //Don't do this until after we explore and score, to reduce odd concurrency errors
 			public void run()
 			{
@@ -631,19 +637,148 @@ public class AHAModel
 			n.addAttribute("xyz", loc.x,loc.y,loc.z);
 			i++;
 		}
-		writeReport(m_gui.m_report.get(),"AHA-GUI-Report.csv");
+		writeReport(generateReport(),"AHA-GUI-Report.csv");
 	}
 	
-	private void writeReport(AHAGUI.TableHolder report, String fileName)
+	public static Object strAsInt(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
+	{ 
+		try { if (s!=null ) { return Integer.valueOf(s); } }
+		catch (NumberFormatException nfe) {} //we really don't care about this, we'll just return the original object
+		catch (Exception e) { System.out.println("s="+s);e.printStackTrace(); } //something else weird happened, let's print about it
+		return s;
+	}
+	
+	private TableDataHolder synch_report=new TableDataHolder(); //do not access from anywhere other than generateReport!
+	protected TableDataHolder generateReport()
+	{
+		synchronized (synch_report)
+		{
+			if (synch_report.columnNames==null)
+			{
+				int NUM_SCORE_TABLES=2, tableNumber=0;
+				String[][] columnHeaders= {{"Scan Information", "Value"},{"Process", "PID", "User","Connections","ExtPorts","Signed","ASLR","DEP","CFG","HiVA", "Score", "ECScore", "WPScore"},{}};
+				Object[][][] tableData=new Object[NUM_SCORE_TABLES][][];
+				{ //general info
+					Object[][] data=new Object[8][2];
+					int i=0;
+					
+					data[i][0]="Local Addresses of Scanned Machine";
+					data[i++][1]=m_knownAliasesForLocalComputer.keySet().toString();
+					data[i][0]="Local Time of Host Scan";
+					data[i++][1]=m_miscMetrics.get("detectiontime");
+					
+					{
+						int numExt=0, worstScore=100;
+						double denominatorAccumulator=0.0d;
+						String worstScoreName="";
+						for (Node n : m_graph)
+						{
+							if (n.getAttribute("username")!=null && n.getAttribute("ui.hasExternalConnection")!=null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
+							{ 
+								numExt++;
+								String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
+								try
+								{
+									Integer temp=Integer.parseInt(normalScore);
+									if (worstScore > temp) { worstScore=temp; worstScoreName=n.getId();}
+									denominatorAccumulator+=(1.0d/(double)temp);
+								} catch (Exception e) {}
+							}
+						}
+						data[i][0]="Number of Externally Acccessible Processes";
+						data[i++][1]=Integer.toString(numExt);
+						data[i][0]="Score of Worst Externally Accessible Scannable Process";
+						data[i++][1]="Process: "+worstScoreName+"  Score: "+worstScore;
+						data[i][0]="Harmonic Mean of Scores of all Externally Accessible Processes";
+						String harmonicMean="Harominc Mean Computation Error";
+						if (denominatorAccumulator > 0.000001d) { harmonicMean=String.format("%.2f", ((double)numExt)/denominatorAccumulator); }
+						data[i++][1]=harmonicMean;
+					}
+					
+					{
+						int numInt=0, worstScore=100;
+						double denominatorAccumulator=0.0d;
+						String worstScoreName="";
+						for (Node n : m_graph)
+						{
+							if (n.getAttribute("username")!=null && n.getAttribute("ui.hasExternalConnection")==null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
+							{ 
+								numInt++;
+								String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
+								try
+								{
+									Integer temp=Integer.parseInt(normalScore);
+									if (worstScore > temp) { worstScore=temp; worstScoreName=n.getId();}
+									denominatorAccumulator+=(1.0d/(double)temp);
+								} catch (Exception e) {}
+							}
+						}
+						data[i][0]="Number of Internally Acccessible Processes";
+						data[i++][1]=Integer.toString(numInt);
+						data[i][0]="Score of Worst Internally Accessible Scannable Process";
+						data[i++][1]="Process: "+worstScoreName+"  Score: "+worstScore;
+						data[i][0]="Harmonic Mean of Scores of all Internally Accessible Processes";
+						String harmonicMean="Harominc Mean Computation Error";
+						if (denominatorAccumulator > 0.000001d) { harmonicMean=String.format("%.2f", ((double)numInt)/denominatorAccumulator); }
+						data[i++][1]=harmonicMean;
+					}
+					tableData[tableNumber]=data;
+				}
+				tableNumber++;
+				{ //general node info
+					tableData[tableNumber]=new Object[m_graph.getNodeCount()][];
+					int i=0;
+					for (Node n : m_graph)
+					{
+						int j=0; //tired of reordering numbers after moving columns around
+						Object[] data=new Object[columnHeaders[tableNumber].length]; //if we run out of space we forgot to make a column header anyway
+						String name=n.getAttribute("processname");
+						if (name==null) { name=n.getAttribute("ui.label"); }
+						data[j++]=name;
+						data[j++]=strAsInt(n.getAttribute("pid"));
+						data[j++]=n.getAttribute("username");
+						data[j++]=Integer.valueOf(n.getEdgeSet().size()); //cant use wrapInt here because  //TODO: deduplicate connection set?
+						String extPortString="";
+						java.util.TreeMap<String,String> extPorts=n.getAttribute("ui.extListeningPorts");
+						if (extPorts!=null) 
+						{ 
+							for (String s : extPorts.keySet())
+							{
+								String[] tmp=s.split("_");
+								if (!extPortString.equals("")) { extPortString+=", "; }
+								extPortString+=tmp[1];
+							}
+						}
+						data[j++]=extPortString;
+						data[j++]=n.getAttribute("authenticode");
+						data[j++]=n.getAttribute("aslr"); //these all have to be lowercase to work remember :)
+						data[j++]=n.getAttribute("dep");
+						data[j++]=n.getAttribute("controlflowguard");
+						data[j++]=n.getAttribute("highentropyva");
+						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
+						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.ECScore)));
+						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProc)));
+						tableData[tableNumber][i++]=data;
+					}
+				}
+				synch_report.columnNames=columnHeaders;
+				synch_report.tableData=tableData;
+			}
+			return synch_report;
+		}
+	}
+	
+	private void writeReport(TableDataHolder report, String fileName)
 	{
 		try (java.io.FileWriter fileOutput=new java.io.FileWriter(fileName))
 		{
-			for (int table=0;table<report.tables.length;table++)
+			for (int table=0;table<report.tableData.length;table++)
 			{
 				for (int tableHeaderCell=0;tableHeaderCell<report.columnNames[table].length;tableHeaderCell++) //print column headers
 				{
 					fileOutput.write("\""+report.columnNames[table][tableHeaderCell]+"\",");
 				}
+				fileOutput.write("\n");
 				for (int row=0; row<report.tableData[table].length;row++) //print table data
 				{
 					for (int cell=0;cell<report.tableData[table][row].length;cell++)
@@ -701,8 +836,8 @@ public class AHAModel
 				}
 			} catch (Exception e) { e.printStackTrace(); }
 		}
-		Font uiFont=new Font(Font.MONOSPACED,Font.PLAIN,12);
-		if (bigfont) { uiFont=new Font(Font.MONOSPACED,Font.PLAIN,18); }
+		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
+		if (bigfont) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); }
 		AHAGUI.applyTheme(uiFont);
 		m_gui =new AHAGUI(this);
 	}

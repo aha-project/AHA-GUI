@@ -6,10 +6,10 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseWheelEvent;
+import javax.swing.BorderFactory;
 import javax.swing.JFrame;
 import javax.swing.JScrollPane;
 import org.graphstream.graph.*;
-import esic.AHAModel.ScoreMethod;
 
 public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.view.ViewerListener, java.awt.event.ActionListener, java.awt.event.MouseWheelListener
 {
@@ -20,14 +20,13 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	protected org.graphstream.ui.view.ViewerPipe m_graphViewPump=null;
 	protected AHAModel m_model=null;
 	protected InspectorWindow m_inspectorWindow=null;
-	protected java.util.concurrent.atomic.AtomicReference<TableHolder> m_report=new java.util.concurrent.atomic.AtomicReference<TableHolder>();
-	
+
 	public AHAGUI(AHAModel model)
 	{
 		m_model=model;
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setSize(1152, 768);
-		setTitle("AHA-GUI");
+		setTitle(AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]); //This should result in something like "AHA-GUI v0.5.6b1" being displayed
 		getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.GRAY,2)); //TODO: tried this to clean up the weird dashed appearance of the right gray border on macOS, but to no avail. figure it out later.
 		setLayout(new java.awt.BorderLayout(2,0));
 		
@@ -52,24 +51,24 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		this.add(m_viewPanel, java.awt.BorderLayout.CENTER);
 		
 		javax.swing.JPanel bottomPanel=new javax.swing.JPanel();
+		bottomPanel.setLayout(new java.awt.GridBagLayout());
 		{
-			bottomPanel.setLayout(new java.awt.GridBagLayout());
 			java.awt.GridBagConstraints gbc=new java.awt.GridBagConstraints();
 			gbc.fill=java.awt.GridBagConstraints.HORIZONTAL;
 			javax.swing.JPanel bottomButtons=new javax.swing.JPanel(); //silly, but had to do this or the clickable area of the JCheckbox gets stretched the whole width...which makes for strange clicking
-			bottomButtons.setLayout(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT,0,0));
+			bottomButtons.setLayout(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT,1,0));
 			
-			javax.swing.JButton dataViewBtn=new javax.swing.JButton("Open Data View");
+			javax.swing.JButton dataViewBtn=new javax.swing.JButton(" Show Data View ");
 			dataViewBtn.setActionCommand("dataView");
 			dataViewBtn.addActionListener(this);
 			dataViewBtn.setToolTipText(styleToolTipText("Shows the list of listening processes to aid in creation of firewall rules."));
 			
-			javax.swing.JButton resetBtn=new javax.swing.JButton("Reset Zoom");
+			javax.swing.JButton resetBtn=new javax.swing.JButton(" Reset Zoom ");
 			resetBtn.setActionCommand("resetZoom");
 			resetBtn.addActionListener(this);
 			resetBtn.setToolTipText(styleToolTipText("Resets the zoom of the graph view to default."));
 
-			javax.swing.JButton inspectorBtn=new javax.swing.JButton("Show Inspector");
+			javax.swing.JButton inspectorBtn=new javax.swing.JButton(" Show Inspector ");
 			inspectorBtn.setActionCommand("showInspector");
 			inspectorBtn.addActionListener(this);
 			inspectorBtn.setToolTipText(styleToolTipText("Show the graph detail inspector."));
@@ -78,17 +77,8 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			scoreMethod.setActionCommand("scoreMethod");
 			scoreMethod.addActionListener(this);
 			scoreMethod.setToolTipText(styleToolTipText("Select the scoring method used to calculate node scores"));
-//			for (int i = 1; i < scoreMethod.getComponentCount(); i++) 
-//			{
-//			    if (scoreMethod.getComponent(i) instanceof javax.swing.JComponent) {
-//			        ((javax.swing.JComponent) scoreMethod.getComponent(i)).setBorder(new javax.swing.border.EmptyBorder(0,0,0,0));
-//			        System.err.println("set empty border for element "+i);
-//			    }
-//			    if (scoreMethod.getComponent(i) instanceof javax.swing.AbstractButton) {
-//			        ((javax.swing.AbstractButton) scoreMethod.getComponent(i)).setBorderPainted(false);
-//			        System.err.println("did the other thing for element "+i);
-//			    }
-//			}
+			((javax.swing.JLabel)scoreMethod.getRenderer()).setHorizontalAlignment(javax.swing.JLabel.CENTER);
+			scoreMethod.setPreferredSize(inspectorBtn.getPreferredSize()); //prevent this from being off by one pixel from the other buttons in height (which was annoying me)
 			
 			m_hideOSProcsCheckbox.setActionCommand("hideOSProcs");
 			m_hideOSProcsCheckbox.addActionListener(this);
@@ -135,57 +125,45 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		m_inspectorWindow=new InspectorWindow((javax.swing.JFrame)this);
 	}
 	
-	public static void applyTheme(Font uiFont)
-	{ //Apply theme for JCheckbox, JComboBox, JLabel,  JSrollPane, JTabbedPane, JTable
-//		// Need to figure out what key something is named? The stuff below will search and then exit for keys containing the string
+	public static void applyTheme(Font uiFont) //Apply theme for JCheckbox, JComboBox, JLabel,  JSrollPane, JTabbedPane, JTable
+		{ // Need to figure out what key something is named? The stuff below will search and then exit for keys containing the string
 //		java.util.List<String> t=new java.util.ArrayList<String>(2048);
 //		for (Object key : javax.swing.UIManager.getLookAndFeelDefaults().keySet()) { t.add(key.toString()); }
 //		java.util.Collections.sort(t);
 //		for (String key : t ) { if (key.toLowerCase().contains("background")) { System.out.println(key); } }
-		java.awt.Color backgroundColor=java.awt.Color.BLACK, foregroundColor=java.awt.Color.GREEN, accentColor=java.awt.Color.DARK_GRAY.darker().darker();//, dbugcolor=java.awt.Color.ORANGE;
+		java.awt.Color backgroundColor=java.awt.Color.BLACK, foregroundColor=java.awt.Color.GREEN, accentColor=java.awt.Color.DARK_GRAY.darker().darker(), lightAccent=java.awt.Color.DARK_GRAY;//, dbugcolor=java.awt.Color.ORANGE;
 		javax.swing.UIManager.put("Button.background", accentColor.brighter().brighter());
-		//no border
 		javax.swing.UIManager.put("Button.darkShadow", backgroundColor);
 		javax.swing.UIManager.put("Button.focus", accentColor.brighter().brighter()); //remove selection reticle
 		javax.swing.UIManager.put("Button.font",uiFont);
 		javax.swing.UIManager.put("Button.foreground", foregroundColor);
-		javax.swing.UIManager.put("Button.highlight", backgroundColor);//accentColor.brighter().brighter().brighter());
-		javax.swing.UIManager.put("Button.light", backgroundColor);
-		javax.swing.UIManager.put("Button.select", backgroundColor);
-		javax.swing.UIManager.put("Button.shadow", backgroundColor);  
-		
-
+		javax.swing.UIManager.put("Button.select", java.awt.Color.GRAY.darker());
+		javax.swing.border.Border b=new javax.swing.plaf.basic.BasicBorders.RolloverButtonBorder( lightAccent.brighter().brighter(),  lightAccent.brighter().brighter(), lightAccent.brighter().brighter(), lightAccent.brighter().brighter());
+		javax.swing.UIManager.put("Button.border", new javax.swing.border.CompoundBorder(BorderFactory.createLineBorder(java.awt.Color.GRAY),b ));
+		//javax.swing.UIManager.put("Button.highlight", backgroundColor);
+		//javax.swing.UIManager.put("Button.light", backgroundColor); //these 3 dont seem to be any use anymore
+		//javax.swing.UIManager.put("Button.shadow", backgroundColor);
 		javax.swing.UIManager.put("CheckBox.foreground", foregroundColor);
 		javax.swing.UIManager.put("CheckBox.background", backgroundColor);
 		javax.swing.UIManager.put("CheckBox.focus", backgroundColor);
-		javax.swing.UIManager.put("CheckBox.font", uiFont);
-		javax.swing.UIManager.put("CheckBox.gradient", java.util.Arrays.asList( new Object[] {new Float(0f), new Float(0f), foregroundColor.darker(), foregroundColor.darker(), foregroundColor.darker() }));
+		javax.swing.UIManager.put("CheckBox.font", uiFont); 
+		javax.swing.UIManager.put("CheckBox.gradient", java.util.Arrays.asList( new Object[] {new Float(0f), new Float(0f), java.awt.Color.LIGHT_GRAY, java.awt.Color.LIGHT_GRAY, java.awt.Color.GRAY.brighter() }));
 		//		javax.swing.Icon i=javax.swing.UIManager.getIcon("CheckBox.icon"); //eventually figure out some way to green the icon up?
 		//		javax.swing.GrayFilter gf=new javax.swing.GrayFilter(true,100);
-		
-		
 		javax.swing.UIManager.put("ComboBox.background", accentColor.brighter().brighter());
-		javax.swing.UIManager.put("ComboBox.buttonBackground", accentColor.brighter().brighter()); 
-		javax.swing.UIManager.put("ComboBox.buttonDarkShadow", accentColor.brighter().brighter()); 
-		javax.swing.UIManager.put("ComboBox.buttonHighlight", accentColor.brighter().brighter()); 
-		javax.swing.UIManager.put("ComboBox.buttonShadow", accentColor.brighter().brighter());
-		javax.swing.UIManager.put("ComboBox.disabledBackground", accentColor.brighter().brighter());
-		javax.swing.UIManager.put("ComboBox.disabledForeground", foregroundColor);
 		javax.swing.UIManager.put("ComboBox.font", uiFont); 
 		javax.swing.UIManager.put("ComboBox.foreground", foregroundColor);
 		javax.swing.UIManager.put("ComboBox.selectionForeground", foregroundColor);
-		javax.swing.UIManager.put("ComboBox.selectionBackground", accentColor.brighter().brighter()); //ComboBoxUI
-		
-		
+		javax.swing.UIManager.put("ComboBox.selectionBackground", accentColor.brighter().brighter()); 
+		javax.swing.UIManager.put("ComboBox.border", BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(java.awt.Color.GRAY),BorderFactory.createLineBorder(accentColor.brighter().brighter(),2)));
+		javax.swing.UIManager.put("ComboBoxUI", javax.swing.plaf.basic.BasicComboBoxUI.class.getName());
 		javax.swing.UIManager.put("Label.foreground", foregroundColor);
 		javax.swing.UIManager.put("Label.background", backgroundColor);
 		javax.swing.UIManager.put("Label.font", uiFont);
-		
 		javax.swing.UIManager.put("Frame.foreground", foregroundColor);
 		javax.swing.UIManager.put("Frame.background", backgroundColor);
 		javax.swing.UIManager.put("Panel.foreground", foregroundColor);
 		javax.swing.UIManager.put("Panel.background", backgroundColor);
-		
 		javax.swing.UIManager.put("ScrollBar.track", backgroundColor);
 		javax.swing.UIManager.put("ScrollBar.thumbDarkShadow", backgroundColor);
 		javax.swing.UIManager.put("ScrollBar.thumb", accentColor.brighter().brighter().brighter());
@@ -193,10 +171,8 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		javax.swing.UIManager.put("ScrollBar.thumbShadow", accentColor.brighter().brighter().brighter());
 		javax.swing.UIManager.put("ScrollBarUI", javax.swing.plaf.basic.BasicScrollBarUI.class.getName() );
 		javax.swing.UIManager.put("ScrollBar.width", 8);
-		
 		javax.swing.UIManager.put("ScrollPane.foreground", foregroundColor);
 		javax.swing.UIManager.put("ScrollPane.background", backgroundColor);
-		
 		javax.swing.UIManager.put("TabbedPane.foreground", foregroundColor);
 		javax.swing.UIManager.put("TabbedPane.background", backgroundColor);
 		javax.swing.UIManager.put("TabbedPane.light", backgroundColor);
@@ -204,10 +180,9 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		javax.swing.UIManager.put("TabbedPane.selected", accentColor.brighter().brighter().brighter());
 		javax.swing.UIManager.put("TabbedPane.focus",accentColor.brighter().brighter().brighter());
 		javax.swing.UIManager.put("TabbedPane.selectHighlight",accentColor.brighter().brighter().brighter());
-		javax.swing.UIManager.put("TabbedPane.darkShadow", accentColor.brighter().brighter().brighter()); //removes almost imperceptible blue glow around inactive tab edge
+		javax.swing.UIManager.put("TabbedPane.darkShadow", accentColor.brighter().brighter().brighter()); //removes difficult to see blue glow around inactive tab edge
 		javax.swing.UIManager.put("TabbedPane.contentBorderInsets", new java.awt.Insets(0,0,0,0));
 		javax.swing.UIManager.put("TabbedPane.tabsOverlapBorder", true); 
-		
 		javax.swing.UIManager.put("TableUI", javax.swing.plaf.basic.BasicTableUI.class.getName() );
 		javax.swing.UIManager.put("Table.foreground", foregroundColor);
 		javax.swing.UIManager.put("Table.background", backgroundColor);
@@ -223,32 +198,22 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 //		javax.swing.UIManager.put("Table.ascendingSortIcon","");
 //		javax.swing.UIManager.put("Table.descendingSortIcon","");
 //		javax.swing.ImageIcon i= new javax.swing.ImageIcon();
-//		java.awt.Image i2;
-//		i2.
 		try
-		{ 
+		{ //temporary work around to make the tables have sort icons that are visible. Need to find a way to do this without using sun private API soon
 			javax.swing.UIManager.put("Table.ascendingSortIcon",new sun.swing.SwingLazyValue("sun.swing.icon.SortArrowIcon",null, new Object[] { Boolean.TRUE, "Table.sortIconColor" }));
 			javax.swing.UIManager.put("Table.descendingSortIcon",new sun.swing.SwingLazyValue("sun.swing.icon.SortArrowIcon",null,new Object[] { Boolean.FALSE, "Table.sortIconColor" }));
 		} catch (Exception e) {}
-		
 		javax.swing.UIManager.put("TableHeaderUI", javax.swing.plaf.basic.BasicTableHeaderUI.class.getName() );
 		javax.swing.UIManager.put("TableHeader.foreground", foregroundColor);
 		javax.swing.UIManager.put("TableHeader.background", accentColor);
 		javax.swing.UIManager.put("TableHeader.cellBorder", new javax.swing.border.BevelBorder(javax.swing.border.BevelBorder.RAISED));
 		javax.swing.UIManager.put("TableHeader.font", uiFont); 
-		
-		
 		javax.swing.UIManager.put("ToolTip.foreground", java.awt.Color.BLACK);
 		javax.swing.UIManager.put("ToolTip.border", java.awt.Color.WHITE);
 		javax.swing.UIManager.put("ToolTip.background", java.awt.Color.WHITE);
 		javax.swing.UIManager.put("ToolTip.font", uiFont);
-		
 		javax.swing.UIManager.put("Viewport.foreground", foregroundColor);
 		javax.swing.UIManager.put("Viewport.background", accentColor);
-		
-		javax.swing.UIManager.put("controlDkShadow", backgroundColor);
-		javax.swing.UIManager.put("controlHighlight", backgroundColor);
-		javax.swing.UIManager.put("controlLtHighlight", backgroundColor);
 	}
 	
 	public void actionPerformed(ActionEvent e) //swing actions go to here
@@ -294,189 +259,61 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		return "<html><p style='font-style:bold;color:black;background:white;'>"+s+"</p></html> ";
 	}
 
-	protected static class TableHolder
-	{
-		protected javax.swing.JTable[] tables;
-		protected String[][] columnNames;
-		protected int[][] columnWidths;
-		protected Object[][][] tableData;
-	}
-	
-	protected TableHolder generateReport()
-	{
-		long time=System.currentTimeMillis();
-		int NUM_SCORE_TABLES=2, tableNumber=0;
-		String[][] columnHeaders= {{"Scan Information", "Value"},{"Process", "PID", "User","Connections","Signed","ASLR","DEP","CFG","HiVA", "Score", "ECScore", "WorstPrivScore"},{}};
-		Object[][][] tableData=new Object[NUM_SCORE_TABLES][][];
-		{ //general info
-			Object[][] data=new Object[8][2];
-			int i=0;
-			
-			data[i][0]="Local Addresses of Scanned Machine";
-			data[i++][1]=m_model.m_knownAliasesForLocalComputer.keySet().toString();
-			data[i][0]="Local Time of Host Scan";
-			data[i++][1]=m_model.m_miscMetrics.get("detectiontime");
-			
-			{
-				int numExt=0, worstScore=100;
-				double denominatorAccumulator=0.0d;
-				String worstScoreName="";
-				System.out.print("computing harmonic mean:");
-				for (Node n : m_model.m_graph)
-				{
-					if (n.getAttribute("username")!=null && n.getAttribute("ui.hasExternalConnection")!=null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
-					{ 
-						numExt++;
-						String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
-						try
-						{
-							Integer temp=Integer.parseInt(normalScore);
-							if (worstScore > temp) { worstScore=temp; worstScoreName=n.getId();}
-							System.out.print(temp+",");
-							denominatorAccumulator+=(1.0d/(double)temp);
-						} catch (Exception e) {}
-					}
-				}
-				data[i][0]="Number of Externally Acccessible Processes";
-				data[i++][1]=Integer.toString(numExt);
-				data[i][0]="Score of Worst Externally Accessible Scannable Process";
-				data[i++][1]="Process: "+worstScoreName+"  Score: "+worstScore;
-				data[i][0]="Harmonic Mean of Scores of all Externally Accessible Processes";
-				String harmonicMean="Harominc Mean Computation Error";
-				if (denominatorAccumulator > 0.000001d) { harmonicMean=String.format("%.2f", ((double)numExt)/denominatorAccumulator); }
-				data[i++][1]=harmonicMean;
-				System.out.println(" mean="+harmonicMean);
-			}
-			
-			{
-				int numInt=0, worstScore=100;
-				double denominatorAccumulator=0.0d;
-				String worstScoreName="";
-				System.out.print("computing harmonic mean:");
-				for (Node n : m_model.m_graph)
-				{
-					if (n.getAttribute("username")!=null && n.getAttribute("ui.hasExternalConnection")==null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
-					{ 
-						numInt++;
-						String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
-						try
-						{
-							Integer temp=Integer.parseInt(normalScore);
-							if (worstScore > temp) { worstScore=temp; worstScoreName=n.getId();}
-							System.out.print(temp+",");
-							denominatorAccumulator+=(1.0d/(double)temp);
-						} catch (Exception e) {}
-					}
-				}
-				data[i][0]="Number of Internally Acccessible Processes";
-				data[i++][1]=Integer.toString(numInt);
-				data[i][0]="Score of Worst Internally Accessible Scannable Process";
-				data[i++][1]="Process: "+worstScoreName+"  Score: "+worstScore;
-				data[i][0]="Harmonic Mean of Scores of all Internally Accessible Processes";
-				String harmonicMean="Harominc Mean Computation Error";
-				if (denominatorAccumulator > 0.000001d) { harmonicMean=String.format("%.2f", ((double)numInt)/denominatorAccumulator); }
-				data[i++][1]=harmonicMean;
-				System.out.println(" mean="+harmonicMean);
-			}
-			tableData[tableNumber]=data;
-		}
-		tableNumber++;
-		{ //general node info
-			tableData[tableNumber]=new Object[m_model.m_graph.getNodeCount()][];
-			int i=0;
-			for (Node n : m_model.m_graph)
-			{
-				int j=0; //tired of reordering numbers after moving columns around
-				Object[] data=new Object[columnHeaders[tableNumber].length]; //if we run out of space we forgot to make a column header anyway
-				String name=n.getAttribute("processname");
-				if (name==null) { name=n.getAttribute("ui.label"); }
-				data[j++]=name;
-				data[j++]=strAsInt(n.getAttribute("pid"));
-				data[j++]=n.getAttribute("username");
-				data[j++]=Integer.valueOf(n.getEdgeSet().size()); //cant use wrapInt here because  //TODO: deduplicate connection set?
-				data[j++]=n.getAttribute("authenticode");
-				data[j++]=n.getAttribute("aslr"); //these all have to be lowercase to work remember :)
-				data[j++]=n.getAttribute("dep");
-				data[j++]=n.getAttribute("controlflowguard");
-				data[j++]=n.getAttribute("highentropyva");
-				data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
-				data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.ECScore)));
-				data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProc)));
-				tableData[tableNumber][i++]=data;
-			}
-		}
-		TableHolder ret=new TableHolder();
-		ret.columnNames=columnHeaders;
-		ret.tableData=tableData;
-		ret.tables=new javax.swing.JTable[NUM_SCORE_TABLES];
-		ret.columnWidths= new int[][]{{180,40,240,86,50,44,44,44,44,44,44,80}};
-		System.out.println("Elapsed time to create report="+(System.currentTimeMillis()-time));
-		return ret;
-	}
-	
+	private Object synch_dataViewLock=new Object();
+	private javax.swing.JFrame synch_dataViewFrame=null;
 	private void showDataView(AHAGUI parent) //shows the window that lists the listening sockets
 	{
-		new JFrame("Data View")
+		synchronized (synch_dataViewLock)
 		{
+			if (synch_dataViewFrame==null)
 			{
-				setLayout(new java.awt.BorderLayout());
-				setSize(new java.awt.Dimension(parent.getSize().width-40,parent.getSize().height-40));
-				setLocation(parent.getLocation().x+20, parent.getLocation().y+20); //move it down and away a little bit so people understand it's a new window
-				getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.GRAY,2));
-				javax.swing.JTabbedPane tabBar=new javax.swing.JTabbedPane();
-				tabBar.setBorder(javax.swing.BorderFactory.createEmptyBorder());
-				add(tabBar, java.awt.BorderLayout.CENTER);
-				{ // Find data for, create table, etc for the "Graph Data" view
-					TableHolder t=parent.m_report.get();
-					if (t==null)
+				synch_dataViewFrame=new JFrame("Data View")
+				{
 					{
-						System.err.println("Report was not readly, creating new report");
-						t=generateReport();
-						parent.m_report.set(t);
-					}
-					tabBar.add("Vulnerability Metrics", createTablesInScrollPane(t.columnNames, t.tableData, t.tables, t.columnWidths[0]) );
-				}
-//				{ // Find data for, create table, etc for the "Graph Data" view
-//					javax.swing.JTable[] nodeTbl=new javax.swing.JTable[1];
-//					String[][] columnHeaders= {{"Key", "Value"},{}};
-//					Object[][][] tableData=new Object[1][10][2];
-//					int i=0;
-//					tableData[0][i][0]="Local Addresses of Scanned Machine";
-//					tableData[0][i++][1]=m_model.m_knownAliasesForLocalComputer.keySet().toString();
-//					tableData[0][i][0]="Local Time of Scan";
-//					tableData[0][i++][1]=m_model.m_miscMetrics.get("detectiontime");
-//					tabBar.add("Graph Metrics", createTablesInScrollPane(columnHeaders, tableData, nodeTbl, new int[]{200,500}));
-//				}
-				{ // Find data for, create table, etc for the "Listening Processes" tab
-					javax.swing.JTable[] fwTables=new javax.swing.JTable[2];
-					String[][] columnHeaders={{"Listening Internally", "PID", "Proto", "Port"},{"Listening Externally", "PID", "Proto", "Port"}};
-					Object[][][] tableData=new Object[2][][];
-					java.util.TreeMap<String,String> dataset=m_model.m_intListeningProcessMap;
-					for (int i=0;i<2;i++)
-					{
-						java.util.TreeMap<String,Object[]> sortMe=new java.util.TreeMap<String,Object[]>();
-						for (java.util.Map.Entry<String, String> entry : dataset.entrySet() )
-						{
-							String key=entry.getKey(), value=entry.getValue();
-							String[] keyTokens=key.split("_"), valueTokens=value.split("_");
-							Object strArrVal[]=new Object[4];
-							strArrVal[0]=valueTokens[0];
-							strArrVal[1]=strAsInt(valueTokens[1]);
-							strArrVal[2]=keyTokens[0].toUpperCase();
-							strArrVal[3]=strAsInt(keyTokens[1]);
-							String newKey=valueTokens[0]+valueTokens[1]+"-"+keyTokens[0].toUpperCase()+keyTokens[1];
-							sortMe.put(newKey, strArrVal);
+						setLayout(new java.awt.BorderLayout());
+						setSize(new java.awt.Dimension(parent.getSize().width-40,parent.getSize().height-40));
+						setLocation(parent.getLocation().x+20, parent.getLocation().y+20); //move it down and away a little bit so people understand it's a new window
+						getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.GRAY,2));
+						javax.swing.JTabbedPane tabBar=new javax.swing.JTabbedPane();
+						tabBar.setBorder(javax.swing.BorderFactory.createEmptyBorder());
+						add(tabBar, java.awt.BorderLayout.CENTER);
+						{ // Find data for, create table, etc for the "Graph Data" view
+							AHAModel.TableDataHolder t=parent.m_model.generateReport();
+							tabBar.add("Vulnerability Metrics", createTablesInScrollPane(t.columnNames, t.tableData, new javax.swing.JTable[t.tableData.length], new int[]{180,40,200,86,80,50,44,44,44,44,44,44,60}) );
 						}
-						Object[][] data = new Object[sortMe.size()][4];
-						int j=0;
-						for (Object[] lineDat : sortMe.values()) { data[j++]=lineDat; }
-						tableData[i]=data;
-						dataset=m_model.m_extListeningProcessMap;
+						{ // Find data for, create table, etc for the "Listening Processes" tab
+							javax.swing.JTable[] fwTables=new javax.swing.JTable[2];
+							String[][] columnHeaders={{"Listening Internally", "PID", "Proto", "Port"},{"Listening Externally", "PID", "Proto", "Port"}};
+							Object[][][] tableData=new Object[2][][];
+							java.util.TreeMap<String,String> dataset=m_model.m_intListeningProcessMap;
+							for (int i=0;i<2;i++)
+							{
+								java.util.TreeMap<String,Object[]> sortMe=new java.util.TreeMap<String,Object[]>();
+								for (java.util.Map.Entry<String, String> entry : dataset.entrySet() )
+								{
+									String key=entry.getKey(), value=entry.getValue();
+									String[] keyTokens=key.split("_"), valueTokens=value.split("_");
+									Object strArrVal[]=new Object[4];
+									strArrVal[0]=valueTokens[0];
+									strArrVal[1]=AHAModel.strAsInt(valueTokens[1]);
+									strArrVal[2]=keyTokens[0].toUpperCase();
+									strArrVal[3]=AHAModel.strAsInt(keyTokens[1]);
+									String newKey=valueTokens[0]+valueTokens[1]+"-"+keyTokens[0].toUpperCase()+keyTokens[1];
+									sortMe.put(newKey, strArrVal);
+								}
+								Object[][] data = new Object[sortMe.size()][4];
+								int j=0;
+								for (Object[] lineDat : sortMe.values()) { data[j++]=lineDat; }
+								tableData[i]=data;
+								dataset=m_model.m_extListeningProcessMap;
+							}
+							tabBar.add("Listening Processes", createTablesInScrollPane(columnHeaders, tableData, fwTables, new int[]{200,50,50,50}));
+						}
 					}
-					tabBar.add("Listening Processes", createTablesInScrollPane(columnHeaders, tableData, fwTables, new int[]{200,50,50,50}));
-				}
+				};
 			}
-		}.setVisible(true);
+			synch_dataViewFrame.setVisible(true);
+		}
 	}
 	
 	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, Object[][][] initialData, javax.swing.JTable[] tableRefs, int[] columnWidths)
@@ -541,19 +378,11 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		return scrollPane;
 	}
 	
-	public static Object strAsInt(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
-	{ 
-		try { if (s!=null ) { return Integer.valueOf(s); } }
-		catch (NumberFormatException nfe) {} //we really don't care about this, we'll just return the original object
-		catch (Exception e) { System.out.println("s="+s);e.printStackTrace(); } //something else weird happened, let's print about it
-		return s;
-	}
-	
 	public static class InspectorWindow extends JFrame
 	{
-		private javax.swing.JCheckBox m_changeOnMouseOver=new javax.swing.JCheckBox("Update Inspector on MouseOver",false);
-		private String[][] m_columnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process Name", "PID"}, {"Score Metric", "Value"}};
-		private javax.swing.JTable[] m_tableRefs= new javax.swing.JTable[5];
+		private javax.swing.JCheckBox m_changeOnMouseOver=new javax.swing.JCheckBox("Update on MouseOver",false);
+		private String[][] m_inspectorWindoColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process Name", "PID"}, {"Score Metric", "Value"}};
+		private javax.swing.JTable[] m_inspectorWindowTables= new javax.swing.JTable[m_inspectorWindoColumnHeaders.length]; //if you need more tables just add another column header set above
 		
 		public InspectorWindow(javax.swing.JFrame parent)
 		{
@@ -566,15 +395,17 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			gbc.gridx=0; gbc.gridy=0;  gbc.weightx=1; gbc.weighty=100;
 			
 			String[][][] initialData={{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},}; //digging this new 3d array literal initializer: this is a String[5][1][1] where element[i][0][0]="None".
-			this.add(createTablesInScrollPane(m_columnHeaders, initialData, m_tableRefs, new int[]{160,40}), gbc);
+			this.add(createTablesInScrollPane(m_inspectorWindoColumnHeaders, initialData, m_inspectorWindowTables, new int[]{160,40}), gbc);
 			
 			gbc.gridy++;
 			gbc.weighty=1;
 			gbc.fill=java.awt.GridBagConstraints.HORIZONTAL;
+			m_changeOnMouseOver.setToolTipText("Update the information above as you hover over items in the graph.");
 			this.add(m_changeOnMouseOver, gbc);
 			
 			this.setLocation(parent.getLocation().x+parent.getWidth(), 0);
-			this.setSize(m_changeOnMouseOver.getPreferredSize().width+60,768);
+			this.setSize(286,768);
+			//System.out.println("size="+this.getSize());
 			this.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 			this.setVisible(true);
 		}
@@ -584,18 +415,15 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			if (element==null || occuredFromMouseOver && !m_changeOnMouseOver.isSelected()) { return; }
 			Node node=model.m_graph.getNode(element.getId());
 			if (node==null) { return; }
-			
 			Object[][] infoData=null, intPorts=null, extPorts=null, connectionData=null, scoreReasons=null;
-			
 			try
-			{
+			{ //update the top info panel table
 				String[] infoLines=getNameString(node,"\n").trim().split("\n");
 				infoData=new String[infoLines.length][1];
 				for (int i=0;i<infoLines.length;i++) { infoData[i][0]=infoLines[i]; }
 			} catch (Exception e) { e.printStackTrace(); }
-			
 			try
-			{
+			{ //update the "Open Internal Ports" second table
 				String[] ports=AHAModel.getCommaSepKeysFromStringMap(element.getAttribute("ui.localListeningPorts")).split(", ");
 				intPorts=new Object[ports.length][2];
 				for (int i=0;i<ports.length;i++)
@@ -604,14 +432,13 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 					if (temp.length > 1)
 					{
 						intPorts[i]=new Object[2];
-						intPorts[i][0]=strAsInt(temp[1]);
+						intPorts[i][0]=AHAModel.strAsInt(temp[1]);
 						intPorts[i][1]=temp[0].toUpperCase(); //reverse array
 					} else { intPorts[i][0]="None"; }
 				}
 			} catch (Exception e) { e.printStackTrace(); }
-			
 			try
-			{
+			{ //update the third "Open External Ports" table
 				String[] ports=AHAModel.getCommaSepKeysFromStringMap(element.getAttribute("ui.extListeningPorts")).split(", ");
 				extPorts=new Object[ports.length][2];
 				for (int i=0;i<ports.length;i++)
@@ -620,33 +447,31 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 					if (temp.length > 1)
 					{
 						extPorts[i]=new Object[2];
-						extPorts[i][0]=strAsInt(temp[1]);
+						extPorts[i][0]=AHAModel.strAsInt(temp[1]);
 						extPorts[i][1]=temp[0].toUpperCase(); //reverse array
 					} else { extPorts[i][0]="None"; }
 				}
 			} catch (Exception e) { e.printStackTrace(); }
-			
 			try
-			{
+			{ //update the fourth "Connected Process Name" table
 				String[] connections=getNodeConnectionString(node,model).split(", ");
 				connectionData=new Object[connections.length][2];
 				for (int i=0;i<connections.length;i++) 
 				{ 
 					String[] tokens=connections[i].split("_");
 					connectionData[i][0]=tokens[0];
-					if (tokens.length > 1) { connectionData[i][1]=strAsInt(tokens[1]); }
+					if (tokens.length > 1) { connectionData[i][1]=AHAModel.strAsInt(tokens[1]); }
 				}
 			} catch (Exception e) { e.printStackTrace(); }
-			
 			try
-			{
-				String[] scores=getNodeScoreRasonString(node, true).split(", ");
+			{ //update the fifth "Score Metric" table
+				String[] scores=getNodeScoreReasonString(node, true).split(", ");
 				scoreReasons=new String[scores.length][2];
 				for (int i=0;i<scores.length;i++) { scoreReasons[i]=scores[i].split("="); }
+				if (scores.length==0){ scoreReasons=new String[][]{{"No score results found"}}; }
 			} catch (Exception e) { e.printStackTrace(); }
 			
-			final Object[][][] data={infoData,intPorts,extPorts,connectionData,scoreReasons}; //as long as this order is correct, everything will work :)
-			
+			final Object[][][] data={infoData,intPorts,extPorts,connectionData,scoreReasons}; // create final pointer to pass to swing.infokelater. as long as this order of these object arrays is correct, everything will work :)
 			javax.swing.SwingUtilities.invokeLater(new Runnable() //perform task on gui thread
 			{
 				public void run()
@@ -655,12 +480,12 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 					{
 						try
 						{
-							javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)m_tableRefs[i].getModel();
-							dm.setDataVector(data[i], m_columnHeaders[i]);
-							m_tableRefs[i].getColumnModel().getColumn(0).setPreferredWidth(140);
-							if (m_tableRefs[i].getColumnModel().getColumnCount() > 1)
+							javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)m_inspectorWindowTables[i].getModel();
+							dm.setDataVector(data[i], m_inspectorWindoColumnHeaders[i]);
+							m_inspectorWindowTables[i].getColumnModel().getColumn(0).setPreferredWidth(140);
+							if (m_inspectorWindowTables[i].getColumnModel().getColumnCount() > 1)
 							{
-								m_tableRefs[i].getColumnModel().getColumn(1).setPreferredWidth(40);
+								m_inspectorWindowTables[i].getColumnModel().getColumn(1).setPreferredWidth(40);
 							}
 						} catch (Exception e) { e.printStackTrace(); }
 					}
@@ -676,13 +501,13 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public void buttonReleased(String id) {} //graph mouse function
 	public void viewClosed(String arg0) {} //graph viewer interface function
 	
-	public static String getNodeScoreRasonString(Node node, boolean extendedReason)
+	public static String getNodeScoreReasonString(Node node, boolean extendedReason)
 	{ 
 		if (node==null) { return " "; }
 		String score=node.getAttribute("ui.scoreReason");
 		if (extendedReason) { score=node.getAttribute("ui.scoreExtendedReason"); }
 		if (score==null) { score=" "; }
-		if (node.getAttribute("ui.class")!=null && node.getAttribute("ui.class").toString().toLowerCase().equals("external")) { score="Score: N/A"; } //this was requested to make the UI feel cleaner, since nothing can be done to help the score of an external node anyway.
+		if (node.getAttribute("ui.class")!=null && node.getAttribute("ui.class").toString().toLowerCase().equals("external")) { score="N/A"; } //this was requested to make the UI feel cleaner, since nothing can be done to help the score of an external node anyway.
 		return score;
 	}
 	
@@ -736,7 +561,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		if (id==null || id.equals("")) { return; }
 		Node node=m_model.m_graph.getNode(id);
 		if (node==null) { return; }
-		final String connections="Connections: "+getNodeConnectionString(node,m_model), nameText=getNameString(node,"  "), scoreReason="Score: "+getNodeScoreRasonString(node, false);
+		final String connections="Connections: "+getNodeConnectionString(node,m_model), nameText=getNameString(node,"  "), scoreReason="Score: "+getNodeScoreReasonString(node, false);
 
 		javax.swing.SwingUtilities.invokeLater(new Runnable() //perform task on gui thread
 		{
