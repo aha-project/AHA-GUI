@@ -6,7 +6,7 @@
 	<property name="build.numThreads" value="1" />
 	<property name="src.dir" value="./src"/>
 	<property name="lib.dir" value="./deps/org.graphstream/lib"/>
-	<property name="build.version" value="AHA-GUI v0.5.7b2"/>
+	<property name="build.version" value="AHA-GUI v0.5.7b3"/>
 	<property name="CP" value="."/>
 	<tstamp>
 		<format property="TODAY" pattern="yyyy-MM-dd HH:mm" />
@@ -33,6 +33,7 @@
 		<mkdir dir="${build.classes}"/>
 		<tstamp/>
 		<echo message="${build.version} ${build.timestamp}"/>
+		<echo message="Building on Java: ${ant.java.version} Version: ${java.version}"/> 
 	</target>
 	<!--  /prepare target. -->
 
@@ -46,8 +47,7 @@
 			deprecation="on" 
 			optimize="on"
 			includeantruntime="false">
-		  <!-- <compilerarg value="-Xlint"/> -->
-		 <!-- <compilerarg value="-Werror"/> -->
+		   <compilerarg value="-Xlint:-serial"/> <!-- Use xlint without the serialization checks since we do not do any class serialization at this time-->
 		<classpath>  
         		<fileset dir="${lib.dir}">  
             			<include name="**/*.jar" />  
