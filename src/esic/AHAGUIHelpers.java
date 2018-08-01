@@ -27,7 +27,7 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("CheckBox.background", backgroundColor);
 		javax.swing.UIManager.put("CheckBox.focus", backgroundColor);
 		javax.swing.UIManager.put("CheckBox.font", uiFont); 
-		javax.swing.UIManager.put("CheckBox.icon", new AHACheckBoxIcon(13,13)); 
+		javax.swing.UIManager.put("CheckBox.icon", new AHACheckBoxIcon(13,13));
 		javax.swing.UIManager.put("ComboBox.background", accentColor.brighter().brighter());
 		javax.swing.UIManager.put("ComboBox.font", uiFont); 
 		javax.swing.UIManager.put("ComboBox.foreground", foregroundColor);
