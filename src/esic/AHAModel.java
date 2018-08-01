@@ -36,6 +36,7 @@ public class AHAModel
 	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>(), m_osProcs=new java.util.TreeMap<String,String>();
 	protected java.util.TreeMap<String,String> m_intListeningProcessMap=new java.util.TreeMap<String,String>(), m_extListeningProcessMap=new java.util.TreeMap<String,String>();
 	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<String,String>(), m_miscMetrics=new java.util.TreeMap<String,String>();
+	protected java.util.TreeMap<String,Integer> m_listeningPortConnectionCount=new java.util.TreeMap<String,Integer>();
 	protected Graph m_graph=null;
 	protected AHAGUI m_gui=null;
 	
@@ -244,6 +245,14 @@ public class AHAModel
 		if (index > 1) { s=s.substring(0, index); }
 		return s;
 	}
+	
+	private void bumpIntRefCount(java.util.TreeMap<String,Integer> dataset, String key, int ammountToBump)
+	{
+		Integer value=dataset.get(key);
+		if ( value==null ) { value=Integer.valueOf(0); }
+		value+=ammountToBump;
+		dataset.put(key, value);
+	}
 
 	protected void readInputFile()
 	{
@@ -359,6 +368,7 @@ public class AHAModel
 					}
 					if ( !connectionState.equalsIgnoreCase("listening") && !connectionState.equalsIgnoreCase("") )
 					{
+						if ( m_knownAliasesForLocalComputer.get(localAddr)!=null && m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); } // if it's a connection that is connected to a locally bound socket, bump the ref
 						if ( m_knownAliasesForLocalComputer.get(remoteAddr)!=null )//remoteAddr.equals("127.0.0.1") || remoteAddr.equals("::1") ) //TODO this should be all "local" hostnames we saw when reading the inputfile
 						{ //if it's in that map, then this should be a connection to ourself
 							if ( (toNode=m_allListeningProcessMap.get(protoRemotePort))!=null )
@@ -384,12 +394,12 @@ public class AHAModel
 									if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode); }
 								}
 							}
-							else if ( !(localAddr.equals("127.0.0.1") || localAddr.equals("::1")) )
+							else if ( m_knownAliasesForLocalComputer.get(localAddr)==null )
 							{
-								System.out.printf("WARNING: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);
+								System.out.printf("WARNING1: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);
 							}
-							else if ( (localAddr.equals("127.0.0.1") || localAddr.equals("::1")) && (m_allListeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
-							else { System.out.printf("WARNING: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
+							else if (  m_knownAliasesForLocalComputer.get(localAddr)!=null && (m_allListeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
+							else if ( !connectionState.contains("syn-sent") ){ System.out.printf("WARNING3: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
 						}
 						else // if (connectionState.equalsIgnoreCase("established") && !(remoteAddr.trim().equals("127.0.0.1") || remoteAddr.trim().equals("::1")) )
 						{ //System.out.printf("WARNING: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);
@@ -585,8 +595,6 @@ public class AHAModel
 		s = s.toLowerCase();
 		return Character.toString(s.charAt(0)).toUpperCase()+s.substring(1);
 	}
-	
-
 	
 	protected void start()
 	{
@@ -838,7 +846,7 @@ public class AHAModel
 		}
 		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
 		if (bigfont) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); }
-		AHAGUI.applyTheme(uiFont);
+		AHAGUIHelpers.applyTheme(uiFont);
 		m_gui =new AHAGUI(this);
 	}
 }

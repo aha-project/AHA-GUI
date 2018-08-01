@@ -2,13 +2,9 @@ package esic;
 
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseWheelEvent;
-import javax.swing.BorderFactory;
-import javax.swing.JFrame;
-import javax.swing.JScrollPane;
 import org.graphstream.graph.*;
 
 public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.view.ViewerListener, java.awt.event.ActionListener, java.awt.event.MouseWheelListener
@@ -24,7 +20,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public AHAGUI(AHAModel model)
 	{
 		m_model=model;
-		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		setDefaultCloseOperation(javax.swing.JFrame.EXIT_ON_CLOSE);
 		setSize(1152, 768);
 		setTitle(AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]); //This should result in something like "AHA-GUI v0.5.6b1" being displayed
 		getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.GRAY,2)); //TODO: tried this to clean up the weird dashed appearance of the right gray border on macOS, but to no avail. figure it out later.
@@ -125,97 +121,6 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		m_inspectorWindow=new InspectorWindow((javax.swing.JFrame)this);
 	}
 	
-	public static void applyTheme(Font uiFont) //Apply theme for JCheckbox, JComboBox, JLabel,  JSrollPane, JTabbedPane, JTable
-		{ // Need to figure out what key something is named? The stuff below will search and then exit for keys containing the string
-//		java.util.List<String> t=new java.util.ArrayList<String>(2048);
-//		for (Object key : javax.swing.UIManager.getLookAndFeelDefaults().keySet()) { t.add(key.toString()); }
-//		java.util.Collections.sort(t);
-//		for (String key : t ) { if (key.toLowerCase().contains("background")) { System.out.println(key); } }
-		java.awt.Color backgroundColor=java.awt.Color.BLACK, foregroundColor=java.awt.Color.GREEN, accentColor=java.awt.Color.DARK_GRAY.darker().darker(), lightAccent=java.awt.Color.DARK_GRAY;//, dbugcolor=java.awt.Color.ORANGE;
-		javax.swing.UIManager.put("Button.background", accentColor.brighter().brighter());
-		javax.swing.UIManager.put("Button.darkShadow", backgroundColor);
-		javax.swing.UIManager.put("Button.focus", accentColor.brighter().brighter()); //remove selection reticle
-		javax.swing.UIManager.put("Button.font",uiFont);
-		javax.swing.UIManager.put("Button.foreground", foregroundColor);
-		javax.swing.UIManager.put("Button.select", java.awt.Color.GRAY.darker());
-		javax.swing.border.Border b=new javax.swing.plaf.basic.BasicBorders.RolloverButtonBorder( lightAccent.brighter().brighter(),  lightAccent.brighter().brighter(), lightAccent.brighter().brighter(), lightAccent.brighter().brighter());
-		javax.swing.UIManager.put("Button.border", new javax.swing.border.CompoundBorder(BorderFactory.createLineBorder(java.awt.Color.GRAY),b ));
-		//javax.swing.UIManager.put("Button.highlight", backgroundColor);
-		//javax.swing.UIManager.put("Button.light", backgroundColor); //these 3 dont seem to be any use anymore
-		//javax.swing.UIManager.put("Button.shadow", backgroundColor);
-		javax.swing.UIManager.put("CheckBox.foreground", foregroundColor);
-		javax.swing.UIManager.put("CheckBox.background", backgroundColor);
-		javax.swing.UIManager.put("CheckBox.focus", backgroundColor);
-		javax.swing.UIManager.put("CheckBox.font", uiFont); 
-		javax.swing.UIManager.put("CheckBox.gradient", java.util.Arrays.asList( new Object[] {Float.valueOf(0f),Float.valueOf(0f), java.awt.Color.LIGHT_GRAY, java.awt.Color.LIGHT_GRAY, java.awt.Color.GRAY.brighter() }));
-		//		javax.swing.Icon i=javax.swing.UIManager.getIcon("CheckBox.icon"); //eventually figure out some way to green the icon up?
-		//		javax.swing.GrayFilter gf=new javax.swing.GrayFilter(true,100);
-		javax.swing.UIManager.put("ComboBox.background", accentColor.brighter().brighter());
-		javax.swing.UIManager.put("ComboBox.font", uiFont); 
-		javax.swing.UIManager.put("ComboBox.foreground", foregroundColor);
-		javax.swing.UIManager.put("ComboBox.selectionForeground", foregroundColor);
-		javax.swing.UIManager.put("ComboBox.selectionBackground", accentColor.brighter().brighter()); 
-		javax.swing.UIManager.put("ComboBox.border", BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(java.awt.Color.GRAY),BorderFactory.createLineBorder(accentColor.brighter().brighter(),2)));
-		javax.swing.UIManager.put("ComboBoxUI", javax.swing.plaf.basic.BasicComboBoxUI.class.getName());
-		javax.swing.UIManager.put("Label.foreground", foregroundColor);
-		javax.swing.UIManager.put("Label.background", backgroundColor);
-		javax.swing.UIManager.put("Label.font", uiFont);
-		javax.swing.UIManager.put("Frame.foreground", foregroundColor);
-		javax.swing.UIManager.put("Frame.background", backgroundColor);
-		javax.swing.UIManager.put("Panel.foreground", foregroundColor);
-		javax.swing.UIManager.put("Panel.background", backgroundColor);
-		javax.swing.UIManager.put("ScrollBar.track", backgroundColor);
-		javax.swing.UIManager.put("ScrollBar.thumbDarkShadow", backgroundColor);
-		javax.swing.UIManager.put("ScrollBar.thumb", accentColor.brighter().brighter().brighter());
-		javax.swing.UIManager.put("ScrollBar.thumbHighlight", accentColor.brighter().brighter().brighter());
-		javax.swing.UIManager.put("ScrollBar.thumbShadow", accentColor.brighter().brighter().brighter());
-		javax.swing.UIManager.put("ScrollBarUI", javax.swing.plaf.basic.BasicScrollBarUI.class.getName() );
-		javax.swing.UIManager.put("ScrollBar.width", 8);
-		javax.swing.UIManager.put("ScrollPane.foreground", foregroundColor);
-		javax.swing.UIManager.put("ScrollPane.background", backgroundColor);
-		javax.swing.UIManager.put("TabbedPane.foreground", foregroundColor);
-		javax.swing.UIManager.put("TabbedPane.background", backgroundColor);
-		javax.swing.UIManager.put("TabbedPane.light", backgroundColor);
-		javax.swing.UIManager.put("TabbedPane.borderHightlightColor", backgroundColor);
-		javax.swing.UIManager.put("TabbedPane.selected", accentColor.brighter().brighter().brighter());
-		javax.swing.UIManager.put("TabbedPane.focus",accentColor.brighter().brighter().brighter());
-		javax.swing.UIManager.put("TabbedPane.selectHighlight",accentColor.brighter().brighter().brighter());
-		javax.swing.UIManager.put("TabbedPane.darkShadow", accentColor.brighter().brighter().brighter()); //removes difficult to see blue glow around inactive tab edge
-		javax.swing.UIManager.put("TabbedPane.contentBorderInsets", new java.awt.Insets(0,0,0,0));
-		javax.swing.UIManager.put("TabbedPane.tabsOverlapBorder", true); 
-		javax.swing.UIManager.put("TableUI", javax.swing.plaf.basic.BasicTableUI.class.getName() );
-		javax.swing.UIManager.put("Table.foreground", foregroundColor);
-		javax.swing.UIManager.put("Table.background", backgroundColor);
-		javax.swing.UIManager.put("Table.focusCellForeground", foregroundColor);
-		javax.swing.UIManager.put("Table.focusCellBackground", backgroundColor);
-		javax.swing.UIManager.put("Table.dropCellBackground", backgroundColor);
-		javax.swing.UIManager.put("Table.gridColor", accentColor);
-		javax.swing.UIManager.put("Table.font", uiFont); //
-		javax.swing.UIManager.put("Table.selectionBackground", foregroundColor.darker());
-		javax.swing.UIManager.put("Table.focusCellHighlightBorder", foregroundColor.darker());
-		javax.swing.UIManager.put("Table.selectionForeground", backgroundColor);
-		javax.swing.UIManager.put("Table.sortIconColor", foregroundColor); 
-//		javax.swing.UIManager.put("Table.ascendingSortIcon","");
-//		javax.swing.UIManager.put("Table.descendingSortIcon","");
-//		javax.swing.ImageIcon i= new javax.swing.ImageIcon();
-//		try
-//		{ //temporary work around to make the tables have sort icons that are visible. Need to find a way to do this without using sun private API soon
-//			javax.swing.UIManager.put("Table.ascendingSortIcon",new sun.swing.SwingLazyValue("sun.swing.icon.SortArrowIcon",null, new Object[] { Boolean.TRUE, "Table.sortIconColor" }));
-//			javax.swing.UIManager.put("Table.descendingSortIcon",new sun.swing.SwingLazyValue("sun.swing.icon.SortArrowIcon",null,new Object[] { Boolean.FALSE, "Table.sortIconColor" }));
-//		} catch (Exception e) {}
-		javax.swing.UIManager.put("TableHeaderUI", javax.swing.plaf.basic.BasicTableHeaderUI.class.getName() );
-		javax.swing.UIManager.put("TableHeader.foreground", foregroundColor);
-		javax.swing.UIManager.put("TableHeader.background", accentColor);
-		javax.swing.UIManager.put("TableHeader.cellBorder", new javax.swing.border.BevelBorder(javax.swing.border.BevelBorder.RAISED));
-		javax.swing.UIManager.put("TableHeader.font", uiFont); 
-		javax.swing.UIManager.put("ToolTip.foreground", java.awt.Color.BLACK);
-		javax.swing.UIManager.put("ToolTip.border", java.awt.Color.WHITE);
-		javax.swing.UIManager.put("ToolTip.background", java.awt.Color.WHITE);
-		javax.swing.UIManager.put("ToolTip.font", uiFont);
-		javax.swing.UIManager.put("Viewport.foreground", foregroundColor);
-		javax.swing.UIManager.put("Viewport.background", accentColor);
-	}
-	
 	public void actionPerformed(ActionEvent e) //swing actions go to here
 	{
 		if (e.getActionCommand().equals("hideOSProcs")) { m_model.hideOSProcs(m_model.m_graph, m_hideOSProcsCheckbox.isSelected()); }
@@ -267,7 +172,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		{
 			if (synch_dataViewFrame==null)
 			{
-				synch_dataViewFrame=new JFrame("Data View")
+				synch_dataViewFrame=new javax.swing.JFrame("Data View")
 				{
 					{
 						setLayout(new java.awt.BorderLayout());
@@ -283,7 +188,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 						}
 						{ // Find data for, create table, etc for the "Listening Processes" tab
 							javax.swing.JTable[] fwTables=new javax.swing.JTable[2];
-							String[][] columnHeaders={{"Listening Internally", "PID", "Proto", "Port"},{"Listening Externally", "PID", "Proto", "Port"}};
+							String[][] columnHeaders={{"Listening Internally", "PID", "Proto", "Port", "Connections"},{"Listening Externally", "PID", "Proto", "Port", "Connections"}};
 							Object[][][] tableData=new Object[2][][];
 							java.util.TreeMap<String,String> dataset=m_model.m_intListeningProcessMap;
 							for (int i=0;i<2;i++)
@@ -293,15 +198,16 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 								{
 									String key=entry.getKey(), value=entry.getValue();
 									String[] keyTokens=key.split("_"), valueTokens=value.split("_");
-									Object strArrVal[]=new Object[4];
+									Object strArrVal[]=new Object[5];
 									strArrVal[0]=valueTokens[0];
 									strArrVal[1]=AHAModel.strAsInt(valueTokens[1]);
 									strArrVal[2]=keyTokens[0].toUpperCase();
 									strArrVal[3]=AHAModel.strAsInt(keyTokens[1]);
+									strArrVal[4]=m_model.m_listeningPortConnectionCount.get(key);
 									String newKey=valueTokens[0]+valueTokens[1]+"-"+keyTokens[0].toUpperCase()+keyTokens[1];
 									sortMe.put(newKey, strArrVal);
 								}
-								Object[][] data = new Object[sortMe.size()][4];
+								Object[][] data = new Object[sortMe.size()][5];
 								int j=0;
 								for (Object[] lineDat : sortMe.values()) { data[j++]=lineDat; }
 								tableData[i]=data;
@@ -372,13 +278,13 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			scrollContent.add(tableRefs[i].getTableHeader());
 			scrollContent.add(tableRefs[i]);
 		}
-		JScrollPane scrollPane = new JScrollPane(scrollContent);
+		javax.swing.JScrollPane scrollPane = new javax.swing.JScrollPane(scrollContent);
 		scrollPane.setViewportBorder(javax.swing.BorderFactory.createEmptyBorder());
 		scrollPane.setBorder(javax.swing.BorderFactory.createEmptyBorder());
 		return scrollPane;
 	}
 	
-	public static class InspectorWindow extends JFrame
+	public static class InspectorWindow extends javax.swing.JFrame
 	{
 		private javax.swing.JCheckBox m_changeOnMouseOver=new javax.swing.JCheckBox("Update on MouseOver",false);
 		private String[][] m_inspectorWindoColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process Name", "PID"}, {"Score Metric", "Value"}};
@@ -405,8 +311,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			
 			this.setLocation(parent.getLocation().x+parent.getWidth(), 0);
 			this.setSize(286,768);
-			//System.out.println("size="+this.getSize());
-			this.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+			this.setDefaultCloseOperation(javax.swing.JFrame.HIDE_ON_CLOSE);
 			this.setVisible(true);
 		}
 		
@@ -521,7 +426,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			Edge e=it.next();
 			Node tempNode=e.getOpposite(node);
 			String t2=tempNode.getAttribute("ui.label");
-			if (!connections.contains(t2)) //some vertices have multiple connections between them, only print once
+			if (t2!=null && !connections.contains(t2)) //some vertices have multiple connections between them, only print once
 			{ 
 				String processPath=tempNode.getAttribute("processpath");
 				if ( processPath==null || !(model.m_hideOSProcs&&model.m_osProcs.get(processPath)!=null) ) 
@@ -585,8 +490,8 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	
 	public static void main(String args[]) //It's kind of dumb that our stub to main is in this class, but this way when we run on operating systems that display the name in places, it will say AHAGUI rather than AHAModel
 	{ 
-		try { javax.swing.UIManager.setLookAndFeel( javax.swing. UIManager.getCrossPlatformLookAndFeelClassName()); } 
-		catch (Exception e) { }
+		try { javax.swing.UIManager.setLookAndFeel( javax.swing.UIManager.getCrossPlatformLookAndFeelClassName() ); }
+		catch (Exception e) { System.err.println("Failed to set look and feel:"); e.printStackTrace(); }
 		
 		AHAModel model=new AHAModel(args);
 		model.start();

@@ -6,7 +6,7 @@
 	<property name="build.numThreads" value="1" />
 	<property name="src.dir" value="./src"/>
 	<property name="lib.dir" value="./deps/org.graphstream/lib"/>
-	<property name="build.version" value="AHA-GUI v0.5.7b3"/>
+	<property name="build.version" value="AHA-GUI v0.5.8b1"/>
 	<property name="CP" value="."/>
 	<tstamp>
 		<format property="TODAY" pattern="yyyy-MM-dd HH:mm" />
@@ -17,8 +17,8 @@
 	<!-- Temporary build directories -->
 	<property name="build.dir" value="build"/>
 	<property name="build.classes" value="${build.dir}/classes"/>
-	<property name="java.source" value="1.8"/>
-	<property name="java.target" value="1.8"/>
+	<property name="java.source" value="${ant.java.version}"/> <!-- this removes the final warning on newer JDKs about bootclasspath not being set, but means that jars built on newer releases wont necessarily be backwards compatible-->
+	<property name="java.target" value="${ant.java.version}"/>
 	<property name="javadoc.additionalparam" value="-breakiterator"/>
 	<property name="compile.optimize" value="true"/>
 	<property name="compile.warnings" value="true"/>
