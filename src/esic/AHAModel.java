@@ -17,12 +17,14 @@ public class AHAModel
 	
 	private static class ScoreItem
 	{
-		String criteria="", criteriaValue="";
+		String criteria="", operation="";
+		java.util.Vector<String> criteriaValues=null;
 		int scoreDelta=0;
-		public ScoreItem(String crit, String critval, int sD)
+		public ScoreItem(String op, String crit, java.util.Vector<String> critvals, int sD)
 		{
+			operation=op;
 			criteria=crit;
-			criteriaValue=critval;
+			criteriaValues=critvals;
 			scoreDelta=sD;
 		}
 	}
@@ -71,18 +73,21 @@ public class AHAModel
 			String line="";
 			while ((line = buff.readLine()) != null)
 			{
-				line=line.trim();
-				if (line.startsWith("//") || line.startsWith("#")) { continue; }
+				line=line.trim().trim().trim();
+				if (line.startsWith("//") || line.startsWith("#") || line.length()<5) { continue; }
 				String[] tokens=fixCSVLine(line);
-				if (tokens.length<2) { continue;}
+				if (tokens.length<3) { System.out.println("Malformed MetricsTable line:|"+line+"|"); continue;}
 				int scoreDelta=-10000;
-				try { scoreDelta=Integer.parseInt(tokens[2]); }
+				try { scoreDelta=Integer.parseInt(tokens[3]); }
 				catch (Exception e) { e.printStackTrace(); }
 				
 				if (scoreDelta > -101 && scoreDelta < 101) //valid range is only -100 to 100
 				{
-					System.out.println("MetricsTable read criterion: "+tokens[0]+" value="+tokens[1]+" score="+tokens[2]);
-					m_scoreTable.add(new ScoreItem(tokens[0],tokens[1],scoreDelta)); //TODO this should probably get cleaned up, as comments and/or anything after the first main 3 fields will consume memory even though we never use them.
+					String[] criteria=tokens[2].split("\\|");
+					java.util.Vector<String> criteriaVec=new java.util.Vector<String>();
+					for (String s : criteria) { criteriaVec.add(s.trim().trim().trim()); }
+					System.out.println("MetricsTable read criterion: if "+tokens[1]+"="+criteriaVec.toString()+" score="+scoreDelta); //TODO fix
+					m_scoreTable.add(new ScoreItem(tokens[0],tokens[1],criteriaVec,scoreDelta)); //TODO this should probably get cleaned up, as comments and/or anything after the first main 3 fields will consume memory even though we never use them.
 				}
 			}
 		}
@@ -150,23 +155,29 @@ public class AHAModel
 	{
 		int score=0;
 		String scoreReason="", extendedReason="";
-		if (m_verbose) { System.out.println("Process: "+n.getId()); }
+		if (m_verbose) { System.out.println("Process: "+n.getId()+" examining metrics:"); }
 		for (ScoreItem si : m_scoreTable) 
 		{
 			try
 			{
-				boolean scoredTrue=false;
+				int numberOfTimesTrue=0;
 				if(n.getAttribute(si.criteria) != null)
 				{
-					if (m_verbose) { System.out.println("    "+si.criteria+": " + n.getAttribute(si.criteria)); }//TODO make printout more obvious here
-					if(n.getAttribute(si.criteria).toString().equals(si.criteriaValue)) 
-					{ 
-						score=score+si.scoreDelta;
-						scoreReason+=", "+si.criteria+"="+si.scoreDelta;
-						scoredTrue=true;
+					String attribute=n.getAttribute(si.criteria).toString().toLowerCase();
+					for (String criterion : si.criteriaValues)
+					{ //TODO add operation support here
+						if( (si.operation.equals("eq") && attribute.equals(criterion)) || (si.operation.equals("ct") && attribute.contains(criterion))) 
+						{ 
+							score=score+si.scoreDelta;
+							numberOfTimesTrue++;
+						}
 					}
+					if (m_verbose) { System.out.println("    "+si.criteria+": input='"+attribute+"' looking for="+si.criteriaValues+" matched "+numberOfTimesTrue+" times"); }//TODO make printout more obvious here
+					if (numberOfTimesTrue>0) { scoreReason+=", "+si.criteria+"="+(si.scoreDelta*numberOfTimesTrue); } //TODO this will need cleanup 
 				}
-				extendedReason+=", "+si.criteria+"("+si.scoreDelta+")"+"="+Boolean.toString(scoredTrue);
+				String xtra="";
+				if (numberOfTimesTrue>1) { xtra=" x"+numberOfTimesTrue; }
+				extendedReason+=", "+si.criteria+"."+si.operation+si.criteriaValues+":"+si.scoreDelta+"="+capitalizeFirstLetter(Boolean.toString(numberOfTimesTrue>0))+xtra;
 			}
 			catch (Exception e) { System.out.println(e.getMessage()); }
 		}
@@ -251,7 +262,7 @@ public class AHAModel
 		Integer value=dataset.get(key);
 		if ( value==null ) { value=Integer.valueOf(0); }
 		value+=ammountToBump;
-		dataset.put(key, value);
+		dataset.put(key, value); //System.out.println("Bumping ref for key="+key+" to new value="+value);
 	}
 
 	protected void readInputFile()
@@ -260,7 +271,7 @@ public class AHAModel
 		m_knownAliasesForLocalComputer.put("127.0.0.1", "127.0.0.1"); //ensure these obvious ones are inserted in case we never see them in the scan
 		m_knownAliasesForLocalComputer.put("::1", "::1"); //ensure these obvious ones are inserted in case we never see them in the scan
 		java.io.BufferedReader br = null;
-		int lineNumber=1;
+		int lineNumber=0;
 		java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<String,Integer>();
 		try 
 		{
@@ -278,9 +289,11 @@ public class AHAModel
 
 			while ((line = br.readLine()) != null) //this is the first loop, in this loop we're loading all the vertexes and their meta data, so we can then later connect the vertices
 			{
+				lineNumber++;
 				try
 				{
 					String[] tokens = fixCSVLine(line); 
+					if (tokens.length<5) { System.err.println("Skipping line #"+lineNumber+" because it is malformed."); continue; }
 					String fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], protoLocalPort=tokens[hdr.get("protocol")]+"_"+tokens[hdr.get("localport")];
 					String connectionState=tokens[hdr.get("state")], localAddr=tokens[hdr.get("localaddress")].trim();
 				
@@ -320,7 +333,6 @@ public class AHAModel
 					if (lineNumber<5 && tokens[hdr.get("detectiontime")]!=null) { m_miscMetrics.put("detectiontime", tokens[hdr.get("detectiontime")]); } //only try to set the first few read lines
 				}
 				catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
-				lineNumber++;
 			}
 		} 
 		catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); } 
@@ -343,8 +355,7 @@ public class AHAModel
 		m_knownAliasesForLocalComputer.remove("::");
 		m_knownAliasesForLocalComputer.remove("0.0.0.0"); //TODO: these don't seem to make sense as aliases to local host, so i'm removing them for now
 
-		int connectionNumber=0;
-		lineNumber=1;
+		lineNumber=0;
 		br = null;
 		try 
 		{
@@ -353,9 +364,11 @@ public class AHAModel
 			br.readLine(); //consume first line
 			while ((line = br.readLine()) != null)  //this is the second loop, in this loop we're loading the connections between nodes
 			{
+				lineNumber++;
 				try
 				{
 					String[] tokens = fixCSVLine(line);
+					if (tokens.length<5) { System.err.println("Skipping line #"+lineNumber+" because it is malformed."); continue; }
 					String toNode, fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], proto=tokens[hdr.get("protocol")], localPort=tokens[hdr.get("localport")], remotePort=tokens[hdr.get("remoteport")];
 					String protoLocalPort=proto+"_"+localPort, protoRemotePort=proto+"_"+remotePort;
 					String remoteAddr=tokens[hdr.get("remoteaddress")].trim(), localAddr=tokens[hdr.get("localaddress")], connectionState=tokens[hdr.get("state")], remoteHostname=tokens[hdr.get("remotehostname")];
@@ -366,77 +379,76 @@ public class AHAModel
 						System.out.println("WARNING: Second scan found new process: Name=|"+fromNode+"|, on line "+lineNumber+" ignoring."); 
 						continue;
 					}
-					if ( !connectionState.equalsIgnoreCase("listening") && !connectionState.equalsIgnoreCase("") )
+					boolean duplicateEdge=false, timewait=false, exactSameEdgeAlreadyExists=false, isLocalOnly=false;
+					Node tempNode=null;
+					String connectionName=null,reverseConnectionName=null;
+					if ( !connectionState.equalsIgnoreCase("listening") && !connectionState.equalsIgnoreCase("") ) //empty string is listening state for a bound udp socket on windows apparently
 					{
-						if ( m_knownAliasesForLocalComputer.get(localAddr)!=null && m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); } // if it's a connection that is connected to a locally bound socket, bump the ref
-						if ( m_knownAliasesForLocalComputer.get(remoteAddr)!=null )//remoteAddr.equals("127.0.0.1") || remoteAddr.equals("::1") ) //TODO this should be all "local" hostnames we saw when reading the inputfile
+						if (connectionState.toLowerCase().contains("wait") || connectionState.toLowerCase().contains("syn_") || connectionState.toLowerCase().contains("last_")) { timewait=true; }
+						if ( m_knownAliasesForLocalComputer.get(remoteAddr)!=null ) 
 						{ //if it's in that map, then this should be a connection to ourself
+							isLocalOnly=true;
 							if ( (toNode=m_allListeningProcessMap.get(protoRemotePort))!=null )
 							{
-								Node tempNode=m_graph.getNode(fromNode);
-								boolean duplicateEdge=false, timewait=false;
-								if (connectionState.toLowerCase().contains("wait")) { timewait=true; }
-								if (tempNode!=null)
-								{
-									for (Edge e : tempNode.getEdgeSet())
-									{
-										if (e.getOpposite(tempNode).getId().equals(toNode)) { duplicateEdge=true; }
-									}
-								}
-								Edge e=m_graph.addEdge(String.valueOf(++connectionNumber),fromNode,toNode);
-								if (e!=null)
+								connectionName=(protoLocalPort+"<->"+protoRemotePort);
+								reverseConnectionName=(protoRemotePort+"<->"+protoLocalPort);
+							}
+							else if ( m_knownAliasesForLocalComputer.get(localAddr)==null ) { System.out.printf("WARNING1: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);}
+							else if (  m_knownAliasesForLocalComputer.get(localAddr)!=null && (m_allListeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
+							else if ( !connectionState.contains("syn-sent") ){ System.out.printf("WARNING3: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
+						}
+						else 
+						{ 
+							if (timewait && m_allListeningProcessMap.get(protoLocalPort)!=null) 
+							{ 
+								if (!fromNode.startsWith("unknown") && m_verbose) {System.out.println("Found a timewait we could correlate, but the name does not contain unknown. Would have changed from: "+fromNode+" to: "+m_allListeningProcessMap.get(protoLocalPort)+"?"); }
+								else { fromNode=m_allListeningProcessMap.get(protoLocalPort); }
+							}
+							connectionName=(protoLocalPort+"<->"+protoRemotePort);
+							reverseConnectionName=(protoRemotePort+"<->"+protoLocalPort);	
+							toNode="Ext_"+remoteAddr;
+							if (remoteHostname==null || remoteHostname.equals("")) { remoteHostname=remoteAddr; } //cover the case that there is no FQDN
+						}
+						
+						if (connectionName!=null) { tempNode=m_graph.getNode(fromNode); } //some of the cases above wont actually result in a sane node setup, so only grab a node if we have connection name
+						if (tempNode!=null)
+						{
+							for (Edge e : tempNode.getEdgeSet())
+							{
+								if (e.getOpposite(tempNode).getId().equals(toNode)) { duplicateEdge=true; }
+								if (e.getId().equals(connectionName) || e.getId().equals(reverseConnectionName) ) { exactSameEdgeAlreadyExists=true; System.out.println("Exact same edge already exists!"); }
+							}
+							if (!exactSameEdgeAlreadyExists)
+							{
+								Edge e=m_graph.addEdge(connectionName,fromNode,toNode);
+								if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode); }
+								if (m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); }
+								if (e!=null && isLocalOnly)
 								{
 									e.addAttribute("layout.weight", 10); //try to make internal edges longer
 									if (duplicateEdge) { e.addAttribute("layout.weight", 5); }
 									if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "tw"); }
 									if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate"); }
 									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicatetw"); }
-									if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode); }
+									if (m_allListeningProcessMap.get(protoRemotePort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoRemotePort,1); }
 								}
-							}
-							else if ( m_knownAliasesForLocalComputer.get(localAddr)==null )
-							{
-								System.out.printf("WARNING1: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);
-							}
-							else if (  m_knownAliasesForLocalComputer.get(localAddr)!=null && (m_allListeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
-							else if ( !connectionState.contains("syn-sent") ){ System.out.printf("WARNING3: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
-						}
-						else // if (connectionState.equalsIgnoreCase("established") && !(remoteAddr.trim().equals("127.0.0.1") || remoteAddr.trim().equals("::1")) )
-						{ //System.out.printf("WARNING: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);
-							Node tempNode=m_graph.getNode(fromNode);
-							toNode="Ext_"+remoteAddr;
-							if (remoteHostname==null || remoteHostname.equals("")) { remoteHostname=remoteAddr; } //cover the case that there is no FQDN
-							boolean duplicateEdge=false, timewait=false;
-							if (connectionState.toLowerCase().contains("wait")) { timewait=true; }
-							if (tempNode!=null)
-							{
-								for (Edge e : tempNode.getEdgeSet())
+								else if(e!=null)
 								{
-									if (e.getOpposite(tempNode).getId().equals(toNode)) { duplicateEdge=true; }
+									m_graph.getNode(toNode).addAttribute("ui.class", "external");
+									m_graph.getNode(toNode).addAttribute("hostname", remoteHostname);
+									m_graph.getNode(toNode).addAttribute("IP", remoteAddr);
+									e.addAttribute("layout.weight", 9); //try to make internal edges longer
+									if (duplicateEdge) { e.addAttribute("layout.weight", 4); }
+									if (!timewait && !duplicateEdge) { e.addAttribute("ui.class", "external"); }
+									if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicateExternal"); }
+									if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "externaltw"); } 
+									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicateExternaltw"); }
 								}
 							}
-							Edge e=m_graph.addEdge(String.valueOf(++connectionNumber),fromNode,toNode);
-							
-							if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode); }
-							m_graph.getNode(toNode).addAttribute("ui.class", "external");
-							m_graph.getNode(toNode).addAttribute("hostname", remoteHostname);
-							m_graph.getNode(toNode).addAttribute("IP", remoteAddr);
-							if (e!=null)
-							{
-								e.addAttribute("layout.weight", 9); //try to make internal edges longer
-								if (duplicateEdge) { e.addAttribute("layout.weight", 4); }
-								if (!timewait && !duplicateEdge) { e.addAttribute("ui.class", "external"); }
-								if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicateExternal"); }
-								if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "externaltw"); } 
-								if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicateExternaltw"); }
-							}
 						}
-						//else if (m_listeningProcessMap.get(protoLocalPort)==null) //if we have a local port in the listeners we can ignore this connection
-						//	{ //System.out.printf("WARNING: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
 					}
 				}
 				catch (Exception e) { System.out.print("start: second readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
-				lineNumber++;
 			}
 		} 
 		catch (Exception e) { System.out.print("start: second readthrough: input line "+lineNumber+":"); e.printStackTrace(); } 

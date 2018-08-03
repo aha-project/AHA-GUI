@@ -286,7 +286,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	
 	public static class InspectorWindow extends javax.swing.JFrame
 	{
-		private javax.swing.JCheckBox m_changeOnMouseOver=new javax.swing.JCheckBox("Update on MouseOver",false);
+		private javax.swing.JCheckBox m_changeOnMouseOver=new javax.swing.JCheckBox("Update on MouseOver",false), m_showScoringSpecifics=new javax.swing.JCheckBox("Show Score Metric Specifics",false);
 		private String[][] m_inspectorWindoColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process Name", "PID"}, {"Score Metric", "Value"}};
 		private javax.swing.JTable[] m_inspectorWindowTables= new javax.swing.JTable[m_inspectorWindoColumnHeaders.length]; //if you need more tables just add another column header set above
 		
@@ -296,21 +296,26 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.GRAY,2));
 			setLayout(new java.awt.GridBagLayout());
 			java.awt.GridBagConstraints gbc=new java.awt.GridBagConstraints();
-			gbc.insets = new java.awt.Insets(2, 5, 2, 5);
+			gbc.insets = new java.awt.Insets(2, 5, 0, 5);
 			gbc.fill=gbc.fill=GridBagConstraints.BOTH;
 			gbc.gridx=0; gbc.gridy=0;  gbc.weightx=1; gbc.weighty=100;
 			
 			String[][][] initialData={{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},}; //digging this new 3d array literal initializer: this is a String[5][1][1] where element[i][0][0]="None".
 			this.add(createTablesInScrollPane(m_inspectorWindoColumnHeaders, initialData, m_inspectorWindowTables, new int[]{160,40}), gbc);
 			
+			javax.swing.JPanel panel=new javax.swing.JPanel(); //easiest way to get these things to be compact vertically...tried everything with insets to no avail
+			panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
+			panel.add(m_showScoringSpecifics);
+			panel.add(m_changeOnMouseOver);
+			
 			gbc.gridy++;
 			gbc.weighty=1;
 			gbc.fill=java.awt.GridBagConstraints.HORIZONTAL;
-			m_changeOnMouseOver.setToolTipText("Update the information above as you hover over items in the graph.");
-			this.add(m_changeOnMouseOver, gbc);
+			gbc.insets = new java.awt.Insets(0, 5, 2, 5);
+			this.add(panel, gbc);
 			
 			this.setLocation(parent.getLocation().x+parent.getWidth(), 0);
-			this.setSize(286,768);
+			this.setSize(280,768);
 			this.setDefaultCloseOperation(javax.swing.JFrame.HIDE_ON_CLOSE);
 			this.setVisible(true);
 		}
@@ -365,14 +370,23 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 				{ 
 					String[] tokens=connections[i].split("_");
 					connectionData[i][0]=tokens[0];
-					if (tokens.length > 1) { connectionData[i][1]=AHAModel.strAsInt(tokens[1]); }
+					if (tokens[0].equals("Ext")) { connectionData[i][0]=connections[i]; }
+					else if (tokens.length > 1) { connectionData[i][1]=AHAModel.strAsInt(tokens[1]); }
 				}
 			} catch (Exception e) { e.printStackTrace(); }
 			try
 			{ //update the fifth "Score Metric" table
 				String[] scores=getNodeScoreReasonString(node, true).split(", ");
 				scoreReasons=new String[scores.length][2];
-				for (int i=0;i<scores.length;i++) { scoreReasons[i]=scores[i].split("="); }
+				for (int i=0;i<scores.length;i++) 
+				{ 
+					scoreReasons[i]=scores[i].split("=");
+					if (!m_showScoringSpecifics.isSelected()) 
+					{ 
+						String input=(String)scoreReasons[i][0];
+						if (input!=null && input.contains("[") && input.contains("]:")) { scoreReasons[i][0]=input.split("\\.")[0]+"("+input.split("\\]:")[1]+")"; }
+					}
+				}
 				if (scores.length==0){ scoreReasons=new String[][]{{"No score results found"}}; }
 			} catch (Exception e) { e.printStackTrace(); }
 			
@@ -387,7 +401,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 						{
 							javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)m_inspectorWindowTables[i].getModel();
 							dm.setDataVector(data[i], m_inspectorWindoColumnHeaders[i]);
-							m_inspectorWindowTables[i].getColumnModel().getColumn(0).setPreferredWidth(140);
+							m_inspectorWindowTables[i].getColumnModel().getColumn(0).setPreferredWidth(160);
 							if (m_inspectorWindowTables[i].getColumnModel().getColumnCount() > 1)
 							{
 								m_inspectorWindowTables[i].getColumnModel().getColumn(1).setPreferredWidth(40);
