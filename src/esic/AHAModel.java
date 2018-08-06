@@ -710,7 +710,7 @@ public class AHAModel
 						data[i][0]="Score of Worst Externally Accessible Scannable Process";
 						data[i++][1]="Process: "+worstScoreName+"  Score: "+worstScore;
 						data[i][0]="Harmonic Mean of Scores of all Externally Accessible Processes";
-						String harmonicMean="Harominc Mean Computation Error";
+						String harmonicMean="Harmonic Mean Computation Error";
 						if (denominatorAccumulator > 0.000001d) { harmonicMean=String.format("%.2f", ((double)numExt)/denominatorAccumulator); }
 						data[i++][1]=harmonicMean;
 					}

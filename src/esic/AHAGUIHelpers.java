@@ -96,7 +96,7 @@ public class AHAGUIHelpers
 		public void paintIcon(Component c, Graphics g, int x, int y)
 		{
 			java.awt.Graphics2D g2 = (java.awt.Graphics2D)g;
-			System.out.printf("paintIcon called x=%d y=%d\n",x,y);
+			//System.out.printf("paintIcon called x=%d y=%d\n",x,y);
 			g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
 			g2.setColor(java.awt.Color.GREEN);
 			if (thingToDraw==true) { g2.fillPolygon(new int[]{x,x+6,x+3}, new int[]{y+5,y+5,y}, 3); }
