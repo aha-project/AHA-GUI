@@ -11,6 +11,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 {
 	protected javax.swing.JLabel m_name=new javax.swing.JLabel("Name:          "), m_connections=new javax.swing.JLabel("Connections:          "), m_score=new javax.swing.JLabel("Score:          ");
 	protected javax.swing.JCheckBox m_hideOSProcsCheckbox=new javax.swing.JCheckBox("Hide OS Procs"), m_hideExtCheckbox=new javax.swing.JCheckBox("Hide Ext Node"), m_showFQDN=new javax.swing.JCheckBox("DNS Names");
+	protected javax.swing.JTextField m_search=new javax.swing.JTextField("Search...");
 	protected org.graphstream.ui.swingViewer.ViewPanel m_viewPanel=null;
 	protected org.graphstream.ui.view.Viewer m_viewer=null;
 	protected org.graphstream.ui.view.ViewerPipe m_graphViewPump=null;
@@ -30,9 +31,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		if (m_model.m_multi) { m_model.m_graph = new org.graphstream.graph.implementations.MultiGraph("MultiGraph"); }
 		else { m_model.m_graph = new org.graphstream.graph.implementations.SingleGraph("SingleGraph"); }
 		m_viewer = new org.graphstream.ui.view.Viewer(m_model.m_graph, org.graphstream.ui.view.Viewer.ThreadingModel.GRAPH_IN_ANOTHER_THREAD);
-		m_graphViewPump = m_viewer.newViewerPipe();
-		m_graphViewPump.addViewerListener(this);
-		m_graphViewPump.addSink(m_model.m_graph);
+		
 		m_viewer.enableAutoLayout();
 		m_viewPanel=m_viewer.addDefaultView(false);
 
@@ -111,6 +110,21 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			gbc.gridy++;
 			bottomPanel.add(m_score, gbc);
 			gbc.gridy++;
+			
+			m_search.addMouseListener(new java.awt.event.MouseAdapter()
+			{
+        public void mouseClicked(java.awt.event.MouseEvent e)
+        {
+        	String txt=m_search.getText();
+        	if (txt!=null && txt.equals("Search...")) { m_search.setText(""); }
+        }
+			});
+			m_search.addActionListener(this);
+			m_search.setActionCommand("search");
+			m_search.setToolTipText(styleToolTipText("Search\nTo emphasize nodes you're looking for:\nex: processname==svchost.exe\nwill highlight all nodes and connections\nYou can also highlight all nodes except the search term by inverting the search:\nex: processname!=svchost.exe\nwill highlight everything that is not svchost.exe\n\n To hide nodes prepend '~' ex: ~processname==unknown\n\n you can also create complex searches using the || symbol\n ex: processname==svchost.exe || ~processname==unknown"));
+			gbc.insets=new java.awt.Insets(0,1,0,1);
+			bottomPanel.add(m_search, gbc);
+			gbc.gridy++;
 			gbc.insets=new java.awt.Insets(0,0,0,0);
 			bottomPanel.add(bottomButtons, gbc);
 		}
@@ -130,11 +144,13 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		if (e.getActionCommand().equals("resetZoom")) { m_viewPanel.getCamera().resetView(); }
 		if (e.getActionCommand().equals("showInspector")) { m_inspectorWindow.setVisible(true); }
 		if (e.getActionCommand().equals("scoreMethod")) { m_model.swapNodeStyles(((AHAModel.ScoreMethod)((javax.swing.JComboBox<?>)e.getSource()).getSelectedItem()), System.currentTimeMillis()); }
+		if (e.getActionCommand().equals("search")) { m_model.handleSearch(m_search.getText()); }
 		if (e.getActionCommand().equals("useCustom"))
 		{
 			m_model.m_overlayCustomScoreFile=((javax.swing.JCheckBox)e.getSource()).isSelected();
 			m_model.exploreAndScore(m_model.m_graph);
 		}
+		
 	}
 	
 	private static String styleToolTipText(String s) //format all tool tip texts by making them HTML (so we can apply text effects, and more importantly line breaks)
@@ -293,6 +309,9 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		public InspectorWindow(javax.swing.JFrame parent)
 		{
 			setTitle("Graph Node Inspector");
+			m_showScoringSpecifics.setToolTipText(styleToolTipText("Shows the specific metric in the inspector above that matched (Note: please click on a new node after enabling)."));
+			m_changeOnMouseOver.setToolTipText(styleToolTipText("Enable change of the inspector above on hovering over nodes in addition to clicking."));
+			
 			getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.GRAY,2));
 			setLayout(new java.awt.GridBagLayout());
 			java.awt.GridBagConstraints gbc=new java.awt.GridBagConstraints();
@@ -443,7 +462,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			if (t2!=null && !connections.contains(t2)) //some vertices have multiple connections between them, only print once
 			{ 
 				String processPath=tempNode.getAttribute("processpath");
-				if ( processPath==null || !(model.m_hideOSProcs&&model.m_osProcs.get(processPath)!=null) ) 
+				if ( processPath==null ) //|| !(model.m_hideOSProcs&&model.m_osProcs.get(processPath)!=null) )  //TODO was this feature actually necessary?
 				{ 
 					connections+=t2+", ";
 				}
@@ -478,22 +497,54 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public void buttonPushed(String id) //called when you click on a graph node/edge
 	{
 		if (id==null || id.equals("")) { return; }
-		Node node=m_model.m_graph.getNode(id);
-		if (node==null) { return; }
-		final String connections="Connections: "+getNodeConnectionString(node,m_model), nameText=getNameString(node,"  "), scoreReason="Score: "+getNodeScoreReasonString(node, false);
-
-		javax.swing.SwingUtilities.invokeLater(new Runnable() //perform task on gui thread
+		try { m_graphViewPump.pump(); } catch (Exception e) {e.printStackTrace();}  //non blocking pump to clear anything out before we heckle the graph
+		try
 		{
-			public void run()
+			Node node=m_model.m_graph.getNode(id);
+			if (node==null) { return; }
+	
+			for (Edge e : node.getEdgeSet())
 			{
-				m_name.setText(nameText);
-				m_name.setToolTipText(styleToolTipText(nameText));
-				m_connections.setText(connections);
-				m_connections.setToolTipText(styleToolTipText(connections));
-				m_score.setText(scoreReason);
-				m_score.setToolTipText(styleToolTipText(scoreReason));
+					String currentClasses=e.getAttribute("ui.class");
+					if (currentClasses==null) { currentClasses=""; }
+					if (!currentClasses.contains("clickedAccent")) { e.addAttribute("ui.class", "clickedAccent, "+currentClasses); }
+					//System.out.println("Adding classes: old uiclass was |"+currentClasses+"| is now |"+e.getAttribute("ui.class")+"|");
 			}
-		});
+			
+			final String connections="Connections: "+getNodeConnectionString(node,m_model), nameText=getNameString(node,"  "), scoreReason="Score: "+getNodeScoreReasonString(node, false);
+			javax.swing.SwingUtilities.invokeLater(new Runnable() //perform task on gui thread
+			{
+				public void run()
+				{
+					m_name.setText(nameText);
+					m_name.setToolTipText(styleToolTipText(nameText));
+					m_connections.setText(connections);
+					m_connections.setToolTipText(styleToolTipText(connections));
+					m_score.setText(scoreReason);
+					m_score.setToolTipText(styleToolTipText(scoreReason));
+				}
+			});
+		} catch (Exception e) { e.printStackTrace(); }
+	}
+	
+	public void mouseButtonReleasedOnElement(org.graphstream.ui.graphicGraph.GraphicElement element) 
+	{
+		if (element==null || element.getId()==null) { return; }
+		try { m_graphViewPump.pump(); } catch (Exception e) {e.printStackTrace();}  //non blocking pump to clear anything out before we heckle the graph
+		try
+		{
+		Node node=m_model.m_graph.getNode(element.getId());
+		if (node==null) { System.out.println("node is null, returning early"); return;}
+		for (Edge e : node.getEdgeSet())
+		{
+			try 
+			{
+				String currentClasses=e.getAttribute("ui.class");
+				if (currentClasses!=null) { e.addAttribute("ui.class", currentClasses.replaceAll("clickedAccent, ", "")); }
+				//System.out.println("Removing classes: old uiclass was |"+currentClasses+"| is now |"+e.getAttribute("ui.class")+"|");
+			} catch (Exception ex) { ex.printStackTrace(); }
+		}
+		} catch (Exception e2) { e2.printStackTrace(); }
 	}
 	
 	public void stoppedHoveringOverElement(org.graphstream.ui.graphicGraph.GraphicElement element) {}

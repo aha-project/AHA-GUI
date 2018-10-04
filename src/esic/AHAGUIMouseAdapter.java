@@ -42,29 +42,13 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 			mouseButtonPress(e);
 		}
 	}
-
-	public void mouseDragged(java.awt.event.MouseEvent e) 
-	{
-		if (curElement != null) { elementMoving(curElement, e); } 
-		else 
-		{
-			int x2 = e.getX(), y2 = e.getY();
-			org.graphstream.ui.geom.Point3 center=view.getCamera().getViewCenter();
-			org.graphstream.ui.geom.Point3 pixels=view.getCamera().transformGuToPx(center.x, center.y, center.z);
-			pixels.x+=(x1-x2);
-			pixels.y+=(y1-y2);
-			center=view.getCamera().transformPxToGu(pixels.x, pixels.y);
-			view.getCamera().setViewCenter(center.x, center.y, center.z);
-			x1=x2;
-			y1=y2;
-		}
-	}
-
+	
 	public void mouseReleased(java.awt.event.MouseEvent e) 
 	{
 		if (curElement != null) 
 		{
 			mouseButtonReleaseOffElement(curElement, e);
+			m_target.mouseButtonReleasedOnElement(curElement);
 			curElement = null;
 		} 
 		else 
@@ -83,6 +67,24 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 				y2 = t;
 			}
 			mouseButtonRelease(e, view.allNodesOrSpritesIn(x1, y1, x2, y2));
+			m_target.mouseButtonReleasedOnElement(view.findNodeOrSpriteAt(e.getX(), e.getY()));
+		}
+	}
+
+	public void mouseDragged(java.awt.event.MouseEvent e) 
+	{
+		if (curElement != null) { elementMoving(curElement, e); } 
+		else 
+		{
+			int x2 = e.getX(), y2 = e.getY();
+			org.graphstream.ui.geom.Point3 center=view.getCamera().getViewCenter();
+			org.graphstream.ui.geom.Point3 pixels=view.getCamera().transformGuToPx(center.x, center.y, center.z);
+			pixels.x+=(x1-x2);
+			pixels.y+=(y1-y2);
+			center=view.getCamera().transformPxToGu(pixels.x, pixels.y);
+			view.getCamera().setViewCenter(center.x, center.y, center.z);
+			x1=x2;
+			y1=y2;
 		}
 	}
 	
