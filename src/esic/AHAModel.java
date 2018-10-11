@@ -29,13 +29,15 @@ public class AHAModel
 		}
 	}
 	
-	public static enum ScoreMethod {Normal,WorstCommonProc,ECScore}
+	public static enum ScoreMethod {Normal,WorstCommonProcBETA,ECScoreBETA}
 
 	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<ScoreItem>(32);
-	protected boolean m_debug=false, m_verbose=false, m_multi=true, m_overlayCustomScoreFile=false, m_hideOSProcs=false; //flags for verbose output, hiding of operating system procs, and drawing of multiple edges between verticies
+	protected boolean m_debug=false, m_verbose=false, m_multi=true, m_overlayCustomScoreFile=false; //flags for verbose output, hiding of operating system processes, and drawing of multiple edges between vertices
 	protected String m_inputFileName="BinaryAnalysis.csv", m_scoreFileName="scorefile.csv";
-	protected int m_minScoreLowVuln=25, m_minScoreMedVuln=15;
-	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>(), m_osProcs=new java.util.TreeMap<String,String>();
+	protected int maxScore=0, metricsTableMultiPlatformScore=0;
+	protected java.util.TreeMap <String,Integer> platformSpecificMetricsTableScores=new java.util.TreeMap <String,Integer>();
+	protected int m_minScoreLowVuln=25, m_minScoreMedVuln=15; //TODO: not currently supported, either will be removed or fixed in later version
+	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>();
 	protected java.util.TreeMap<String,String> m_intListeningProcessMap=new java.util.TreeMap<String,String>(), m_extListeningProcessMap=new java.util.TreeMap<String,String>();
 	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<String,String>(), m_miscMetrics=new java.util.TreeMap<String,String>();
 	protected java.util.TreeMap<String,Integer> m_listeningPortConnectionCount=new java.util.TreeMap<String,Integer>();
@@ -43,22 +45,22 @@ public class AHAModel
 	protected AHAGUI m_gui=null;
 	
 	protected static final String CUSTOMSTYLE="ui.weAppliedCustomStyle";
-	protected String styleSheet = 	"graph { fill-color: black; }"+
+	protected String styleSheet = "graph { fill-color: black; }"+
 			"node { size: 30px; fill-color: red; text-color: white; text-style: bold; text-size: 12; text-background-color: #222222; text-background-mode: plain; }"+
-			"node.low { fill-color: green; }"+
-			"node.high { fill-color: orange; }"+
-			"node.medium { fill-color: yellow; }"+
+			"node.lowVuln { fill-color: green; }"+
+			"node.medVuln { fill-color: yellow; }"+
+			"node.highVuln { fill-color: orange; }"+
+			"node.severeVuln { fill-color: red; }"+
 			"node.custom { fill-mode: dyn-plain; }"+
 			"node.external { size: 50px; fill-color: red; }"+
-			"node:clicked { fill-color: blue; }"+
-			"edge { shape: line; fill-color: #CCCCCC; }"+
-			"edge.tw { stroke-mode: dashes; fill-color: #CCCCCC; }"+
+			"node.emphasize { stroke-mode: plain; stroke-color: blue; stroke-width: 2; }"+
+			"node:clicked { stroke-mode: plain; stroke-color: purple; stroke-width: 4; }"+ /*fill-color: blue;*/
+			"edge { shape: line; fill-color: #CCCCCC; stroke-width: 2; }"+
 			"edge.duplicate { fill-color: #303030; }"+
-			"edge.duplicatetw { fill-color: #303030; stroke-mode: dashes; }"+
+			"edge.tw { stroke-mode: dashes; }"+
 			"edge.external { fill-color: #883030; }"+
-			"edge.externaltw { fill-color: #883030; stroke-mode: dashes; }"+
-			"edge.duplicateExternal { fill-color: #553030; }"+
-			"edge.duplicateExternaltw { fill-color: #553030; stroke-mode: dashes; }";
+			"edge.clickedAccent { fill-color: purple; }"+
+			"edge.emphasize { fill-color: blue; }";
 
 	public static String scrMethdAttr(ScoreMethod m) { 	return "ui.ScoreMethod"+m; }
 	
@@ -76,8 +78,9 @@ public class AHAModel
 				line=line.trim().trim().trim();
 				if (line.startsWith("//") || line.startsWith("#") || line.length()<5) { continue; }
 				String[] tokens=fixCSVLine(line);
-				if (tokens.length<3) { System.out.println("Malformed MetricsTable line:|"+line+"|"); continue;}
+				if (tokens.length<4) { System.out.println("Malformed MetricsTable line:|"+line+"|"); continue;}
 				int scoreDelta=-10000;
+				String platform=tokens[4];
 				try { scoreDelta=Integer.parseInt(tokens[3]); }
 				catch (Exception e) { e.printStackTrace(); }
 				
@@ -88,10 +91,25 @@ public class AHAModel
 					for (String s : criteria) { criteriaVec.add(s.trim().trim().trim()); }
 					System.out.println("MetricsTable read criterion: if "+tokens[1]+"="+criteriaVec.toString()+" score="+scoreDelta); //TODO fix
 					m_scoreTable.add(new ScoreItem(tokens[0],tokens[1],criteriaVec,scoreDelta)); //TODO this should probably get cleaned up, as comments and/or anything after the first main 3 fields will consume memory even though we never use them.
+					if (scoreDelta>0 && platform.equals("multiplatform")) { metricsTableMultiPlatformScore+=scoreDelta; }
+					else if ( scoreDelta>0 && !platform.equals("optional"))
+					{
+						Integer platScore=platformSpecificMetricsTableScores.get(platform);
+						if (platScore==null) { platScore=Integer.valueOf(0); }
+						platScore+=scoreDelta;
+						platformSpecificMetricsTableScores.put(platform, platScore);
+					}
 				}
 			}
 		}
 		catch(Exception e) { e.printStackTrace(); }
+		int maxPlatformScore=0;
+		for ( java.util.Map.Entry<String, Integer> platformEntry: platformSpecificMetricsTableScores.entrySet() )
+		{
+			System.out.println("Platform="+platformEntry.getKey()+" platform specific score="+platformEntry.getValue());
+			if (platformEntry.getValue()>maxPlatformScore) { maxPlatformScore=platformEntry.getValue(); }
+		}
+		System.out.println("MetricsTable: multiplatform max="+metricsTableMultiPlatformScore+" setting max possible score to: "+(maxScore=metricsTableMultiPlatformScore+maxPlatformScore));
 	}
 	
 	protected void exploreAndScore(Graph graph) //explores the node graph and assigns a scaryness score
@@ -116,14 +134,14 @@ public class AHAModel
 				} //End WorstUserProc stage1 scoring
 				
 				{ //Begin EC Method stage1 scoring
-					if(nodeClass!=null && nodeClass.equalsIgnoreCase("external")) { node.addAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", Integer.toString(200)); }
-					else { node.addAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", Double.toString(100-score)); } 
+					if(nodeClass!=null && nodeClass.equalsIgnoreCase("external")) { node.addAttribute(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp", Integer.toString(200)); }
+					else { node.addAttribute(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp", Double.toString(100-score)); } 
 				} //End EC Method stage 1 scoring
 			} catch (Exception e) { e.printStackTrace(); }
 		}
 
 		//Begin EC between loop compute
-		EigenvectorCentrality ec = new EigenvectorCentrality(scrMethdAttr(ScoreMethod.ECScore)+"Tmp", org.graphstream.algorithm.measure.AbstractCentrality.NormalizationMode.MAX_1_MIN_0, 100, scrMethdAttr(ScoreMethod.Normal));
+		EigenvectorCentrality ec = new EigenvectorCentrality(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp", org.graphstream.algorithm.measure.AbstractCentrality.NormalizationMode.MAX_1_MIN_0, 100, scrMethdAttr(ScoreMethod.Normal));
 		ec.init(graph);
 		ec.compute();
 		if (m_verbose) { System.out.println("Worst User Scores="+lowestScoreForUserName); }
@@ -138,13 +156,13 @@ public class AHAModel
 				{
 					Integer lowScore=lowestScoreForUserName.get(node.getAttribute("username"));
 					if (lowScore==null) { System.err.println("no low score found, this should not happen"); continue; }
-					node.addAttribute(scrMethdAttr(ScoreMethod.WorstCommonProc), lowScore.toString());
+					node.addAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA), lowScore.toString());
 				} //End WorstUserProc stage2 scoring
 				{ //Begin EC stage2 scoring
 					double nodeScore   = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
-					double ecNodeScore = node.getAttribute(scrMethdAttr(ScoreMethod.ECScore)+"Tmp");
+					double ecNodeScore = node.getAttribute(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp");
 					ecNodeScore = nodeScore * (1-2*ecNodeScore);
-					node.addAttribute(scrMethdAttr(ScoreMethod.ECScore), ((Integer)((Double)ecNodeScore).intValue()).toString());
+					node.addAttribute(scrMethdAttr(ScoreMethod.ECScoreBETA), ((Integer)((Double)ecNodeScore).intValue()).toString());
 				} //End EC stage2 scoring
 			} catch (Exception e) { e.printStackTrace(); }
 		}
@@ -182,6 +200,7 @@ public class AHAModel
 			catch (Exception e) { System.out.println(e.getMessage()); }
 		}
 		if (m_verbose) { System.out.println("    Score: " + score); }
+		if (score < 0) { score=0; } //System.out.println("Minimum final node score is 0. Setting to 0."); 
 		n.addAttribute(scrMethdAttr(ScoreMethod.Normal)+"Reason", "FinalScore="+score+scoreReason);
 		n.addAttribute(scrMethdAttr(ScoreMethod.Normal)+"ExtendedReason", "FinalScore="+score+extendedReason);
 		return score;
@@ -222,11 +241,14 @@ public class AHAModel
 						n.addAttribute("ui.score", score);
 						if (sScoreReason!=null) { n.addAttribute("ui.scoreReason", sScoreReason); } //TODO: since scoreReason only really exists for 'normal' this means that 'normal' reason persists in other scoring modes. For modes that do not base their reasoning on 'normal' this is probably incorrect.
 						if (sScoreExtendedReason!=null) { n.addAttribute("ui.scoreExtendedReason", sScoreExtendedReason); }
-						String strScore="High";
-						n.addAttribute("ui.class", "high"); //default
-						if(score > m_minScoreLowVuln) { n.addAttribute("ui.class", "low"); strScore="Low"; }
-						else if(score > m_minScoreMedVuln) { n.addAttribute("ui.class", "medium");  strScore="Medium";} 
-						if (m_verbose) { System.out.println(n.getId()+" Applying Score: "+score+"   Vulnerability Score given: "+strScore); }
+						String uiClass="severeVuln";
+//						if(score > m_minScoreLowVuln) { n.addAttribute("ui.class", "low"); strScore="Low"; }
+//						else if(score > m_minScoreMedVuln) { n.addAttribute("ui.class", "medium");  strScore="Medium";} 
+						if (score > (0.25*maxScore)) { uiClass="highVuln"; }
+						if (score > (0.50*maxScore)) { uiClass="medVuln"; }
+						if (score > (0.75*maxScore)) { uiClass="lowVuln"; }
+						n.addAttribute("ui.class", uiClass); //apply the class
+						if (m_verbose) { System.out.println(n.getId()+" Applying Score: "+score+"   Vulnerability Score given: "+uiClass); }
 					}
 				}
 			}
@@ -429,7 +451,7 @@ public class AHAModel
 									if (duplicateEdge) { e.addAttribute("layout.weight", 5); }
 									if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "tw"); }
 									if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate"); }
-									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicatetw"); }
+									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate, tw"); }
 									if (m_allListeningProcessMap.get(protoRemotePort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoRemotePort,1); }
 								}
 								else if(e!=null)
@@ -440,9 +462,9 @@ public class AHAModel
 									e.addAttribute("layout.weight", 9); //try to make internal edges longer
 									if (duplicateEdge) { e.addAttribute("layout.weight", 4); }
 									if (!timewait && !duplicateEdge) { e.addAttribute("ui.class", "external"); }
-									if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicateExternal"); }
-									if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "externaltw"); } 
-									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicateExternaltw"); }
+									if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate, xternal"); }
+									if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "external, tw"); } 
+									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate, external, tw"); }
 								}
 							}
 						}
@@ -545,23 +567,6 @@ public class AHAModel
 		}
 	}
 	
-	protected void hideFalseExternalNode(Graph g, boolean hide) 
-	{
-		Node node=m_graph.getNode("external");
-		try
-		{
-			if (m_verbose) { System.out.println("Hide/unhide node="+node.getId()); }
-			if (hide) { node.addAttribute( "ui.hide" ); }
-			else { node.removeAttribute( "ui.hide" ); }
-
-			for (Edge e : node.getEdgeSet())
-			{
-				if (hide) { e.addAttribute( "ui.hide" ); }
-				else { if (e.getOpposite(node).getAttribute("ui.hide")==null ) { e.removeAttribute( "ui.hide" ); } }
-			}
-		} catch (Exception e) { e.printStackTrace(); }
-	}
-	
 	protected void useFQDNLabels(Graph g, boolean useFQDN) 
 	{
 		for (Node n : m_graph) { n.addAttribute("ui.label", capitalizeFirstLetter(n.getId())); } //add labels
@@ -580,26 +585,161 @@ public class AHAModel
 	
 	protected void hideOSProcs(Graph g, boolean hide) 
 	{
-		m_hideOSProcs=hide;
-		for (Node node:g)
+//		{ //fill m_osProcs
+//			m_osProcs.put("c:\\windows\\system32\\services.exe","services.exe");
+//			m_osProcs.put("c:\\windows\\system32\\svchost.exe","svchost.exe");
+//			m_osProcs.put("c:\\windows\\system32\\wininit.exe","wininit.exe");
+//			m_osProcs.put("c:\\windows\\system32\\lsass.exe","lsass.exe");
+//			m_osProcs.put("null","unknown");
+//			m_osProcs.put("system","system");
+//		}
+		String[] osProcs={"c:\\windows\\system32\\services.exe","c:\\windows\\system32\\svchost.exe","c:\\windows\\system32\\wininit.exe","c:\\windows\\system32\\lsass.exe","null","system",};
+		
+		for (String s : osProcs)
 		{
-			try
+			genericHideUnhideNodes( "processpath=="+s,hide );
+		}
+	}
+	
+	protected void hideFalseExternalNode(Graph g, boolean hide) 
+	{
+		genericHideUnhideNodes( "processpath==external",hide );
+	}
+	
+	protected void genericHideUnhideNodes( String criteria, boolean hide )
+	{
+		boolean notInverseSearch=true;
+		String regexp="";
+		if (criteria.contains("==")) { regexp="=="; }
+		if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false;}
+		String[] args=criteria.trim().trim().split(regexp);
+		if (args.length < 2) { System.err.println("Hide: Unable to parse tokens:|"+criteria.trim().trim()+"|"); return; }
+		try
+		{
+			String attribute=args[0].toLowerCase();
+			for (Node node:m_graph)
 			{
-				String processPath=node.getAttribute("processpath");
-				if (processPath!=null && m_osProcs.get(processPath)!=null)
+				String seeking=args[1].toLowerCase(); //important to do every loop since seeking may be modified if it is inverted
+				String attrValue=node.getAttribute(attribute);
+				if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
 				{
-					if (m_verbose) { System.out.println("Hide/unhide node="+node.getId()); }
-					if (m_hideOSProcs) { node.addAttribute( "ui.hide" ); }
-					else { node.removeAttribute( "ui.hide" ); }
-
+					if (notInverseSearch==false) { seeking="!"+seeking; } 
+					java.util.TreeMap<String, String> hideReasons=node.getAttribute("ui.hideReasons");
+					if (hideReasons==null)
+					{
+						hideReasons=new java.util.TreeMap<String, String>();
+						node.setAttribute("ui.hideReasons", hideReasons);
+					}
+					if (hide) { hideReasons.put(seeking, seeking); }
+					else { hideReasons.remove(seeking); }
+					
+					boolean nodeWillHide=!hideReasons.isEmpty();
+					if (nodeWillHide)
+					{
+						node.addAttribute( "ui.hide" );
+						if (m_verbose) { System.out.println("Hide node="+node.getId()); }
+					}
+					else
+					{
+						node.removeAttribute( "ui.hide" );
+						if (m_verbose) { System.out.println("Unhide node="+node.getId()); }
+					}
+					
 					for (Edge e : node.getEdgeSet())
 					{
-						if (m_hideOSProcs) { e.addAttribute( "ui.hide" ); }
+						if (nodeWillHide) { e.addAttribute( "ui.hide" ); }
 						else { if (e.getOpposite(node).getAttribute("ui.hide")==null ) { e.removeAttribute( "ui.hide" ); } }
 					}
 				}
-			} catch (Exception e) { e.printStackTrace(); }
+			}
 		}
+		catch (Exception e) { e.printStackTrace(); }
+	}
+	
+	protected void genericEmphasizeNodes( String criteria, boolean emphasize ) //TODO add some trycatchery
+	{
+		boolean notInverseSearch=true;
+		String regexp="";
+		if (criteria.contains("==")) { regexp="=="; }
+		if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false;}
+		String[] args=criteria.trim().trim().split(regexp);
+		if (args.length < 2) { System.err.println("Emphasize: Unable to parse tokens:|"+criteria.trim().trim()+"|"); return; }
+		try
+		{
+			String attribute=args[0].toLowerCase();
+			for (Node node:m_graph)
+			{
+				String seeking=args[1].toLowerCase(); //important to do every loop since seeking may be modified if it is inverted
+				String attrValue=node.getAttribute(attribute);
+				if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
+				{
+					if (notInverseSearch==false) { seeking="!"+seeking; } 
+					java.util.TreeMap<String, String> emphasizeReasons=node.getAttribute("ui.emphasizeReasons");
+					if (emphasizeReasons==null)
+					{
+						emphasizeReasons=new java.util.TreeMap<String, String>();
+						node.setAttribute("ui.emphasizeReasons", emphasizeReasons);
+					}
+					if (emphasize) { emphasizeReasons.put(seeking, seeking); }
+					else { emphasizeReasons.remove(seeking); }
+					
+					boolean nodeWillEmphasize=!emphasizeReasons.isEmpty();
+					String nodeClass=node.getAttribute("ui.class");
+					if (nodeClass==null) { nodeClass=""; }
+					if (nodeWillEmphasize)
+					{
+						if (!nodeClass.contains("emphasize, ")) { nodeClass="emphasize, "+nodeClass;}
+						if (m_verbose) { System.out.println("Emphasize node="+node.getId()); }
+					}
+					else
+					{
+						nodeClass=nodeClass.replaceAll("emphasize, ", ""); 
+						if (m_verbose) { System.out.println("unEmphasize node="+node.getId()); }
+					}
+					System.out.println("Writing node class=|"+nodeClass+"|");
+					node.setAttribute("ui.class", nodeClass);
+					
+					for (Edge e : node.getEdgeSet())
+					{
+						String edgeClass=e.getAttribute("ui.class");
+						if (edgeClass==null) { edgeClass=""; }
+						if (nodeWillEmphasize) 
+						{ 
+							if (!edgeClass.contains("emphasize, ")) { edgeClass="emphasize, "+edgeClass;}
+						}
+						else { edgeClass=edgeClass.replaceAll("emphasize, ", ""); }
+						e.setAttribute("ui.class", edgeClass);
+					}
+				}
+			}
+		}
+		catch (Exception e) { e.printStackTrace(); }
+	}
+	
+	protected java.util.Vector<String> m_lastSearchTokens=new java.util.Vector<String>();
+	protected void handleSearch (String searchText)
+	{
+		if (searchText==null) { return; }
+		//undo what we did last time //TODO: maybe we can optimize and only undo what's changed since last time someday
+		for (String s : m_lastSearchTokens)
+		{
+			if (s.startsWith("~")) { genericHideUnhideNodes(s.substring(1), false); }
+			else { genericEmphasizeNodes(s, false); } //undo the whatever else
+		}
+		m_lastSearchTokens.clear();
+		
+		System.out.println("Search called with string=|"+searchText+"|");
+		String[] tokens=searchText.split("\\|\\|");
+		for (String token : tokens)
+		{
+			if (token==null || token.equals("")) { continue; }
+			token=token.trim().trim();
+			m_lastSearchTokens.add(token);
+			System.out.println("token=|"+token+"|");
+			if (token.startsWith("~")) { genericHideUnhideNodes(token.substring(1), true); }
+			else { genericEmphasizeNodes(token, true); }
+		}
+		System.out.println("");
 	}
 	
 	protected static String capitalizeFirstLetter(String s)
@@ -631,8 +771,14 @@ public class AHAModel
 			{
 				while (!Thread.interrupted())
 				{
-					try { m_gui.m_graphViewPump.blockingPump(); }
-					catch (Exception e) { e.printStackTrace(); }
+					m_gui.m_graphViewPump = m_gui.m_viewer.newViewerPipe();
+					m_gui.m_graphViewPump.addViewerListener(m_gui);
+					m_gui.m_graphViewPump.addSink(m_graph);
+					while (!Thread.interrupted())
+					{
+						try { m_gui.m_graphViewPump.blockingPump(); }
+						catch (Exception e) { e.printStackTrace();}
+					}
 				}
 			}
 		}.start();
@@ -776,8 +922,8 @@ public class AHAModel
 						data[j++]=n.getAttribute("controlflowguard");
 						data[j++]=n.getAttribute("highentropyva");
 						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
-						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.ECScore)));
-						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProc)));
+						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.ECScoreBETA)));
+						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
 						tableData[tableNumber][i++]=data;
 					}
 				}
@@ -809,21 +955,12 @@ public class AHAModel
 				}
 				fileOutput.write("\n\n\n"); //3 lines between tables
 			}
-		} 
+		}
 		catch (Exception e) { e.printStackTrace(); }
 	}
 	
 	public AHAModel(String args[])
 	{
-		{ //fill m_osProcs
-			m_osProcs.put("c:\\windows\\system32\\services.exe","services.exe");
-			m_osProcs.put("c:\\windows\\system32\\svchost.exe","svchost.exe");
-			m_osProcs.put("c:\\windows\\system32\\wininit.exe","wininit.exe");
-			m_osProcs.put("c:\\windows\\system32\\lsass.exe","lsass.exe");
-			m_osProcs.put("null","unknown");
-			m_osProcs.put("system","system");
-		}
-		
 		boolean bigfont=false;
 		for (String s : args)
 		{

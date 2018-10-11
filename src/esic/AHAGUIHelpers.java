@@ -81,6 +81,17 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("TableHeader.background", accentColor);
 		javax.swing.UIManager.put("TableHeader.cellBorder", new javax.swing.border.BevelBorder(javax.swing.border.BevelBorder.RAISED));
 		javax.swing.UIManager.put("TableHeader.font", uiFont); 
+		
+		javax.swing.UIManager.put("TextField.foreground", foregroundColor);
+		javax.swing.UIManager.put("TextField.caretForeground", foregroundColor);
+		javax.swing.UIManager.put("TextField.background", backgroundColor);
+		javax.swing.UIManager.put("TextField.focus", backgroundColor);
+		javax.swing.UIManager.put("TextField.font", uiFont);
+		
+		javax.swing.UIManager.put("TextField.border", new javax.swing.border.LineBorder(java.awt.Color.GRAY,2));
+		//javax.swing.UIManager.put("TextFieldUI", javax.swing.plaf.basic.BasicTextFieldUI.class.getName());
+		
+		
 		javax.swing.UIManager.put("ToolTip.foreground", java.awt.Color.BLACK);
 		javax.swing.UIManager.put("ToolTip.border", java.awt.Color.WHITE);
 		javax.swing.UIManager.put("ToolTip.background", java.awt.Color.WHITE);
