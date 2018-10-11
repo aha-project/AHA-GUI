@@ -25,6 +25,15 @@ Note: if you're just looking to run AHA-GUI builds are periodically posted under
 # NOTE:
 This project uses GraphStream. GraphStream Java `.jar`s are located within this repo for ease of securely building. For more info about GraphStream refer to [the GraphStream project page](http://graphstream-project.org/), additional GraphStream copyright and license(s)ing information are included both in the repo and the release builds. Since the graphstream site does not have HTTPS enabled right now, this is the easiest way to ensure people can get the deps quickly, easily, and safely.
 
+# Command Line Arguments to AHA-GUI:
+ * --debug : print additional information to console while running
+ * --single : use single lines between nodes with multiple connections
+ * --bigfont : use 18pt font instead of the default 12pt font (good for demos)
+ * scorefile=scorefile.csv : use the scorefile specified after the equals sign
+ * inputFile=inputFile.csv : use the inputFile specified after the equals sign
+ * lowVulnThreshold=25 : use the integer after the equals as the minimum node score to get a low vulnerability score (green)
+ * medVulnThreshold=15 : use the integer after the equals as the minimum node score to get a medium vulnerability score (yellow)
+
 # Screeenshots:
 Beta Screenshot:
 ![Alt text](resources/AHA-GUI-Screenshot.png?raw=true "AHA-GUI Screenshot")

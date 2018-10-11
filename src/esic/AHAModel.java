@@ -32,12 +32,19 @@ public class AHAModel
 	public static enum ScoreMethod {Normal,WorstCommonProcBETA,ECScoreBETA}
 
 	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<ScoreItem>(32);
+<<<<<<< HEAD
 	protected boolean m_debug=false, m_verbose=false, m_multi=true, m_overlayCustomScoreFile=false; //flags for verbose output, hiding of operating system processes, and drawing of multiple edges between vertices
 	protected String m_inputFileName="BinaryAnalysis.csv", m_scoreFileName="scorefile.csv";
 	protected int maxScore=0, metricsTableMultiPlatformScore=0;
 	protected java.util.TreeMap <String,Integer> platformSpecificMetricsTableScores=new java.util.TreeMap <String,Integer>();
 	protected int m_minScoreLowVuln=25, m_minScoreMedVuln=15; //TODO: not currently supported, either will be removed or fixed in later version
 	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>();
+=======
+	protected boolean m_debug=false, m_verbose=false, m_multi=true, m_overlayCustomScoreFile=false; //flags for verbose output, hiding of operating system procs, and drawing of multiple edges between verticies
+	protected String m_inputFileName="BinaryAnalysis.csv", m_scoreFileName="scorefile.csv";
+	protected int m_minScoreLowVuln=25, m_minScoreMedVuln=15;
+	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>();//, m_osProcs=new java.util.TreeMap<String,String>();
+>>>>>>> 539bf48eaf37868802e51264ce898dd6a813eece
 	protected java.util.TreeMap<String,String> m_intListeningProcessMap=new java.util.TreeMap<String,String>(), m_extListeningProcessMap=new java.util.TreeMap<String,String>();
 	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<String,String>(), m_miscMetrics=new java.util.TreeMap<String,String>();
 	protected java.util.TreeMap<String,Integer> m_listeningPortConnectionCount=new java.util.TreeMap<String,Integer>();

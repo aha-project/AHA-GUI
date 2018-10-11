@@ -6,7 +6,11 @@
 	<property name="build.numThreads" value="1" />
 	<property name="src.dir" value="./src"/>
 	<property name="lib.dir" value="./deps/org.graphstream/lib"/>
+<<<<<<< HEAD
 	<property name="build.version" value="AHA-GUI v0.6.2a1"/>
+=======
+	<property name="build.version" value="AHA-GUI v0.6.1a2"/>
+>>>>>>> 539bf48eaf37868802e51264ce898dd6a813eece
 	<property name="CP" value="."/>
 	<tstamp>
 		<format property="TODAY" pattern="yyyy-MM-dd HH:mm" />
