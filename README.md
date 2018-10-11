@@ -31,8 +31,6 @@ This project uses GraphStream. GraphStream Java `.jar`s are located within this 
  * --bigfont : use 18pt font instead of the default 12pt font (good for demos)
  * scorefile=scorefile.csv : use the scorefile specified after the equals sign
  * inputFile=inputFile.csv : use the inputFile specified after the equals sign
- * lowVulnThreshold=25 : use the integer after the equals as the minimum node score to get a low vulnerability score (green)
- * medVulnThreshold=15 : use the integer after the equals as the minimum node score to get a medium vulnerability score (yellow)
 
 # Screeenshots:
 Beta Screenshot:
