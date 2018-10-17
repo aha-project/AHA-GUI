@@ -192,7 +192,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			{
 				synch_dataViewFrame=new javax.swing.JFrame("Data View")
 				{
-					{
+					{ 
 						setLayout(new java.awt.BorderLayout());
 						setSize(new java.awt.Dimension(parent.getSize().width-40,parent.getSize().height-40));
 						setLocation(parent.getLocation().x+20, parent.getLocation().y+20); //move it down and away a little bit so people understand it's a new window
@@ -202,7 +202,8 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 						add(tabBar, java.awt.BorderLayout.CENTER);
 						{ // Find data for, create table, etc for the "Graph Data" view
 							AHAModel.TableDataHolder t=parent.m_model.generateReport();
-							tabBar.add("Vulnerability Metrics", createTablesInScrollPane(t.columnNames, t.tableData, new javax.swing.JTable[t.tableData.length], new int[]{180,40,200,86,80,50,44,44,44,44,44,44,60}) );
+							String[][] columTooltips= {{"Global data from the scan which took place.", "The result for this metric."},{"The name of the process.","Process ID of the process.", "User under which the process is running.", "The number of connections this process has.", "The number of ports this process has opened that external hosts/processes could connect to.", "Whether or not this process is codesigned. Code signing is recomended and allows executalbes to be authenticated as genuine.", "Address Space Layout Randomization is a recomended security feature which helps to reduce succeptability to malicious attacks.", "Data Execution Prevention is a recomended security feature which ensures that areas of memory which are writable (and could have code stored to by an attacker) are not executable.", "Control Flow Guard is a recomended security feature which helps prevent attackers from subverting normal code execution, reducing ease of attack.", "HiVA is an improved ASLR with additional etropy to further complicate any possible attacks.", "This is the score granted to the process by the 'Normal' scoring methodology which uses the MetricsTable.cfg to determine the score.","This is a beta scoring method.","This is a beta scoring method."}};
+							tabBar.add("Vulnerability Metrics", createTablesInScrollPane(t.columnNames, columTooltips, t.tableData, new javax.swing.JTable[t.tableData.length], new int[]{180,40,200,86,80,50,44,44,44,44,44,44,60}) ); //TODO //FIXME
 						}
 						{ // Find data for, create table, etc for the "Listening Processes" tab
 							javax.swing.JTable[] fwTables=new javax.swing.JTable[2];
@@ -231,7 +232,8 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 								tableData[i]=data;
 								dataset=m_model.m_extListeningProcessMap;
 							}
-							tabBar.add("Listening Processes", createTablesInScrollPane(columnHeaders, tableData, fwTables, new int[]{200,50,50,50}));
+							String[][] columTooltips= {{"Processes which have open ports that can only be connected to by processes on this host.", "Process ID of the process.", "The protocol of this listening port, such as TCP or UDP.", "The port number.", "The number of connections to this open port."},{"Processes which have open ports that can be connected to by remote hosts/processes.", "Process ID of the process.", "The protocol of this listening port, such as TCP or UDP.", "The port number.", "The number of connections to this open port."}};
+							tabBar.add("Listening Processes", createTablesInScrollPane(columnHeaders,columTooltips, tableData, fwTables, new int[]{200,50,50,50})); //TODO: FIXME:
 						}
 					}
 				};
@@ -240,17 +242,19 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		}
 	}
 	
-	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, Object[][][] initialData, javax.swing.JTable[] tableRefs, int[] columnWidths)
+	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][] columnTooltips, Object[][][] initialData, javax.swing.JTable[] tableRefs, int[] columnWidths)
 	{
 		javax.swing.JPanel scrollContent=new javax.swing.JPanel();
 		scrollContent.setLayout(new javax.swing.BoxLayout(scrollContent, javax.swing.BoxLayout.Y_AXIS));
 		javax.swing.table.DefaultTableCellRenderer tcRenderer=new javax.swing.table.DefaultTableCellRenderer(){{setHorizontalAlignment(javax.swing.table.DefaultTableCellRenderer.LEFT);}};
 		for (int i=0; i<tableRefs.length; i++)
 		{
+			final String[] columnToolt=columnTooltips[i];
 			if (tableRefs[i]==null) 
 			{ 
 				tableRefs[i]=new javax.swing.JTable() 
 				{
+					private String[] columnToolTips=columnToolt;
 					public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) { super.changeSelection(rowIndex, columnIndex, !extend, extend); } //Always toggle on single selection (allows users to deselect rows easier)
 					public boolean isCellEditable(int row, int column) { return false; } //disable cell editing
 					public java.awt.Component prepareRenderer(javax.swing.table.TableCellRenderer renderer, int row, int column) 
@@ -264,20 +268,20 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		        }
 		        return c;
 					}
-//					protected javax.swing.table.JTableHeader createDefaultTableHeader() 
-//					{
-//            return new javax.swing.table.JTableHeader(columnModel) 
-//            {
-//                public String getToolTipText(java.awt.event.MouseEvent e) 
-//                {
-//                    String tip = null;
-//                    java.awt.Point p = e.getPoint();
-//                    int tblIdx = columnModel.getColumnIndexAtX(p.x);
-//                    int columnIdx = columnModel.getColumn(tblIdx).getModelIndex();
-//                    return "Test";
-//                }
-//            };
-//					}
+					protected javax.swing.table.JTableHeader createDefaultTableHeader() 
+					{
+            return new javax.swing.table.JTableHeader(columnModel) 
+            {
+                public String getToolTipText(java.awt.event.MouseEvent e) 
+                {
+                    java.awt.Point p = e.getPoint();
+                    int tblIdx = columnModel.getColumnIndexAtX(p.x);
+                    int columnIdx = columnModel.getColumn(tblIdx).getModelIndex();
+                    if (columnIdx<columnToolTips.length) { return styleToolTipText(columnToolTips[columnIdx]); }
+                    return "";
+                }
+            };
+					}
 				}; 
 			}
 			tableRefs[i].setModel( new javax.swing.table.DefaultTableModel(initialData[i], columnHeaders[i]) 
@@ -319,8 +323,9 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public static class InspectorWindow extends javax.swing.JFrame
 	{
 		private javax.swing.JCheckBox m_changeOnMouseOver=new javax.swing.JCheckBox("Update on MouseOver",false), m_showScoringSpecifics=new javax.swing.JCheckBox("Show Score Metric Specifics",false);
-		private String[][] m_inspectorWindoColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process Name", "PID"}, {"Score Metric", "Value"}};
-		private javax.swing.JTable[] m_inspectorWindowTables= new javax.swing.JTable[m_inspectorWindoColumnHeaders.length]; //if you need more tables just add another column header set above
+		private String[][] m_inspectorWindowColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process Name", "PID"}, {"Score Metric", "Value"}};
+		private String[][] m_inspectorWindowColumnTooltips={{"Info"},{"Port that is able to be connected to from other processes internally.", "Protocol in use."},{"Port that is able to be connected to from other external hosts/processes.", "Protocol in use."},{"Names of processes connected to this one", "Process Identifier"}, {"The scoring metric checked against.", "Result of the checked metric."}};
+		private javax.swing.JTable[] m_inspectorWindowTables= new javax.swing.JTable[m_inspectorWindowColumnHeaders.length]; //if you need more tables just add another column header set above
 		
 		public InspectorWindow(javax.swing.JFrame parent)
 		{
@@ -336,7 +341,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			gbc.gridx=0; gbc.gridy=0;  gbc.weightx=1; gbc.weighty=100;
 			
 			String[][][] initialData={{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},}; //digging this new 3d array literal initializer: this is a String[5][1][1] where element[i][0][0]="None".
-			this.add(createTablesInScrollPane(m_inspectorWindoColumnHeaders, initialData, m_inspectorWindowTables, new int[]{160,40}), gbc);
+			this.add(createTablesInScrollPane(m_inspectorWindowColumnHeaders, m_inspectorWindowColumnTooltips, initialData, m_inspectorWindowTables, new int[]{160,40}), gbc);
 			
 			javax.swing.JPanel panel=new javax.swing.JPanel(); //easiest way to get these things to be compact vertically...tried everything with insets to no avail
 			panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
@@ -435,7 +440,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 						try
 						{
 							javax.swing.table.DefaultTableModel dm=(javax.swing.table.DefaultTableModel)m_inspectorWindowTables[i].getModel();
-							dm.setDataVector(data[i], m_inspectorWindoColumnHeaders[i]);
+							dm.setDataVector(data[i], m_inspectorWindowColumnHeaders[i]);
 							m_inspectorWindowTables[i].getColumnModel().getColumn(0).setPreferredWidth(160);
 							if (m_inspectorWindowTables[i].getColumnModel().getColumnCount() > 1)
 							{
