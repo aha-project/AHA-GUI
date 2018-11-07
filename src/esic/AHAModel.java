@@ -5,7 +5,6 @@ package esic;
 import org.graphstream.graph.Edge;
 import org.graphstream.graph.Graph;
 import org.graphstream.graph.Node;
-import org.graphstream.algorithm.measure.*;
 
 public class AHAModel
 {
@@ -29,14 +28,13 @@ public class AHAModel
 		}
 	}
 	
-	public static enum ScoreMethod {Normal,WorstCommonProcBETA,ECScoreBETA}
-
+	public static enum ScoreMethod {Normal,WorstCommonProcBETA,ECScoreBETA,RelativeScoreBETA}//,NormalizedScore,RangedRelativeScore,ReversedRangedRelativeScore,ForSibling}
+  private static String NormalizedScore="ui.ScoreMethodInternalNormalizedScore", RangedRelativeScore="ui.ScoreMethodInternalRangedRelativeScore", ReversedRangedRelativeScore="ui.ScoreMethodInternalReversedRangedRelativeScore", ForSibling="ui.ScoreMethodInternalForSibling";
 	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<ScoreItem>(32);
 	protected boolean m_debug=false, m_verbose=false, m_multi=true, m_overlayCustomScoreFile=false; //flags for verbose output, hiding of operating system processes, and drawing of multiple edges between vertices
 	protected String m_inputFileName="BinaryAnalysis.csv", m_scoreFileName="scorefile.csv";
 	protected int maxScore=0, metricsTableMultiPlatformScore=0;
 	protected java.util.TreeMap <String,Integer> platformSpecificMetricsTableScores=new java.util.TreeMap <String,Integer>();
-	protected int m_minScoreLowVuln=25, m_minScoreMedVuln=15; //TODO: not currently supported, either will be removed or fixed in later version
 	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>();
 	protected java.util.TreeMap<String,String> m_intListeningProcessMap=new java.util.TreeMap<String,String>(), m_extListeningProcessMap=new java.util.TreeMap<String,String>();
 	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<String,String>(), m_miscMetrics=new java.util.TreeMap<String,String>();
@@ -141,7 +139,7 @@ public class AHAModel
 		}
 
 		//Begin EC between loop compute
-		EigenvectorCentrality ec = new EigenvectorCentrality(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp", org.graphstream.algorithm.measure.AbstractCentrality.NormalizationMode.MAX_1_MIN_0, 100, scrMethdAttr(ScoreMethod.Normal));
+		org.graphstream.algorithm.measure.EigenvectorCentrality ec = new org.graphstream.algorithm.measure.EigenvectorCentrality(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp", org.graphstream.algorithm.measure.AbstractCentrality.NormalizationMode.MAX_1_MIN_0, 100, scrMethdAttr(ScoreMethod.Normal));
 		ec.init(graph);
 		ec.compute();
 		if (m_verbose) { System.out.println("Worst User Scores="+lowestScoreForUserName); }
@@ -166,9 +164,225 @@ public class AHAModel
 				} //End EC stage2 scoring
 			} catch (Exception e) { e.printStackTrace(); }
 		}
+		computeRelativeScores(graph);
 		swapNodeStyles(ScoreMethod.Normal, time); //since we just finished doing the scores, swap to the 'Normal' score style when we're done.
 	}
 
+	private void computeRelativeScores(Graph graph) //RelativeScore CODE //TODO: this code requires enums in scoreMethod that break the combo box display as well as possibly throwing NFEs
+	{ 
+		for (Node node:graph)
+		{
+			if (node.getAttribute("parents") != null)
+			{
+				java.util.List<String> nodeParents= node.getAttribute("parents");
+				java.util.List<String> nodeParentsDistinct = nodeParents.stream().distinct().collect(java.util.stream.Collectors.toList());
+				node.addAttribute("parents", nodeParentsDistinct);
+			}
+			if (node.getAttribute("sibling") != null)
+			{
+				java.util.List<String> nodeSiblings= node.getAttribute("sibling");
+				java.util.List<String> nodeSiblingsDistinct = nodeSiblings.stream().distinct().collect(java.util.stream.Collectors.toList());
+				node.addAttribute("sibling", nodeSiblingsDistinct);
+			}
+		}
+		double maxscore=80, minscore=-50;
+		double maxNorm=maxscore+5, minNorm=minscore-5;     
+		for (Node node:graph)
+		{   
+			if (node.getAttribute(scrMethdAttr(ScoreMethod.Normal))!=null)
+			{
+				double nodeScore   = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
+				double attacksurface =  1 - ((nodeScore-minNorm)/(maxNorm-minNorm));
+				node.addAttribute(NormalizedScore, ((Double)attacksurface).toString());
+				node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)0.0).toString());
+				node.addAttribute(ForSibling, ((Double)0.0).toString());
+			}
+			node.addAttribute("finishScoring",((int)0));
+			node.addAttribute("readyforsibling",((int)0));
+		}
+		int allDone=0;
+		while (allDone == 0)
+		{
+			for (Node node:graph)
+			{
+				if ((node.getAttribute("parents") == null) && (node.getAttribute("sibling") == null))
+				{
+					node.addAttribute("finishScoring",((int)1));
+					node.addAttribute("readyforsibling",((int)1));
+					int hasChild = 0;
+					for (Node child:graph)
+					{
+						java.util.List<String> childParents= child.getAttribute("parents");
+						if ((child.getAttribute("parents") != null) && (childParents.contains(node.toString())))
+						{
+							hasChild = 1;
+							break;
+						}
+					}
+					if ( hasChild == 1)
+					{
+						double normalized = Double.valueOf(node.getAttribute(NormalizedScore));
+						node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)normalized).toString());
+					}
+					else { node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)0.0).toString()); }
+					node.addAttribute(ForSibling, ((Double)0.0).toString());
+				}
+				if ((node.getAttribute("parents") == null) && (node.getAttribute("sibling") != null))
+				{
+					if ((int)node.getAttribute("readyforsibling") == 0)
+					{
+						double normalized = Double.valueOf(node.getAttribute(NormalizedScore));
+						node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)normalized).toString());
+						node.addAttribute("readyforsibling",((int)1));
+					}
+					if ((int)node.getAttribute("finishScoring") == 0)
+					{
+						java.util.List<String> nodeSiblings= node.getAttribute("sibling");
+						int test =1; // check all the parents of the node have complete scoring process
+						for (int i = 0; i < nodeSiblings.size() ; i++) 
+						{ 
+							Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
+							if ((int) tempSibling.getAttribute("readyforsibling") == 0)
+							{
+								test = 0;
+								break;
+							}
+						} 
+						if (test == 1)
+						{
+							double sum = 0;
+							for (int i = 0; i < nodeSiblings.size() ; i++) 
+							{ 
+								Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
+								double nScore= Double.valueOf(node.getAttribute(NormalizedScore));
+								double pScore = Double.valueOf(tempSibling.getAttribute(ForSibling));
+								sum = sum + (nScore * pScore);
+							} 
+							node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)sum).toString());
+							node.addAttribute("finishScoring",((int)1));
+						}
+					}  
+				}
+				if ((node.getAttribute("parents") != null) && (node.getAttribute("sibling") == null))
+				{
+					if ((int)node.getAttribute("readyforsibling") == 0) { node.addAttribute("readyforsibling",((int)1)); }
+					if ((int)node.getAttribute("finishScoring") == 0)
+					{
+						java.util.List<String> nodeparents= node.getAttribute("parents");
+						int test =1; // check all the parents of the node have complete scoring process
+						for (int i = 0; i < nodeparents.size() ; i++) 
+						{ 
+							Node tempParent = graph.getNode(nodeparents.get(i)) ;
+							if ((int) tempParent.getAttribute("finishScoring") == 0)
+							{
+								test = 0;
+								break;
+							}
+						} 
+						if (test == 1)
+						{
+							double sum=0, nScore=Double.valueOf(node.getAttribute(NormalizedScore));
+							for (int i = 0; i < nodeparents.size() ; i++) 
+							{ 
+								Node tempParent = graph.getNode(nodeparents.get(i)) ;
+								double pScore = Double.valueOf(tempParent.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+								sum = sum + (nScore * pScore);
+							} 
+							node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)(sum)).toString());
+							node.addAttribute("finishScoring",((int)1));
+						}
+					}  
+				}
+				if ((node.getAttribute("parents") != null) && (node.getAttribute("sibling") != null))
+				{
+					if ((int)node.getAttribute("readyforsibling") == 0)
+					{
+						java.util.List<String> nodeparents= node.getAttribute("parents");
+						int test =1; // check all the parents of the node have complete scoring process
+						for (int i = 0; i < nodeparents.size() ; i++) 
+						{ 
+							Node tempParent = graph.getNode(nodeparents.get(i)) ;
+							if ((int) tempParent.getAttribute("finishScoring") == 0)
+							{
+								test = 0;
+								break;
+							}
+						} 
+						if (test == 1)
+						{
+							double sum = 0;
+							double nScore= Double.valueOf(node.getAttribute(NormalizedScore));
+							for (int i = 0; i < nodeparents.size() ; i++) 
+							{ 
+								Node tempParent = graph.getNode(nodeparents.get(i)) ;
+								double pScore = Double.valueOf(tempParent.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+								sum = sum + (nScore * pScore);
+							} 
+							node.addAttribute(ForSibling, ((Double)(sum)).toString());
+							node.addAttribute("readyforsibling",((int)1));
+						}
+					}
+					if (((int)node.getAttribute("finishScoring") == 0) && ((int) node.getAttribute("readyforsibling") == 1))
+					{
+						java.util.List<String> nodeSiblings= node.getAttribute("sibling");
+						int test =1; // check all the parents of the node have complete scoring process
+						for (int i = 0; i < nodeSiblings.size() ; i++) 
+						{ 
+							Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
+							if ((int) tempSibling.getAttribute("readyforsibling") == 0)
+							{
+								test = 0;
+								break;
+							}
+						} 
+						if (test == 1)
+						{
+							double sum = 0;
+							double nScore= Double.valueOf(node.getAttribute(NormalizedScore));
+							double SScore= Double.valueOf(node.getAttribute(ForSibling));
+							for (int i = 0; i < nodeSiblings.size() ; i++) 
+							{ 
+								Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
+								double pScore = Double.valueOf(tempSibling.getAttribute(ForSibling));
+								sum = sum + (nScore * pScore);
+							} 
+							node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)(sum+SScore)).toString());
+							node.addAttribute("finishScoring",((int)1));
+						}
+					}
+				}
+			}
+			allDone=1;
+			for (Node node:graph)
+			{
+				if ((int)node.getAttribute("finishScoring") == 0)
+				{
+					allDone=0;
+					break;
+				}
+			}
+		}
+		double minRelative = Double.valueOf(graph.getNode(1).getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+		double maxRelative = Double.valueOf(graph.getNode(1).getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+		for (Node node:graph)
+		{
+			double relativeScore = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+			if (relativeScore > maxRelative) { maxRelative = relativeScore ; }
+			if (relativeScore < minRelative) { minRelative = relativeScore ; }
+		}
+
+		int newRangeMin = 0;
+		int newRangeMax = 100;
+		for (Node node:graph)
+		{
+			double relativeScore = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+			double newRelativeScore= newRangeMin +((newRangeMax-newRangeMin)/(maxRelative-minRelative))*(relativeScore - minRelative);
+			double newReversedRelativeScore= newRangeMax - newRelativeScore + newRangeMin ;
+			node.addAttribute(RangedRelativeScore, ((Double)newRelativeScore).toString());
+			node.addAttribute(ReversedRangedRelativeScore, ((Double)newReversedRelativeScore).toString());
+		}
+	}
+	
 	protected int generateNormalNodeScore(Node n)
 	{
 		int score=0;
@@ -183,15 +397,15 @@ public class AHAModel
 				{
 					String attribute=n.getAttribute(si.criteria).toString().toLowerCase();
 					for (String criterion : si.criteriaValues)
-					{ //TODO add operation support here
+					{ 
 						if( (si.operation.equals("eq") && attribute.equals(criterion)) || (si.operation.equals("ct") && attribute.contains(criterion))) 
 						{ 
 							score=score+si.scoreDelta;
 							numberOfTimesTrue++;
 						}
 					}
-					if (m_verbose) { System.out.println("    "+si.criteria+": input='"+attribute+"' looking for="+si.criteriaValues+" matched "+numberOfTimesTrue+" times"); }//TODO make printout more obvious here
-					if (numberOfTimesTrue>0) { scoreReason+=", "+si.criteria+"="+(si.scoreDelta*numberOfTimesTrue); } //TODO this will need cleanup 
+					if (m_verbose) { System.out.println("    "+si.criteria+": input='"+attribute+"' looking for="+si.criteriaValues+" matched "+numberOfTimesTrue+" times"); }
+					if (numberOfTimesTrue>0) { scoreReason+=", "+si.criteria+"="+(si.scoreDelta*numberOfTimesTrue); } 
 				}
 				String xtra="";
 				if (numberOfTimesTrue>1) { xtra=" x"+numberOfTimesTrue; }
@@ -242,8 +456,6 @@ public class AHAModel
 						if (sScoreReason!=null) { n.addAttribute("ui.scoreReason", sScoreReason); } //TODO: since scoreReason only really exists for 'normal' this means that 'normal' reason persists in other scoring modes. For modes that do not base their reasoning on 'normal' this is probably incorrect.
 						if (sScoreExtendedReason!=null) { n.addAttribute("ui.scoreExtendedReason", sScoreExtendedReason); }
 						String uiClass="severeVuln";
-//						if(score > m_minScoreLowVuln) { n.addAttribute("ui.class", "low"); strScore="Low"; }
-//						else if(score > m_minScoreMedVuln) { n.addAttribute("ui.class", "medium");  strScore="Medium";} 
 						if (score > (0.25*maxScore)) { uiClass="highVuln"; }
 						if (score > (0.50*maxScore)) { uiClass="medVuln"; }
 						if (score > (0.75*maxScore)) { uiClass="lowVuln"; }
@@ -338,6 +550,12 @@ public class AHAModel
 							node.addAttribute("ui.hasExternalConnection", "yes");
 							portMapKey="ui.extListeningPorts"; //since this is external, change the key we read/write when we store this new info
 							m_extListeningProcessMap.put(protoLocalPort,fromNode);
+							// RelativeScore CODE //
+							java.util.List<String> parents= node.getAttribute("parents");
+							if (parents == null) { parents = new java.util.ArrayList<String>(); }
+							parents.add("external");
+							node.addAttribute("parents", parents);
+							// END RelativeScore CODE //
 						}
 						else { m_intListeningProcessMap.put(protoLocalPort,fromNode); }
 						java.util.TreeMap<String,String> listeningPorts=node.getAttribute(portMapKey);
@@ -375,7 +593,7 @@ public class AHAModel
 			System.out.println("-------\n");
 		}
 		m_knownAliasesForLocalComputer.remove("::");
-		m_knownAliasesForLocalComputer.remove("0.0.0.0"); //TODO: these don't seem to make sense as aliases to local host, so i'm removing them for now
+		m_knownAliasesForLocalComputer.remove("0.0.0.0"); //these don't seem to make sense as aliases to local host, so i'm removing them
 
 		lineNumber=0;
 		br = null;
@@ -391,7 +609,7 @@ public class AHAModel
 				{
 					String[] tokens = fixCSVLine(line);
 					if (tokens.length<5) { System.err.println("Skipping line #"+lineNumber+" because it is malformed."); continue; }
-					String toNode, fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], proto=tokens[hdr.get("protocol")], localPort=tokens[hdr.get("localport")], remotePort=tokens[hdr.get("remoteport")];
+					String toNode="UnknownToNodeError", fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], proto=tokens[hdr.get("protocol")], localPort=tokens[hdr.get("localport")], remotePort=tokens[hdr.get("remoteport")];
 					String protoLocalPort=proto+"_"+localPort, protoRemotePort=proto+"_"+remotePort;
 					String remoteAddr=tokens[hdr.get("remoteaddress")].trim(), localAddr=tokens[hdr.get("localaddress")], connectionState=tokens[hdr.get("state")], remoteHostname=tokens[hdr.get("remotehostname")];
 					
@@ -418,6 +636,7 @@ public class AHAModel
 							else if ( m_knownAliasesForLocalComputer.get(localAddr)==null ) { System.out.printf("WARNING1: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);}
 							else if (  m_knownAliasesForLocalComputer.get(localAddr)!=null && (m_allListeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
 							else if ( !connectionState.contains("syn-sent") ){ System.out.printf("WARNING3: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
+							if (toNode==null) { /*System.err.println("toNode is null, problems may arrise. Setting toNode='UnknownToNodeError'");*/ toNode="UnknownToNodeError";}
 						}
 						else 
 						{ 
@@ -466,6 +685,36 @@ public class AHAModel
 									if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "external, tw"); } 
 									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate, external, tw"); }
 								}
+								// RelativeScore CODE //
+								Node toNode_node = m_graph.getNode(toNode);
+								if ( toNode.startsWith("Ext_") || node.toString().startsWith("Ext_") )
+								{
+									java.util.List<String> parents= node.getAttribute("parents");
+									if (parents== null) { parents = new java.util.ArrayList<String>(); }
+									if (toNode.startsWith("Ext_"))
+									{
+										parents.add(toNode);
+										node.addAttribute("parents", parents);
+									}
+									else
+									{
+										parents.add(node.toString());
+										toNode_node.addAttribute("parents", parents);
+									}
+								}
+								else
+								{
+									java.util.List<String> siblings=node.getAttribute("sibling");
+									if (siblings == null) { siblings=new java.util.ArrayList<String>(); }
+									siblings.add(toNode);
+									node.addAttribute("sibling", siblings);
+									
+									siblings=toNode_node.getAttribute("sibling");
+									if (siblings == null) { siblings = new java.util.ArrayList<String>(); }
+									siblings.add(node.toString());
+									toNode_node.addAttribute("sibling", siblings);
+								} // END RelativeScore CODE //
+								
 							}
 						}
 					}
@@ -585,16 +834,7 @@ public class AHAModel
 	
 	protected void hideOSProcs(Graph g, boolean hide) 
 	{
-//		{ //fill m_osProcs
-//			m_osProcs.put("c:\\windows\\system32\\services.exe","services.exe");
-//			m_osProcs.put("c:\\windows\\system32\\svchost.exe","svchost.exe");
-//			m_osProcs.put("c:\\windows\\system32\\wininit.exe","wininit.exe");
-//			m_osProcs.put("c:\\windows\\system32\\lsass.exe","lsass.exe");
-//			m_osProcs.put("null","unknown");
-//			m_osProcs.put("system","system");
-//		}
 		String[] osProcs={"c:\\windows\\system32\\services.exe","c:\\windows\\system32\\svchost.exe","c:\\windows\\system32\\wininit.exe","c:\\windows\\system32\\lsass.exe","null","system",};
-		
 		for (String s : osProcs)
 		{
 			genericHideUnhideNodes( "processpath=="+s,hide );
@@ -813,6 +1053,13 @@ public class AHAModel
 		catch (Exception e) { System.out.println("s="+s);e.printStackTrace(); } //something else weird happened, let's print about it
 		return s;
 	}
+	public static Object strAsDouble(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
+	{ 
+		try { if (s!=null ) { return Double.valueOf(s); } }
+		catch (NumberFormatException nfe) {} //we really don't care about this, we'll just return the original object
+		catch (Exception e) { System.out.println("s="+s);e.printStackTrace(); } //something else weird happened, let's print about it
+		return s;
+	}
 	
 	private TableDataHolder synch_report=new TableDataHolder(); //do not access from anywhere other than generateReport!
 	protected TableDataHolder generateReport()
@@ -822,7 +1069,7 @@ public class AHAModel
 			if (synch_report.columnNames==null)
 			{
 				int NUM_SCORE_TABLES=2, tableNumber=0;
-				String[][] columnHeaders= {{"Scan Information", "Value"},{"Process", "PID", "User","Connections","ExtPorts","Signed","ASLR","DEP","CFG","HiVA", "Score", "ECScore", "WPScore"},{}};
+				String[][] columnHeaders= {{"Scan Information", "Value"},{"Process", "PID", "User","Connections","ExtPorts","Signed","ASLR","DEP","CFG","HiVA", "Score", /*"ECScore", "WPScore",*/"Normalized Score","RelativeScore","RangedRelativeScore","ReversedRangedRelativeScore","parents","sibling"},{}};
 				Object[][][] tableData=new Object[NUM_SCORE_TABLES][][];
 				{ //general info
 					Object[][] data=new Object[8][2];
@@ -922,8 +1169,16 @@ public class AHAModel
 						data[j++]=n.getAttribute("controlflowguard");
 						data[j++]=n.getAttribute("highentropyva");
 						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
-						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.ECScoreBETA)));
-						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
+						//data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.ECScore)));
+						//data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProc)));
+						// RelativeScore CODE //
+						data[j++]=strAsDouble(n.getAttribute(NormalizedScore));
+						data[j++]=strAsDouble(n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+						data[j++]=strAsDouble(n.getAttribute(RangedRelativeScore));
+						data[j++]=strAsDouble(n.getAttribute(ReversedRangedRelativeScore));
+						data[j++]=n.getAttribute("parents");
+						data[j++]=n.getAttribute("sibling");
+						// END RelativeScore CODE //
 						tableData[tableNumber][i++]=data;
 					}
 				}
@@ -974,8 +1229,6 @@ public class AHAModel
 				if (argTokens[0].equalsIgnoreCase("--bigfont")) { bigfont=true; } //use 18pt font instead of default
 				if (argTokens[0].equalsIgnoreCase("scorefile")) { m_scoreFileName=argTokens[1]; m_overlayCustomScoreFile=true; } //path to custom score file, and enable since...that makes sense in this case
 				if (argTokens[0].equalsIgnoreCase("inputFile")) { m_inputFileName=argTokens[1]; } //path to input file
-				if (argTokens[0].equalsIgnoreCase("lowVulnThreshold")) { m_minScoreLowVuln=Integer.parseInt(argTokens[1]); } //set the minimum score to attain low vulnerability status
-				if (argTokens[0].equalsIgnoreCase("medVulnThreshold")) { m_minScoreMedVuln=Integer.parseInt(argTokens[1]); } //set the minimum score to attain medium vulnerability status
 				
 				if (argTokens[0].equals("help")||argTokens[0].equals("?")) 
 				{  
@@ -986,9 +1239,7 @@ public class AHAModel
 							"--single : use single lines between nodes with multiple connections "+
 							"--bigfont : use 18pt font instead of the default 12pt font (good for demos) "+
 							"scorefile=scorefile.csv : use the scorefile specified after the equals sign "+
-							"inputFile=inputFile.csv : use the inputFile specified after the equals sign "+
-							"lowVulnThreshold=25 : use the integer after the equals as the minimum node score to get a low vulnerability score (green) "+
-							"medVulnThreshold=15 : use the integer after the equals as the minimum node score to get a medium vulnerability score (yellow) "
+							"inputFile=inputFile.csv : use the inputFile specified after the equals sign " //+
 					); return;
 				}
 			} catch (Exception e) { e.printStackTrace(); }

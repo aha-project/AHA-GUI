@@ -23,7 +23,9 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		m_model=model;
 		setDefaultCloseOperation(javax.swing.JFrame.EXIT_ON_CLOSE);
 		setSize(1152, 768);
-		setTitle(AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]); //This should result in something like "AHA-GUI v0.5.6b1" being displayed
+		String title="AHA-GUI";
+		try { title=AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]; } catch (Exception e) {}
+		setTitle(title); //This should result in something like "AHA-GUI v0.5.6b1" being displayed
 		getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.GRAY,2)); //TODO: tried this to clean up the weird dashed appearance of the right gray border on macOS, but to no avail. figure it out later.
 		setLayout(new java.awt.BorderLayout(2,0));
 		
@@ -322,7 +324,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	
 	public static class InspectorWindow extends javax.swing.JFrame
 	{
-		private javax.swing.JCheckBox m_changeOnMouseOver=new javax.swing.JCheckBox("Update on MouseOver",false), m_showScoringSpecifics=new javax.swing.JCheckBox("Show Score Metric Specifics",false);
+		private javax.swing.JCheckBox m_showOnlyMatchedMetrics=new javax.swing.JCheckBox("Show Only Matched Metrics",true), m_changeOnMouseOver=new javax.swing.JCheckBox("Update on MouseOver",false), m_showScoringSpecifics=new javax.swing.JCheckBox("Show Score Metric Specifics",false);
 		private String[][] m_inspectorWindowColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process Name", "PID"}, {"Score Metric", "Value"}};
 		private String[][] m_inspectorWindowColumnTooltips={{"Info"},{"Port that is able to be connected to from other processes internally.", "Protocol in use."},{"Port that is able to be connected to from other external hosts/processes.", "Protocol in use."},{"Names of processes connected to this one", "Process Identifier"}, {"The scoring metric checked against.", "Result of the checked metric."}};
 		private javax.swing.JTable[] m_inspectorWindowTables= new javax.swing.JTable[m_inspectorWindowColumnHeaders.length]; //if you need more tables just add another column header set above
@@ -330,6 +332,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		public InspectorWindow(javax.swing.JFrame parent)
 		{
 			setTitle("Graph Node Inspector");
+			m_showOnlyMatchedMetrics.setToolTipText(styleToolTipText("Only displays metrics which were matched, for example if ASLR was true (Note: please click on a new node after enabling)."));
 			m_showScoringSpecifics.setToolTipText(styleToolTipText("Shows the specific metric in the inspector above that matched (Note: please click on a new node after enabling)."));
 			m_changeOnMouseOver.setToolTipText(styleToolTipText("Enable change of the inspector above on hovering over nodes in addition to clicking."));
 			
@@ -345,6 +348,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			
 			javax.swing.JPanel panel=new javax.swing.JPanel(); //easiest way to get these things to be compact vertically...tried everything with insets to no avail
 			panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
+			panel.add(m_showOnlyMatchedMetrics);
 			panel.add(m_showScoringSpecifics);
 			panel.add(m_changeOnMouseOver);
 			
@@ -416,18 +420,33 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			} catch (Exception e) { e.printStackTrace(); }
 			try
 			{ //update the fifth "Score Metric" table
-				String[] scores=getNodeScoreReasonString(node, true).split(", ");
-				scoreReasons=new String[scores.length][2];
+				String score=getNodeScoreReasonString(node, true);
+				//System.err.println(score);
+				String[] scores=score.split(", ");
+				int length=0;
 				for (int i=0;i<scores.length;i++) 
 				{ 
-					scoreReasons[i]=scores[i].split("=");
-					if (!m_showScoringSpecifics.isSelected()) 
-					{ 
-						String input=(String)scoreReasons[i][0];
-						if (input!=null && input.contains("[") && input.contains("]:")) { scoreReasons[i][0]=input.split("\\.")[0]+"("+input.split("\\]:")[1]+")"; }
+					if (scores[i].toLowerCase().endsWith("false") && m_showOnlyMatchedMetrics.isSelected()) {continue;}
+					length++;
+				}
+				scoreReasons=new String[length][2];
+				int j=0;
+				for (int i=0;i<scores.length;i++) 
+				{ 
+					String[] scrTokens=scores[i].split("=");
+					if (scrTokens!=null && scrTokens.length>=2)
+					{
+						if (m_showOnlyMatchedMetrics.isSelected()==true && scrTokens[1].toLowerCase().contains("false")) { continue; } 
+						scoreReasons[j]=scrTokens;
+						if (!m_showScoringSpecifics.isSelected()) 
+						{ 
+							String input=(String)scoreReasons[j][0];
+							if (input!=null && input.contains("[") && input.contains("]:")) { scoreReasons[j][0]=input.split("\\.")[0]+"("+input.split("\\]:")[1]+")"; }
+						}
+						j++;
 					}
 				}
-				if (scores.length==0){ scoreReasons=new String[][]{{"No score results found"}}; }
+				if (scores.length==0 || score.trim().trim().equals("N/A") ){ scoreReasons=new String[][]{{"Scoring not applicable."}}; }
 			} catch (Exception e) { e.printStackTrace(); }
 			
 			final Object[][][] data={infoData,intPorts,extPorts,connectionData,scoreReasons}; // create final pointer to pass to swing.infokelater. as long as this order of these object arrays is correct, everything will work :)
