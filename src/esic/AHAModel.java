@@ -28,8 +28,8 @@ public class AHAModel
 		}
 	}
 	
-	public static enum ScoreMethod {Normal,WorstCommonProcBETA,ECScoreBETA,RelativeScoreBETA}//,NormalizedScore,RangedRelativeScore,ReversedRangedRelativeScore,ForSibling}
-  private static String NormalizedScore="ui.ScoreMethodInternalNormalizedScore", RangedRelativeScore="ui.ScoreMethodInternalRangedRelativeScore", ReversedRangedRelativeScore="ui.ScoreMethodInternalReversedRangedRelativeScore", ForSibling="ui.ScoreMethodInternalForSibling";
+	public static enum ScoreMethod {Normal,WorstCommonProcBETA,RelativeScoreBETA}
+  private static String NormalizedScore="ui.ScoreMethodInternalNormalizedScore",RAWRelativeScore="ui.ScoreMethodInternalRAWRelativeScore", /*ReversedRangedRelativeScoree="ui.ScoreMethodInternalReversedRangedRelativeScore",*/ ForSibling="ui.ScoreMethodInternalForSibling";
 	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<ScoreItem>(32);
 	protected boolean m_debug=false, m_verbose=false, m_multi=true, m_overlayCustomScoreFile=false; //flags for verbose output, hiding of operating system processes, and drawing of multiple edges between vertices
 	protected String m_inputFileName="BinaryAnalysis.csv", m_scoreFileName="scorefile.csv";
@@ -118,7 +118,6 @@ public class AHAModel
 		{
 			try
 			{
-				String nodeClass=node.getAttribute("ui.class"); 
 				int score=generateNormalNodeScore(node);
 				node.addAttribute(scrMethdAttr(ScoreMethod.Normal), Integer.toString(score)); //if we didn't have a custom score from another file, use our computed score
 				
@@ -130,20 +129,10 @@ public class AHAModel
 					if (lowScore!=null && score>lowScore) { score=lowScore.intValue(); }
 					lowestScoreForUserName.put(nodeUserName,score);
 				} //End WorstUserProc stage1 scoring
-				
-				{ //Begin EC Method stage1 scoring
-					if(nodeClass!=null && nodeClass.equalsIgnoreCase("external")) { node.addAttribute(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp", Integer.toString(200)); }
-					else { node.addAttribute(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp", Double.toString(100-score)); } 
-				} //End EC Method stage 1 scoring
 			} catch (Exception e) { e.printStackTrace(); }
 		}
 
-		//Begin EC between loop compute
-		org.graphstream.algorithm.measure.EigenvectorCentrality ec = new org.graphstream.algorithm.measure.EigenvectorCentrality(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp", org.graphstream.algorithm.measure.AbstractCentrality.NormalizationMode.MAX_1_MIN_0, 100, scrMethdAttr(ScoreMethod.Normal));
-		ec.init(graph);
-		ec.compute();
 		if (m_verbose) { System.out.println("Worst User Scores="+lowestScoreForUserName); }
-		//END EC between 
 		
 		for (Node node:graph) //Stage 2 of scoring, for scoring algorithms that need to make a second pass over the graph
 		{
@@ -155,14 +144,9 @@ public class AHAModel
 					Integer lowScore=lowestScoreForUserName.get(node.getAttribute("username"));
 					if (lowScore==null) { System.err.println("no low score found, this should not happen"); continue; }
 					node.addAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA), lowScore.toString());
-				} //End WorstUserProc stage2 scoring
-				{ //Begin EC stage2 scoring
-					double nodeScore   = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
-					double ecNodeScore = node.getAttribute(scrMethdAttr(ScoreMethod.ECScoreBETA)+"Tmp");
-					ecNodeScore = nodeScore * (1-2*ecNodeScore);
-					node.addAttribute(scrMethdAttr(ScoreMethod.ECScoreBETA), ((Integer)((Double)ecNodeScore).intValue()).toString());
-				} //End EC stage2 scoring
-			} catch (Exception e) { e.printStackTrace(); }
+				} 
+				else { node.addAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA), "0"); } 
+			} catch (Exception e) { e.printStackTrace(); } //End WorstUserProc stage2 scoring
 		}
 		computeRelativeScores(graph);
 		swapNodeStyles(ScoreMethod.Normal, time); //since we just finished doing the scores, swap to the 'Normal' score style when we're done.
@@ -185,7 +169,7 @@ public class AHAModel
 				node.addAttribute("sibling", nodeSiblingsDistinct);
 			}
 		}
-		double maxscore=80, minscore=-50;
+		double maxscore=100, minscore=0;
 		double maxNorm=maxscore+5, minNorm=minscore-5;     
 		for (Node node:graph)
 		{   
@@ -194,7 +178,7 @@ public class AHAModel
 				double nodeScore   = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
 				double attacksurface =  1 - ((nodeScore-minNorm)/(maxNorm-minNorm));
 				node.addAttribute(NormalizedScore, ((Double)attacksurface).toString());
-				node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)0.0).toString());
+				node.addAttribute(RAWRelativeScore, ((Double)0.0).toString());
 				node.addAttribute(ForSibling, ((Double)0.0).toString());
 			}
 			node.addAttribute("finishScoring",((int)0));
@@ -209,22 +193,8 @@ public class AHAModel
 				{
 					node.addAttribute("finishScoring",((int)1));
 					node.addAttribute("readyforsibling",((int)1));
-					int hasChild = 0;
-					for (Node child:graph)
-					{
-						java.util.List<String> childParents= child.getAttribute("parents");
-						if ((child.getAttribute("parents") != null) && (childParents.contains(node.toString())))
-						{
-							hasChild = 1;
-							break;
-						}
-					}
-					if ( hasChild == 1)
-					{
-						double normalized = Double.valueOf(node.getAttribute(NormalizedScore));
-						node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)normalized).toString());
-					}
-					else { node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)0.0).toString()); }
+					double normalized = Double.valueOf(node.getAttribute(NormalizedScore));
+					node.addAttribute(RAWRelativeScore, ((Double)normalized).toString());
 					node.addAttribute(ForSibling, ((Double)0.0).toString());
 				}
 				if ((node.getAttribute("parents") == null) && (node.getAttribute("sibling") != null))
@@ -232,7 +202,7 @@ public class AHAModel
 					if ((int)node.getAttribute("readyforsibling") == 0)
 					{
 						double normalized = Double.valueOf(node.getAttribute(NormalizedScore));
-						node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)normalized).toString());
+						node.addAttribute(RAWRelativeScore, ((Double)normalized).toString());
 						node.addAttribute("readyforsibling",((int)1));
 					}
 					if ((int)node.getAttribute("finishScoring") == 0)
@@ -258,7 +228,7 @@ public class AHAModel
 								double pScore = Double.valueOf(tempSibling.getAttribute(ForSibling));
 								sum = sum + (nScore * pScore);
 							} 
-							node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)sum).toString());
+							node.addAttribute(RAWRelativeScore, ((Double)sum).toString());
 							node.addAttribute("finishScoring",((int)1));
 						}
 					}  
@@ -285,10 +255,10 @@ public class AHAModel
 							for (int i = 0; i < nodeparents.size() ; i++) 
 							{ 
 								Node tempParent = graph.getNode(nodeparents.get(i)) ;
-								double pScore = Double.valueOf(tempParent.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+								double pScore = Double.valueOf(tempParent.getAttribute(RAWRelativeScore));
 								sum = sum + (nScore * pScore);
 							} 
-							node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)(sum)).toString());
+							node.addAttribute(RAWRelativeScore, ((Double)(sum)).toString());
 							node.addAttribute("finishScoring",((int)1));
 						}
 					}  
@@ -315,7 +285,7 @@ public class AHAModel
 							for (int i = 0; i < nodeparents.size() ; i++) 
 							{ 
 								Node tempParent = graph.getNode(nodeparents.get(i)) ;
-								double pScore = Double.valueOf(tempParent.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+								double pScore = Double.valueOf(tempParent.getAttribute(RAWRelativeScore));
 								sum = sum + (nScore * pScore);
 							} 
 							node.addAttribute(ForSibling, ((Double)(sum)).toString());
@@ -346,7 +316,7 @@ public class AHAModel
 								double pScore = Double.valueOf(tempSibling.getAttribute(ForSibling));
 								sum = sum + (nScore * pScore);
 							} 
-							node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), ((Double)(sum+SScore)).toString());
+							node.addAttribute(RAWRelativeScore, ((Double)(sum+SScore)).toString());
 							node.addAttribute("finishScoring",((int)1));
 						}
 					}
@@ -362,11 +332,11 @@ public class AHAModel
 				}
 			}
 		}
-		double minRelative = Double.valueOf(graph.getNode(1).getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
-		double maxRelative = Double.valueOf(graph.getNode(1).getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+		double minRelative = Double.valueOf(graph.getNode(1).getAttribute(RAWRelativeScore)); //TODO: should both of these lines be the same?
+		double maxRelative = Double.valueOf(graph.getNode(1).getAttribute(RAWRelativeScore));
 		for (Node node:graph)
 		{
-			double relativeScore = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+			double relativeScore = Double.valueOf(node.getAttribute(RAWRelativeScore));
 			if (relativeScore > maxRelative) { maxRelative = relativeScore ; }
 			if (relativeScore < minRelative) { minRelative = relativeScore ; }
 		}
@@ -375,11 +345,11 @@ public class AHAModel
 		int newRangeMax = 100;
 		for (Node node:graph)
 		{
-			double relativeScore = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+			double relativeScore = Double.valueOf(node.getAttribute(RAWRelativeScore));
 			double newRelativeScore= newRangeMin +((newRangeMax-newRangeMin)/(maxRelative-minRelative))*(relativeScore - minRelative);
 			double newReversedRelativeScore= newRangeMax - newRelativeScore + newRangeMin ;
-			node.addAttribute(RangedRelativeScore, ((Double)newRelativeScore).toString());
-			node.addAttribute(ReversedRangedRelativeScore, ((Double)newReversedRelativeScore).toString());
+			node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), Long.toString(Math.round(newReversedRelativeScore))); //).toString()
+			//node.addAttribute(ReversedRangedRelativeScore, ((Double)newReversedRelativeScore).toString());
 		}
 	}
 	
@@ -429,8 +399,8 @@ public class AHAModel
 				String currentClass=n.getAttribute("ui.class"), customStyle=n.getAttribute(CUSTOMSTYLE);
 				String sScore=n.getAttribute(scrMethdAttr(m)), sScoreReason=n.getAttribute(scrMethdAttr(m)+"Reason"), sScoreExtendedReason=n.getAttribute(scrMethdAttr(m)+"ExtendedReason"); 
 				Integer intScore=null;
-				try {intScore=Integer.parseInt(sScore);}
-				catch (Exception e) {} 
+				try { intScore=Integer.parseInt(sScore); }
+				catch (Exception e) { System.err.printf("Failed to parse score for node=%s failed to parse='%s'\n",n.getId(), sScore); } 
 				if (currentClass==null || !currentClass.equalsIgnoreCase("external") || intScore!=null)
 				{
 					if (currentClass!=null && currentClass.equalsIgnoreCase("external"))
@@ -1069,7 +1039,7 @@ public class AHAModel
 			if (synch_report.columnNames==null)
 			{
 				int NUM_SCORE_TABLES=2, tableNumber=0;
-				String[][] columnHeaders= {{"Scan Information", "Value"},{"Process", "PID", "User","Connections","ExtPorts","Signed","ASLR","DEP","CFG","HiVA", "Score", /*"ECScore", "WPScore",*/"Normalized Score","RelativeScore","RangedRelativeScore","ReversedRangedRelativeScore","parents","sibling"},{}};
+				String[][] columnHeaders= {{"Scan Information", "Value"},{"Process", "PID", "User","Connections","ExtPorts","Signed","ASLR","DEP","CFG","HiVA", "Score", "WPScore",/*"Normalized Score",*/"RelativeScore",/*"RangedRelativeScore","ReversedRangedRelativeScore",*/"parents","sibling"},{}};
 				Object[][][] tableData=new Object[NUM_SCORE_TABLES][][];
 				{ //general info
 					Object[][] data=new Object[8][2];
@@ -1169,13 +1139,12 @@ public class AHAModel
 						data[j++]=n.getAttribute("controlflowguard");
 						data[j++]=n.getAttribute("highentropyva");
 						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
-						//data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.ECScore)));
-						//data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProc)));
+						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
 						// RelativeScore CODE //
-						data[j++]=strAsDouble(n.getAttribute(NormalizedScore));
+						//data[j++]=strAsDouble(n.getAttribute(NormalizedScore));
+						//data[j++]=strAsDouble(n.getAttribute(RAWRelativeScore));
 						data[j++]=strAsDouble(n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
-						data[j++]=strAsDouble(n.getAttribute(RangedRelativeScore));
-						data[j++]=strAsDouble(n.getAttribute(ReversedRangedRelativeScore));
+						//data[j++]=strAsDouble(n.getAttribute(ReversedRangedRelativeScore));
 						data[j++]=n.getAttribute("parents");
 						data[j++]=n.getAttribute("sibling");
 						// END RelativeScore CODE //
