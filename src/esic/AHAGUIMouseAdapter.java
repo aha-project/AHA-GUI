@@ -22,13 +22,13 @@ package esic;
 public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMouseManager 
 {
 	public AHAGUIMouseAdapter(final long delay, AHAGUI target) 
-  {
-      super();
-      this.delay = delay;
-      m_target=target;
-  }
-	public void mousePressed(java.awt.event.MouseEvent e) 
 	{
+		super();
+		this.delay = delay;
+		m_target=target;
+	}
+	public void mousePressed(java.awt.event.MouseEvent e) 
+	{ //System.out.println("PRESSED point x="+e.getX()+" y="+e.getY());
 		curElement = view.findNodeOrSpriteAt(e.getX(), e.getY());
 		if (curElement != null) 
 		{
@@ -42,13 +42,12 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 			mouseButtonPress(e);
 		}
 	}
-	
+
 	public void mouseReleased(java.awt.event.MouseEvent e) 
-	{
+	{ //System.out.println("RELEASED point x="+e.getX()+" y="+e.getY()+"\n");
 		if (curElement != null) 
 		{
 			mouseButtonReleaseOffElement(curElement, e);
-			m_target.mouseButtonReleasedOnElement(curElement);
 			curElement = null;
 		} 
 		else 
@@ -67,16 +66,16 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 				y2 = t;
 			}
 			mouseButtonRelease(e, view.allNodesOrSpritesIn(x1, y1, x2, y2));
-			m_target.mouseButtonReleasedOnElement(view.findNodeOrSpriteAt(e.getX(), e.getY()));
 		}
 	}
 
 	public void mouseDragged(java.awt.event.MouseEvent e) 
-	{
-		if (curElement != null) { elementMoving(curElement, e); } 
+	{ //System.out.println("DRAGGED point x="+e.getX()+" y="+e.getY());
+		int x2 = e.getX(), y2 = e.getY();
+		if (x1==x2 && y1==y2) { return; }
+		if (curElement != null) { elementMoving(curElement, e); } //TODO: this function occasionally seems to make _wild_ jumps on the graph rather than moving it a little bit. Not sure how it determines acceleration/etc, but often single pixel moves will throw things off the graph edge
 		else 
 		{
-			int x2 = e.getX(), y2 = e.getY();
 			org.graphstream.ui.geom.Point3 center=view.getCamera().getViewCenter();
 			org.graphstream.ui.geom.Point3 pixels=view.getCamera().transformGuToPx(center.x, center.y, center.z);
 			pixels.x+=(x1-x2);
@@ -87,64 +86,64 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 			y1=y2;
 		}
 	}
-	
+
 	private org.graphstream.ui.graphicGraph.GraphicElement hoveredElement;
-  private long hoveredElementLastChanged;
-  private java.util.concurrent.locks.ReentrantLock hoverLock = new java.util.concurrent.locks.ReentrantLock();
-  private java.util.Timer hoverTimer = new java.util.Timer(true);
-  private HoverTimerTask latestHoverTimerTask;
-  private final long delay;
-  private final AHAGUI m_target;
-  
-  public void mouseMoved(java.awt.event.MouseEvent event) 
-  {
-      try {
-          hoverLock.lockInterruptibly();
-          boolean stayedOnElement = false;
-          org.graphstream.ui.graphicGraph.GraphicElement currentElement = view.findNodeOrSpriteAt(event.getX(), event.getY());
-          if (hoveredElement != null) 
-          {
-              stayedOnElement = currentElement == null ? false : currentElement.equals(hoveredElement);
-              if (!stayedOnElement ) 
-              { 
-              	m_target.stoppedHoveringOverElement(hoveredElement);
-              	this.hoveredElement = null;
-              }
-          }
-          if (!stayedOnElement && currentElement != null) 
-          {
-              if (delay <= 0) { m_target.startedHoveringOverElementOrClicked(curElement, true); } 
-              else 
-              {
-                  hoveredElement = currentElement;
-                  hoveredElementLastChanged = event.getWhen();
-                  if (latestHoverTimerTask != null) { latestHoverTimerTask.cancel(); }
-                  latestHoverTimerTask = new HoverTimerTask(hoveredElementLastChanged, hoveredElement);
-                  hoverTimer.schedule(latestHoverTimerTask, delay);
-              }
-          }
-      } 
-      catch(InterruptedException iex) { /*NOP*/ } 
-      finally { hoverLock.unlock(); }
-  }
-  private final class HoverTimerTask extends java.util.TimerTask 
-  {
-      private final long lastChanged;
-      private final org.graphstream.ui.graphicGraph.GraphicElement element;
-      public HoverTimerTask(long lastChanged, org.graphstream.ui.graphicGraph.GraphicElement element) 
-      {
-          this.lastChanged = lastChanged;
-          this.element = element;
-      }
-      public void run() 
-      {
-          try 
-          {
-              hoverLock.lock();
-              if (hoveredElementLastChanged == lastChanged) { m_target.startedHoveringOverElementOrClicked(element, true); }
-          } 
-          catch (Exception ex) { ex.printStackTrace(); } 
-          finally { hoverLock.unlock(); }
-      }
-  }	
+	private long hoveredElementLastChanged;
+	private java.util.concurrent.locks.ReentrantLock hoverLock = new java.util.concurrent.locks.ReentrantLock();
+	private static java.util.Timer hoverTimer = new java.util.Timer("AHAGUIMouseAdapterTimer",true); //TODO, changed this to static so we stop creating new ones on new file load...might be a bad move, we'll see
+	private HoverTimerTask latestHoverTimerTask;
+	private final long delay;
+	private final AHAGUI m_target;
+
+	public void mouseMoved(java.awt.event.MouseEvent e) 
+	{ //System.out.println("MOVED point x="+e.getX()+" y="+e.getY());
+		try {
+			hoverLock.lockInterruptibly();
+			boolean stayedOnElement = false;
+			org.graphstream.ui.graphicGraph.GraphicElement currentElement = view.findNodeOrSpriteAt(e.getX(), e.getY());
+			if (hoveredElement != null) 
+			{
+				stayedOnElement = currentElement == null ? false : currentElement.equals(hoveredElement);
+				if (!stayedOnElement ) 
+				{ 
+					m_target.stoppedHoveringOverElement(hoveredElement);
+					this.hoveredElement = null;
+				}
+			}
+			if (!stayedOnElement && currentElement != null) 
+			{
+				if (delay <= 0) { m_target.startedHoveringOverElementOrClicked(curElement, true); } 
+				else 
+				{
+					hoveredElement = currentElement;
+					hoveredElementLastChanged = e.getWhen();
+					if (latestHoverTimerTask != null) { latestHoverTimerTask.cancel(); }
+					latestHoverTimerTask = new HoverTimerTask(hoveredElementLastChanged, hoveredElement);
+					hoverTimer.schedule(latestHoverTimerTask, delay);
+				}
+			}
+		} 
+		catch(InterruptedException iex) { /*NOP*/ } 
+		finally { hoverLock.unlock(); }
+	}
+	private final class HoverTimerTask extends java.util.TimerTask 
+	{
+		private final long lastChanged;
+		private final org.graphstream.ui.graphicGraph.GraphicElement element;
+		public HoverTimerTask(long lastChanged, org.graphstream.ui.graphicGraph.GraphicElement element) 
+		{
+			this.lastChanged = lastChanged;
+			this.element = element;
+		}
+		public void run() 
+		{
+			try 
+			{
+				hoverLock.lock();
+				if (hoveredElementLastChanged == lastChanged) { m_target.startedHoveringOverElementOrClicked(element, true); }
+			} 
+			catch (Exception ex) { ex.printStackTrace(); } 
+			finally { hoverLock.unlock(); }
+		}
+	}	
 }

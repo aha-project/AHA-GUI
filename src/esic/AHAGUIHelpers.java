@@ -2,7 +2,6 @@ package esic;
 
 import java.awt.Component;
 import java.awt.Font;
-import java.awt.Graphics;
 import javax.swing.BorderFactory;
 
 public class AHAGUIHelpers
@@ -13,7 +12,14 @@ public class AHAGUIHelpers
 		//	for (Object key : javax.swing.UIManager.getLookAndFeelDefaults().keySet()) { t.add(key.toString()); }
 		//	java.util.Collections.sort(t);
 		//	for (String key : t ) { if (key.toLowerCase().contains("background")) { System.out.println(key); } }
-
+		System.err.println("Applying theme.");
+		try 
+		{ 
+			javax.swing.InputMap im = (javax.swing.InputMap) javax.swing.UIManager.get("TextField.focusInputMap"); //TODO other input map save/store might be required later if we have more components with inputmaps
+			javax.swing.UIManager.setLookAndFeel( javax.swing.UIManager.getCrossPlatformLookAndFeelClassName() ); 
+			javax.swing.UIManager.put("TextField.focusInputMap", im); //restore the original LAF input map (keep windows control c/v and macOS command c/v as they should be.
+		}
+		catch (Exception e) { System.err.println("Failed to set look and feel:"); e.printStackTrace(); }
 		java.awt.Color backgroundColor=java.awt.Color.BLACK, foregroundColor=java.awt.Color.GREEN, accentColor=java.awt.Color.DARK_GRAY.darker().darker(), lightAccent=java.awt.Color.DARK_GRAY;//, dbugcolor=java.awt.Color.ORANGE;
 		javax.swing.UIManager.put("Button.background", accentColor.brighter().brighter());
 		javax.swing.UIManager.put("Button.darkShadow", backgroundColor);
@@ -28,7 +34,7 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("CheckBox.focus", backgroundColor);
 		javax.swing.UIManager.put("CheckBox.font", uiFont);
 		javax.swing.UIManager.put("CheckBox.gradient", java.util.Arrays.asList( new Object[] {Float.valueOf(0f),Float.valueOf(0f), java.awt.Color.LIGHT_GRAY, java.awt.Color.LIGHT_GRAY, java.awt.Color.GRAY.brighter() }));
-		//javax.swing.UIManager.put("CheckBox.icon", new AHACheckBoxIcon(13,13));
+		//javax.swing.UIManager.put("CheckBox.icon", new AHACheckBoxIcon(13,13)); //disabled because it does odd things on openjdk/linux. TODO: fixable? if not, delete related artifacts
 		javax.swing.UIManager.put("ComboBox.background", accentColor.brighter().brighter());
 		javax.swing.UIManager.put("ComboBox.font", uiFont); 
 		javax.swing.UIManager.put("ComboBox.foreground", foregroundColor);
@@ -39,6 +45,17 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("Label.foreground", foregroundColor);
 		javax.swing.UIManager.put("Label.background", backgroundColor);
 		javax.swing.UIManager.put("Label.font", uiFont);
+		
+		javax.swing.UIManager.put("List.foreground", foregroundColor); //primarily here for the JFileChooser background file list pane
+		javax.swing.UIManager.put("List.background", backgroundColor);
+		javax.swing.UIManager.put("List.selectionForeground", backgroundColor);
+		javax.swing.UIManager.put("List.selectionBackground", foregroundColor);
+		javax.swing.UIManager.put("List.focusCellHighlightBorder", foregroundColor);
+		javax.swing.UIManager.put("List.font", uiFont);
+		javax.swing.UIManager.put("List.background", backgroundColor);
+		javax.swing.UIManager.put("OptionPane.foreground", foregroundColor);
+		javax.swing.UIManager.put("OptionPane.background", backgroundColor);
+		
 		javax.swing.UIManager.put("Frame.foreground", foregroundColor);
 		javax.swing.UIManager.put("Frame.background", backgroundColor);
 		javax.swing.UIManager.put("Panel.foreground", foregroundColor);
@@ -87,10 +104,7 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("TextField.background", backgroundColor);
 		javax.swing.UIManager.put("TextField.focus", backgroundColor);
 		javax.swing.UIManager.put("TextField.font", uiFont);
-		
-		javax.swing.UIManager.put("TextField.border", new javax.swing.border.LineBorder(java.awt.Color.GRAY,2));
-		//javax.swing.UIManager.put("TextFieldUI", javax.swing.plaf.basic.BasicTextFieldUI.class.getName());
-		
+		javax.swing.UIManager.put("TextField.border", new javax.swing.border.LineBorder(java.awt.Color.GRAY,1));
 		
 		javax.swing.UIManager.put("ToolTip.foreground", java.awt.Color.BLACK);
 		javax.swing.UIManager.put("ToolTip.border", java.awt.Color.WHITE);
@@ -98,13 +112,14 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("ToolTip.font", uiFont);
 		javax.swing.UIManager.put("Viewport.foreground", foregroundColor);
 		javax.swing.UIManager.put("Viewport.background", accentColor);
+		javax.swing.UIManager.put("window", backgroundColor);
 	}
 
 	public static class AHASortIcon implements javax.swing.Icon
 	{ //TODO maybe clean this up a little so it can be variably sized...but on the other hand, it looks good exactly with these numbers.
 		boolean thingToDraw;
 		public AHASortIcon(boolean icon) { thingToDraw=icon; }
-		public void paintIcon(Component c, Graphics g, int x, int y)
+		public void paintIcon(Component c, java.awt.Graphics g, int x, int y)
 		{
 			java.awt.Graphics2D g2 = (java.awt.Graphics2D)g;
 			//System.out.printf("paintIcon called x=%d y=%d\n",x,y);
@@ -117,38 +132,74 @@ public class AHAGUIHelpers
 		public int getIconHeight() { return 6; }
 	}
 	
-	public static class AHACheckBoxIcon implements javax.swing.Icon
-	{ //TODO maybe clean this up a little so it can be variably sized...but on the other hand, it looks good exactly with these numbers.
-		private int width, height;
-		public java.awt.Color foreground=java.awt.Color.GREEN, background=java.awt.Color.DARK_GRAY, highlight=java.awt.Color.GRAY;
-		public java.awt.Font font=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.BOLD,12);
-		public java.awt.Stroke highlightStroke=new java.awt.BasicStroke(2);
-		public AHACheckBoxIcon(int w, int h) { width=w; height=h; }
-		public void paintIcon(Component c, Graphics g, int x, int y)
-		{
-			java.awt.Graphics2D g2 = (java.awt.Graphics2D)g;
-			boolean selected=false, rollover=false;
-			try 
-			{ 
-				javax.swing.AbstractButton aButton=(javax.swing.AbstractButton)c;
-				javax.swing.ButtonModel bModel=aButton.getModel(); 
-				selected=bModel.isSelected();
-				rollover=bModel.isRollover();
-			} catch (Exception e) {}
-			g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-			g2.setColor(background);
-			g2.setFont(font);
-			g2.fillRect(x, y, width, height); 
-			if (selected) { g2.setColor(foreground); g2.drawString("√", x+3, y+height-1); }
-			if (rollover)
-			{ 
-				g2.setColor(highlight);
-				g2.setStroke(highlightStroke);
-				g2.drawPolygon(new int[]{x,x+width,x+width,x}, new int[]{y,y,y+height,y+height}, 4);
-			}
-		}
-		public int getIconWidth() { return width; }
-		public int getIconHeight() { return height; }
-	}
+//	public static class AHACheckBoxIcon implements javax.swing.Icon
+//	{ //TODO maybe clean this up a little so it can be variably sized...but on the other hand, it looks good exactly with these numbers.
+//		private int width, height;
+//		public java.awt.Color foreground=java.awt.Color.GREEN, background=java.awt.Color.DARK_GRAY, highlight=java.awt.Color.GRAY;
+//		public java.awt.Font font=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.BOLD,12);
+//		public java.awt.Stroke highlightStroke=new java.awt.BasicStroke(2);
+//		public AHACheckBoxIcon(int w, int h) { width=w; height=h; }
+//		public void paintIcon(Component c, java.awt.Graphics g, int x, int y)
+//		{
+//			java.awt.Graphics2D g2 = (java.awt.Graphics2D)g;
+//			boolean selected=false, rollover=false;
+//			try 
+//			{ 
+//				javax.swing.AbstractButton aButton=(javax.swing.AbstractButton)c;
+//				javax.swing.ButtonModel bModel=aButton.getModel(); 
+//				selected=bModel.isSelected();
+//				rollover=bModel.isRollover();
+//			} catch (Exception e) {}
+//			g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+//			g2.setColor(background);
+//			g2.setFont(font);
+//			g2.fillRect(x, y, width, height); 
+//			if (selected) { g2.setColor(foreground); g2.drawString("√", x+3, y+height-1); }
+//			if (rollover)
+//			{ 
+//				g2.setColor(highlight);
+//				g2.setStroke(highlightStroke);
+//				g2.drawPolygon(new int[]{x,x+width,x+width,x}, new int[]{y,y,y+height,y+height}, 4);
+//			}
+//		}
+//		public int getIconWidth() { return width; }
+//		public int getIconHeight() { return height; }
+//	}
+//java.awt.event.MouseAdapter passThroughToGraphView=new java.awt.event.MouseAdapter()
+//{
+//	public void mousePressed(java.awt.event.MouseEvent me)  { m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); } 
+//	public void mouseReleased(java.awt.event.MouseEvent me) { m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
+//	public void mouseDragged(java.awt.event.MouseEvent me)  { m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); } 
+//	//public void mouseMoved(java.awt.event.MouseEvent me) {  m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
+//	//public void mouseClicked(java.awt.event.MouseEvent me) {  m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
+//	//public void mouseEntered(java.awt.event.MouseEvent me) {  m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
+//	//public void mouseExited(java.awt.event.MouseEvent me) {  m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
+//};
 
+	public static String styleToolTipText(String s) //format all tool tip texts by making them HTML (so we can apply text effects, and more importantly line breaks)
+	{
+		if (s.length()>60)
+		{
+			StringBuilder sb=new StringBuilder("");
+			int currentLineLength=0;
+			for (int i=0;i<s.length();i++)
+			{
+				s.replaceAll("<BR>", "\n");
+				char c=s.charAt(i);
+				if ( (c=='\n') || ((c==',' || c=='.' || c==';') && currentLineLength>50) || (c==' ' && currentLineLength>75))
+				{
+					sb.append(c);
+					if (currentLineLength>0) { sb.append("<BR>"); } //should collapse a sequence of <BR><BR><BR>
+					currentLineLength=0;
+				}
+				else
+				{
+					sb.append(c);
+					currentLineLength++;
+				}
+			}
+			s=sb.toString();
+		}
+		return "<html><p style='font-style:bold;color:black;background:white;'>"+s+"</p></html> ";
+	}
 }

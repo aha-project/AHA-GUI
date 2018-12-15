@@ -32,7 +32,7 @@ public class AHAModel
   private static String NormalizedScore="ui.ScoreMethodInternalNormalizedScore",RAWRelativeScore="ui.ScoreMethodInternalRAWRelativeScore", /*ReversedRangedRelativeScoree="ui.ScoreMethodInternalReversedRangedRelativeScore",*/ ForSibling="ui.ScoreMethodInternalForSibling";
 	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<ScoreItem>(32);
 	protected boolean m_debug=false, m_verbose=false, m_multi=true, m_overlayCustomScoreFile=false; //flags for verbose output, hiding of operating system processes, and drawing of multiple edges between vertices
-	protected String m_inputFileName="BinaryAnalysis.csv", m_scoreFileName="scorefile.csv";
+	protected String m_inputFileName="",/*"BinaryAnalysis.csv"*/ m_scoreFileName="scorefile.csv";
 	protected int maxScore=0, metricsTableMultiPlatformScore=0;
 	protected java.util.TreeMap <String,Integer> platformSpecificMetricsTableScores=new java.util.TreeMap <String,Integer>();
 	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>();
@@ -108,6 +108,7 @@ public class AHAModel
 			if (platformEntry.getValue()>maxPlatformScore) { maxPlatformScore=platformEntry.getValue(); }
 		}
 		System.out.println("MetricsTable: multiplatform max="+metricsTableMultiPlatformScore+" setting max possible score to: "+(maxScore=metricsTableMultiPlatformScore+maxPlatformScore));
+		m_gui.updateOverlayLegend(maxScore);
 	}
 	
 	protected void exploreAndScore(Graph graph) //explores the node graph and assigns a scaryness score
@@ -471,7 +472,7 @@ public class AHAModel
 
 	protected void readInputFile()
 	{
-		System.out.println("Reading primary input file="+m_inputFileName);
+		System.out.println("Reading primary input file=\""+m_inputFileName+"\"");
 		m_knownAliasesForLocalComputer.put("127.0.0.1", "127.0.0.1"); //ensure these obvious ones are inserted in case we never see them in the scan
 		m_knownAliasesForLocalComputer.put("::1", "::1"); //ensure these obvious ones are inserted in case we never see them in the scan
 		java.io.BufferedReader br = null;
@@ -816,14 +817,15 @@ public class AHAModel
 		genericHideUnhideNodes( "processpath==external",hide );
 	}
 	
-	protected void genericHideUnhideNodes( String criteria, boolean hide )
+	protected int genericHideUnhideNodes( String criteria, boolean hide )
 	{
 		boolean notInverseSearch=true;
+		int hidden=0;
 		String regexp="";
 		if (criteria.contains("==")) { regexp="=="; }
 		if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false;}
 		String[] args=criteria.trim().trim().split(regexp);
-		if (args.length < 2) { System.err.println("Hide: Unable to parse tokens:|"+criteria.trim().trim()+"|"); return; }
+		if (args.length < 2) { System.err.println("Hide: Unable to parse tokens:|"+criteria.trim().trim()+"|"); return 0; }
 		try
 		{
 			String attribute=args[0].toLowerCase();
@@ -846,8 +848,10 @@ public class AHAModel
 					boolean nodeWillHide=!hideReasons.isEmpty();
 					if (nodeWillHide)
 					{
+						if (node.getAttribute("ui.hide")==null) { hidden++; } //if it's not already hidden, count that we're going to hide it
 						node.addAttribute( "ui.hide" );
 						if (m_verbose) { System.out.println("Hide node="+node.getId()); }
+						
 					}
 					else
 					{
@@ -864,16 +868,18 @@ public class AHAModel
 			}
 		}
 		catch (Exception e) { e.printStackTrace(); }
+		return hidden;
 	}
 	
-	protected void genericEmphasizeNodes( String criteria, boolean emphasize ) //TODO add some trycatchery
+	protected int genericEmphasizeNodes( String criteria, boolean emphasize ) //TODO add some trycatchery
 	{
 		boolean notInverseSearch=true;
 		String regexp="";
+		int emphasized=0;
 		if (criteria.contains("==")) { regexp="=="; }
 		if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false;}
 		String[] args=criteria.trim().trim().split(regexp);
-		if (args.length < 2) { System.err.println("Emphasize: Unable to parse tokens:|"+criteria.trim().trim()+"|"); return; }
+		if (args.length < 2) { System.err.println("Emphasize: Unable to parse tokens:|"+criteria.trim().trim()+"|"); return 0; }
 		try
 		{
 			String attribute=args[0].toLowerCase();
@@ -898,7 +904,7 @@ public class AHAModel
 					if (nodeClass==null) { nodeClass=""; }
 					if (nodeWillEmphasize)
 					{
-						if (!nodeClass.contains("emphasize, ")) { nodeClass="emphasize, "+nodeClass;}
+						if (!nodeClass.contains("emphasize, ")) { nodeClass="emphasize, "+nodeClass; emphasized++;}
 						if (m_verbose) { System.out.println("Emphasize node="+node.getId()); }
 					}
 					else
@@ -906,7 +912,7 @@ public class AHAModel
 						nodeClass=nodeClass.replaceAll("emphasize, ", ""); 
 						if (m_verbose) { System.out.println("unEmphasize node="+node.getId()); }
 					}
-					System.out.println("Writing node class=|"+nodeClass+"|");
+					//System.out.println("Writing node class=|"+nodeClass+"|");
 					node.setAttribute("ui.class", nodeClass);
 					
 					for (Edge e : node.getEdgeSet())
@@ -924,12 +930,13 @@ public class AHAModel
 			}
 		}
 		catch (Exception e) { e.printStackTrace(); }
+		return emphasized;
 	}
 	
 	protected java.util.Vector<String> m_lastSearchTokens=new java.util.Vector<String>();
-	protected void handleSearch (String searchText)
+	protected String handleSearch (String searchText)
 	{
-		if (searchText==null) { return; }
+		if (searchText==null ) { return ""; }
 		//undo what we did last time //TODO: maybe we can optimize and only undo what's changed since last time someday
 		for (String s : m_lastSearchTokens)
 		{
@@ -940,16 +947,19 @@ public class AHAModel
 		
 		System.out.println("Search called with string=|"+searchText+"|");
 		String[] tokens=searchText.split("\\|\\|");
+		int hid=0, emph=0;
 		for (String token : tokens)
 		{
 			if (token==null || token.equals("")) { continue; }
 			token=token.trim().trim();
 			m_lastSearchTokens.add(token);
 			System.out.println("token=|"+token+"|");
-			if (token.startsWith("~")) { genericHideUnhideNodes(token.substring(1), true); }
-			else { genericEmphasizeNodes(token, true); }
+			if (token.startsWith("~")) { hid+=genericHideUnhideNodes(token.substring(1), true); }
+			else { emph+=genericEmphasizeNodes(token, true); }
 		}
 		System.out.println("");
+		if ( hid==0 && emph==0 ) { return ""; } //this is needed to clear out the status when the user is no longer using it
+		return " Status: Hidden="+hid+" Highlighted="+emph+" ";
 	}
 	
 	protected static String capitalizeFirstLetter(String s)
@@ -960,60 +970,70 @@ public class AHAModel
 	
 	protected void start()
 	{
-		m_graph.addAttribute("ui.stylesheet", styleSheet);
-		m_graph.setAutoCreate(true);
-		m_graph.setStrict(false);
-		Node ext=m_graph.addNode("external");
-		ext.addAttribute("ui.class", "external"); //Add a node for "external"
-		ext.addAttribute("processpath","external"); //add fake process path
-		
-		System.out.println("JRE: Vendor="+System.getProperty("java.vendor")+", Version="+System.getProperty("java.version"));
-		System.out.println("OS: Arch="+System.getProperty("os.arch")+" Name="+System.getProperty("os.name")+" Vers="+System.getProperty("os.version"));
-		System.out.println("AHA-GUI Version: "+AHAModel.class.getPackage().getImplementationVersion()+" starting up.");
-		
-		readInputFile();
-		readScoreTable(null);
-		readCustomScorefile();
-		useFQDNLabels(m_graph, m_gui.m_showFQDN.isSelected());
-		exploreAndScore(m_graph);
-		new Thread(){ //Don't do this until after we explore and score, to reduce odd concurrency errors
-			public void run()
-			{
-				while (!Thread.interrupted())
-				{
-					m_gui.m_graphViewPump = m_gui.m_viewer.newViewerPipe();
-					m_gui.m_graphViewPump.addViewerListener(m_gui);
-					m_gui.m_graphViewPump.addSink(m_graph);
-					while (!Thread.interrupted())
-					{
-						try { m_gui.m_graphViewPump.blockingPump(); }
-						catch (Exception e) { e.printStackTrace();}
-					}
-				}
-			}
-		}.start();
-		
-		try { Thread.sleep(1500); } catch (Exception e) {}
-		m_gui.m_viewer.disableAutoLayout();
-		try { Thread.sleep(100); } catch (Exception e) {} //add delay to see if issues with moving ext nodes goes away
-		
-		java.util.Vector<Node> leftSideNodes=new java.util.Vector<Node>(); //moved this below the 1.5s graph stabilization threshold to see if it makes odd occasional issues with moving ext nodes better
-		for (Node n : m_graph) 
+		try
 		{
-			if (n.getId().contains("Ext_")) { leftSideNodes.add(n); }
-			n.addAttribute("layout.weight", 6); //switched to add attribute rather than set attribute since it seems to prevent a possible race condition.
-		}
-		int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
-		leftSideNodes.insertElementAt(m_graph.getNode("external"),leftSideNodes.size()/2);
-		
-		int i=1;
-		for (Node n : leftSideNodes)
-		{ 
-			org.graphstream.ui.geom.Point3 loc=m_gui.m_viewPanel.getCamera().transformPxToGu(30, (m_gui.m_viewPanel.getHeight()/numLeftNodes)*i);
-			n.addAttribute("xyz", loc.x,loc.y,loc.z);
-			i++;
-		}
-		writeReport(generateReport(),"AHA-GUI-Report.csv");
+			if ( m_inputFileName==null || m_inputFileName.equals("") ) { System.err.println("No input file specified, bailing."); return; }
+			m_gui.m_viewer.enableAutoLayout();
+			m_graph.setAutoCreate(true);
+			m_graph.setStrict(false);
+			Node ext=m_graph.addNode("external");
+			ext.addAttribute("ui.class", "external"); //Add a node for "external"
+			ext.addAttribute("processpath","external"); //add fake process path
+			
+			System.out.println("JRE: Vendor="+System.getProperty("java.vendor")+", Version="+System.getProperty("java.version"));
+			System.out.println("OS: Arch="+System.getProperty("os.arch")+" Name="+System.getProperty("os.name")+" Vers="+System.getProperty("os.version"));
+			System.out.println("AHA-GUI Version: "+AHAModel.class.getPackage().getImplementationVersion()+" starting up.");
+			
+			readInputFile();
+			readScoreTable(null);
+			readCustomScorefile();
+			useFQDNLabels(m_graph, m_gui.m_showFQDN.isSelected());
+			exploreAndScore(m_graph);
+			
+			m_gui.startGraphRefreshThread();
+			
+			Thread.sleep(1500); 
+			m_gui.m_viewer.disableAutoLayout();
+			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
+			
+			java.util.Vector<Node> leftSideNodes=new java.util.Vector<Node>(); //moved this below the 1.5s graph stabilization threshold to see if it makes odd occasional issues with moving ext nodes better
+			for (Node n : m_graph) 
+			{
+				if (n.getId().contains("Ext_")) { leftSideNodes.add(n); }
+				n.addAttribute("layout.weight", 6); //switched to add attribute rather than set attribute since it seems to prevent a possible race condition.
+			}
+			int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
+			leftSideNodes.insertElementAt(m_graph.getNode("external"),leftSideNodes.size()/2);
+			
+			int i=1;
+			try
+			{
+				for (Node n : leftSideNodes)
+				{ 
+					org.graphstream.ui.geom.Point3 loc=m_gui.m_viewPanel.getCamera().transformPxToGu(60, (m_gui.m_viewPanel.getHeight()/numLeftNodes)*i);
+					n.addAttribute("xyz", loc.x,loc.y,loc.z);
+					i++;
+				}
+				m_gui.m_viewPanel.getCamera().setViewPercent(1.01d);
+				org.graphstream.ui.geom.Point3 center=m_gui.m_viewPanel.getCamera().getViewCenter();
+				org.graphstream.ui.geom.Point3 pixels=m_gui.m_viewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
+				pixels.x-=60;
+				center=m_gui.m_viewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
+				m_gui.m_viewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
+			} catch (Exception e) { e.printStackTrace(); }
+			
+			java.io.File fname=new java.io.File(m_inputFileName);
+			String inputFileName=fname.getName(), outputPath="";//get the file name only sans the path
+			if (inputFileName.toLowerCase().endsWith(".csv"))
+			{
+				outputPath=inputFileName.substring(0, inputFileName.length()-4);
+				outputPath+="-AHAReport.csv";
+				outputPath=m_inputFileName.replace(fname.getName(), outputPath);
+			}
+			else { outputPath=m_inputFileName+=".aha-report.csv"; } //in the case that their input file was not sanely named, we just append .report.csv
+			System.out.println("Saving report to path=\""+outputPath+"\"");
+			writeReport(generateReport(),"AHA-GUI-Report.csv");
+		} catch(Exception e) { e.printStackTrace(); } 
 	}
 	
 	public static Object strAsInt(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
@@ -1183,9 +1203,9 @@ public class AHAModel
 		catch (Exception e) { e.printStackTrace(); }
 	}
 	
-	public AHAModel(String args[])
+	public AHAModel(String args[], boolean firstRun)
 	{
-		boolean bigfont=false;
+		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12), uiFontBold=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.BOLD,12);
 		for (String s : args)
 		{
 			try
@@ -1195,9 +1215,9 @@ public class AHAModel
 				if (argTokens[0].equalsIgnoreCase("--debug")) { m_debug=true; } //print more debugs while running
 				if (argTokens[0].equalsIgnoreCase("--verbose")) { m_verbose=true; } //print more debugs while running
 				if (argTokens[0].equalsIgnoreCase("--single")) { m_multi=false; } //draw single lines between nodes
-				if (argTokens[0].equalsIgnoreCase("--bigfont")) { bigfont=true; } //use 18pt font instead of default
+				if (argTokens[0].equalsIgnoreCase("--bigfont")) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); uiFontBold=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.BOLD,18); } //use 18pt font instead of default
 				if (argTokens[0].equalsIgnoreCase("scorefile")) { m_scoreFileName=argTokens[1]; m_overlayCustomScoreFile=true; } //path to custom score file, and enable since...that makes sense in this case
-				if (argTokens[0].equalsIgnoreCase("inputFile")) { m_inputFileName=argTokens[1]; } //path to input file
+				if (argTokens[0].equalsIgnoreCase("inputFile") && firstRun) { m_inputFileName=argTokens[1]; } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
 				
 				if (argTokens[0].equals("help")||argTokens[0].equals("?")) 
 				{  
@@ -1213,9 +1233,7 @@ public class AHAModel
 				}
 			} catch (Exception e) { e.printStackTrace(); }
 		}
-		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
-		if (bigfont) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); }
 		AHAGUIHelpers.applyTheme(uiFont);
-		m_gui =new AHAGUI(this);
+		m_gui =new AHAGUI(this, uiFontBold);
 	}
 }
