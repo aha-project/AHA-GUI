@@ -33,7 +33,6 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 		if (curElement != null) 
 		{
 			mouseButtonPressOnElement(curElement, e);
-			m_target.startedHoveringOverElementOrClicked(curElement, false);
 		} 
 		else 
 		{
@@ -112,7 +111,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 			}
 			if (!stayedOnElement && currentElement != null) 
 			{
-				if (delay <= 0) { m_target.startedHoveringOverElementOrClicked(curElement, true); } 
+				if (delay <= 0) { m_target.startedHoveringOverElement(curElement); } 
 				else 
 				{
 					hoveredElement = currentElement;
@@ -140,7 +139,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 			try 
 			{
 				hoverLock.lock();
-				if (hoveredElementLastChanged == lastChanged) { m_target.startedHoveringOverElementOrClicked(element, true); }
+				if (hoveredElementLastChanged == lastChanged) { m_target.startedHoveringOverElement(element); }
 			} 
 			catch (Exception ex) { ex.printStackTrace(); } 
 			finally { hoverLock.unlock(); }

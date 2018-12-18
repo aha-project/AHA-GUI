@@ -202,4 +202,84 @@ public class AHAGUIHelpers
 		}
 		return "<html><p style='font-style:bold;color:black;background:white;'>"+s+"</p></html> ";
 	}
+	
+	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][] columnTooltips, Object[][][] initialData, javax.swing.JTable[] tableRefs, int[] columnWidths)
+	{
+		javax.swing.JPanel scrollContent=new javax.swing.JPanel();
+		scrollContent.setLayout(new javax.swing.BoxLayout(scrollContent, javax.swing.BoxLayout.Y_AXIS));
+		javax.swing.table.DefaultTableCellRenderer tcRenderer=new javax.swing.table.DefaultTableCellRenderer(){{setHorizontalAlignment(javax.swing.table.DefaultTableCellRenderer.LEFT);}};
+		for (int i=0; i<tableRefs.length; i++)
+		{
+			final String[] columnToolt=columnTooltips[i];
+			if (tableRefs[i]==null) 
+			{ 
+				tableRefs[i]=new javax.swing.JTable() 
+				{
+					private String[] columnToolTips=columnToolt;
+					public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) { super.changeSelection(rowIndex, columnIndex, !extend, extend); } //Always toggle on single selection (allows users to deselect rows easier)
+					public boolean isCellEditable(int row, int column) { return false; } //disable cell editing
+					public java.awt.Component prepareRenderer(javax.swing.table.TableCellRenderer renderer, int row, int column) 
+					{
+						java.awt.Component c = super.prepareRenderer(renderer, row, column);
+						if (c instanceof javax.swing.JComponent) 
+						{
+							javax.swing.JComponent jc = (javax.swing.JComponent) c;
+							Object o=getValueAt(row, column);
+							if (o!=null) {  jc.setToolTipText(o.toString());}
+						}
+						return c;
+					}
+					protected javax.swing.table.JTableHeader createDefaultTableHeader() 
+					{
+						return new javax.swing.table.JTableHeader(columnModel) 
+						{
+							public String getToolTipText(java.awt.event.MouseEvent e) 
+							{
+								java.awt.Point p = e.getPoint();
+								int tblIdx = columnModel.getColumnIndexAtX(p.x);
+								int columnIdx = columnModel.getColumn(tblIdx).getModelIndex();
+								if (columnIdx<columnToolTips.length) { return AHAGUIHelpers.styleToolTipText(columnToolTips[columnIdx]); }
+								return "";
+							}
+						};
+					}
+				}; 
+			}
+			tableRefs[i].setModel( new javax.swing.table.DefaultTableModel(initialData[i], columnHeaders[i]) 
+			{ 
+				public Class<?> getColumnClass(int column) //makes it so row sorters work properly
+				{ 
+					try
+					{
+						Object o=null; //System.out.println("ColDetectorCalled for column="+column); //lazy hack but seems to work so shrug
+						for (int row=0;row<getRowCount();row++) 
+						{
+							o=getValueAt(row, column);
+							if (o!=null) { break; }
+						}
+						if (o instanceof String) { return String.class; }
+						if (o instanceof Integer) { return Integer.class; }
+						if (o instanceof Double) { return Double.class; }
+						if (o instanceof Float) { return Float.class; }
+						if (o instanceof Long) { return Long.class; }
+					} catch (Exception e) { e.printStackTrace(); }
+					return Object.class;
+				}
+			});
+			tableRefs[i].setDefaultRenderer(Integer.class, tcRenderer);
+			tableRefs[i].getTableHeader().setBorder(null);
+			tableRefs[i].setBorder(null);
+			tableRefs[i].setPreferredScrollableViewportSize(tableRefs[i].getPreferredSize());
+			tableRefs[i].setAlignmentY(javax.swing.JTable.TOP_ALIGNMENT);
+			tableRefs[i].getTableHeader().setAlignmentY(javax.swing.JTable.TOP_ALIGNMENT);
+			tableRefs[i].setAutoCreateRowSorter(true);
+			for (int j=0;j<tableRefs[i].getColumnModel().getColumnCount() && j<columnWidths.length; j++) { tableRefs[i].getColumnModel().getColumn(j).setPreferredWidth(columnWidths[j]); }
+			scrollContent.add(tableRefs[i].getTableHeader());
+			scrollContent.add(tableRefs[i]);
+		}
+		javax.swing.JScrollPane scrollPane = new javax.swing.JScrollPane(scrollContent);
+		scrollPane.setViewportBorder(javax.swing.BorderFactory.createEmptyBorder());
+		scrollPane.setBorder(javax.swing.BorderFactory.createEmptyBorder());
+		return scrollPane;
+	}
 }

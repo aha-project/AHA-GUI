@@ -2,9 +2,7 @@ package esic;
 
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
-import org.graphstream.graph.Edge;
-import org.graphstream.graph.Graph;
-import org.graphstream.graph.Node;
+import org.graphstream.graph.*;
 
 public class AHAModel
 {
@@ -28,21 +26,19 @@ public class AHAModel
 		}
 	}
 	
-	public static enum ScoreMethod {Normal,WorstCommonProcBETA,RelativeScoreBETA}
-  private static String NormalizedScore="ui.ScoreMethodInternalNormalizedScore",RAWRelativeScore="ui.ScoreMethodInternalRAWRelativeScore", /*ReversedRangedRelativeScoree="ui.ScoreMethodInternalReversedRangedRelativeScore",*/ ForSibling="ui.ScoreMethodInternalForSibling";
+	private int maxScore=0, metricsTableMultiPlatformScore=0;
 	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<ScoreItem>(32);
-	protected boolean m_debug=false, m_verbose=false, m_multi=true, m_overlayCustomScoreFile=false; //flags for verbose output, hiding of operating system processes, and drawing of multiple edges between vertices
-	protected String m_inputFileName="",/*"BinaryAnalysis.csv"*/ m_scoreFileName="scorefile.csv";
-	protected int maxScore=0, metricsTableMultiPlatformScore=0;
-	protected java.util.TreeMap <String,Integer> platformSpecificMetricsTableScores=new java.util.TreeMap <String,Integer>();
-	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>();
-	protected java.util.TreeMap<String,String> m_intListeningProcessMap=new java.util.TreeMap<String,String>(), m_extListeningProcessMap=new java.util.TreeMap<String,String>();
-	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<String,String>(), m_miscMetrics=new java.util.TreeMap<String,String>();
-	protected java.util.TreeMap<String,Integer> m_listeningPortConnectionCount=new java.util.TreeMap<String,Integer>();
+	
+	protected boolean m_debug=false, m_verbose=false, m_useCustomOverlayScoreFile=false;
+	protected String m_inputFileName="", m_scoreFileName="scorefile.csv";
 	protected Graph m_graph=null;
 	protected AHAGUI m_gui=null;
+	protected java.util.TreeMap<String,Integer> platformSpecificMetricsTableScores=new java.util.TreeMap <String,Integer>(), m_listeningPortConnectionCount=new java.util.TreeMap<String,Integer>();
+	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>(), m_intListeningProcessMap=new java.util.TreeMap<String,String>(), m_extListeningProcessMap=new java.util.TreeMap<String,String>();
+	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<String,String>(), m_miscMetrics=new java.util.TreeMap<String,String>();
 	
-	protected static final String CUSTOMSTYLE="ui.weAppliedCustomStyle";
+	protected static enum ScoreMethod {Normal,WorstCommonProcBETA,RelativeScoreBETA}
+  protected static final String NormalizedScore="ui.ScoreMethodInternalNormalizedScore",RAWRelativeScore="ui.ScoreMethodInternalRAWRelativeScore", ForSibling="ui.ScoreMethodInternalForSibling", CUSTOMSTYLE="ui.weAppliedCustomStyle";
 	protected String styleSheet = "graph { fill-color: black; }"+
 			"node { size: 30px; fill-color: red; text-color: white; text-style: bold; text-size: 12; text-background-color: #222222; text-background-mode: plain; }"+
 			"node.lowVuln { fill-color: green; }"+
@@ -108,7 +104,7 @@ public class AHAModel
 			if (platformEntry.getValue()>maxPlatformScore) { maxPlatformScore=platformEntry.getValue(); }
 		}
 		System.out.println("MetricsTable: multiplatform max="+metricsTableMultiPlatformScore+" setting max possible score to: "+(maxScore=metricsTableMultiPlatformScore+maxPlatformScore));
-		m_gui.updateOverlayLegend(maxScore);
+		m_gui.updateOverlayLegendScale(maxScore);
 	}
 	
 	protected void exploreAndScore(Graph graph) //explores the node graph and assigns a scaryness score
@@ -410,7 +406,7 @@ public class AHAModel
 						n.addAttribute("ui.scoreReason", "External Node");
 						n.addAttribute("ui.scoreExtendedReason", "External Node");
 					}
-					else if (m_overlayCustomScoreFile==true && customStyle!=null && customStyle.equalsIgnoreCase("yes"))
+					else if (m_useCustomOverlayScoreFile==true && customStyle!=null && customStyle.equalsIgnoreCase("yes"))
 					{
 						String score=n.getAttribute(CUSTOMSTYLE+".score");
 						String style=n.getAttribute(CUSTOMSTYLE+".style");
@@ -437,9 +433,9 @@ public class AHAModel
 			}
 			catch(Exception e) { e.printStackTrace(); }
 		}
-		System.out.println("Graph score complete using method="+m+" with useCustomScoring="+Boolean.toString(m_overlayCustomScoreFile)+". Took "+(System.currentTimeMillis()-startTime)+"ms.");
+		System.out.println("Graph score complete using method="+m+" with useCustomScoring="+Boolean.toString(m_useCustomOverlayScoreFile)+". Took "+(System.currentTimeMillis()-startTime)+"ms.");
 	}
-
+	
 	protected static String[] fixCSVLine(String s) //helper function to split, lower case, and clean lines of CSV into tokens
 	{
 		String[] ret=null;
@@ -973,7 +969,7 @@ public class AHAModel
 		try
 		{
 			if ( m_inputFileName==null || m_inputFileName.equals("") ) { System.err.println("No input file specified, bailing."); return; }
-			m_gui.m_viewer.enableAutoLayout();
+			m_gui.m_graphViewer.enableAutoLayout();
 			m_graph.setAutoCreate(true);
 			m_graph.setStrict(false);
 			Node ext=m_graph.addNode("external");
@@ -987,13 +983,13 @@ public class AHAModel
 			readInputFile();
 			readScoreTable(null);
 			readCustomScorefile();
-			useFQDNLabels(m_graph, m_gui.m_showFQDN.isSelected());
+			useFQDNLabels(m_graph, m_gui.m_btmPnlShowFQDN.isSelected());
 			exploreAndScore(m_graph);
 			
 			m_gui.startGraphRefreshThread();
 			
 			Thread.sleep(1500); 
-			m_gui.m_viewer.disableAutoLayout();
+			m_gui.m_graphViewer.disableAutoLayout();
 			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
 			
 			java.util.Vector<Node> leftSideNodes=new java.util.Vector<Node>(); //moved this below the 1.5s graph stabilization threshold to see if it makes odd occasional issues with moving ext nodes better
@@ -1010,16 +1006,16 @@ public class AHAModel
 			{
 				for (Node n : leftSideNodes)
 				{ 
-					org.graphstream.ui.geom.Point3 loc=m_gui.m_viewPanel.getCamera().transformPxToGu(60, (m_gui.m_viewPanel.getHeight()/numLeftNodes)*i);
+					org.graphstream.ui.geom.Point3 loc=m_gui.m_graphViewPanel.getCamera().transformPxToGu(60, (m_gui.m_graphViewPanel.getHeight()/numLeftNodes)*i);
 					n.addAttribute("xyz", loc.x,loc.y,loc.z);
 					i++;
 				}
-				m_gui.m_viewPanel.getCamera().setViewPercent(1.01d);
-				org.graphstream.ui.geom.Point3 center=m_gui.m_viewPanel.getCamera().getViewCenter();
-				org.graphstream.ui.geom.Point3 pixels=m_gui.m_viewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
+				m_gui.m_graphViewPanel.getCamera().setViewPercent(1.01d);
+				org.graphstream.ui.geom.Point3 center=m_gui.m_graphViewPanel.getCamera().getViewCenter();
+				org.graphstream.ui.geom.Point3 pixels=m_gui.m_graphViewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
 				pixels.x-=60;
-				center=m_gui.m_viewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
-				m_gui.m_viewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
+				center=m_gui.m_graphViewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
+				m_gui.m_graphViewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
 			} catch (Exception e) { e.printStackTrace(); }
 			
 			java.io.File fname=new java.io.File(m_inputFileName);
@@ -1161,10 +1157,7 @@ public class AHAModel
 						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
 						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
 						// RelativeScore CODE //
-						//data[j++]=strAsDouble(n.getAttribute(NormalizedScore));
-						//data[j++]=strAsDouble(n.getAttribute(RAWRelativeScore));
 						data[j++]=strAsDouble(n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
-						//data[j++]=strAsDouble(n.getAttribute(ReversedRangedRelativeScore));
 						data[j++]=n.getAttribute("parents");
 						data[j++]=n.getAttribute("sibling");
 						// END RelativeScore CODE //
@@ -1203,37 +1196,13 @@ public class AHAModel
 		catch (Exception e) { e.printStackTrace(); }
 	}
 	
-	public AHAModel(String args[], boolean firstRun)
+//	public AHAModel(String args[], boolean firstRun)
+	public AHAModel(String inputFileName, boolean useOverlayScoreFile, String scoreFileName, boolean debug, boolean verbose)
 	{
-		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12), uiFontBold=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.BOLD,12);
-		for (String s : args)
-		{
-			try
-			{
-				String[] argTokens=s.split("=");
-				if (argTokens[0]==null) { continue; }
-				if (argTokens[0].equalsIgnoreCase("--debug")) { m_debug=true; } //print more debugs while running
-				if (argTokens[0].equalsIgnoreCase("--verbose")) { m_verbose=true; } //print more debugs while running
-				if (argTokens[0].equalsIgnoreCase("--single")) { m_multi=false; } //draw single lines between nodes
-				if (argTokens[0].equalsIgnoreCase("--bigfont")) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); uiFontBold=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.BOLD,18); } //use 18pt font instead of default
-				if (argTokens[0].equalsIgnoreCase("scorefile")) { m_scoreFileName=argTokens[1]; m_overlayCustomScoreFile=true; } //path to custom score file, and enable since...that makes sense in this case
-				if (argTokens[0].equalsIgnoreCase("inputFile") && firstRun) { m_inputFileName=argTokens[1]; } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
-				
-				if (argTokens[0].equals("help")||argTokens[0].equals("?")) 
-				{  
-					System.out.println
-					(
-							"Arguments are as follows:"+
-							"--debug : print additional information to console while running"+
-							"--single : use single lines between nodes with multiple connections "+
-							"--bigfont : use 18pt font instead of the default 12pt font (good for demos) "+
-							"scorefile=scorefile.csv : use the scorefile specified after the equals sign "+
-							"inputFile=inputFile.csv : use the inputFile specified after the equals sign " //+
-					); return;
-				}
-			} catch (Exception e) { e.printStackTrace(); }
-		}
-		AHAGUIHelpers.applyTheme(uiFont);
-		m_gui =new AHAGUI(this, uiFontBold);
+		m_inputFileName=inputFileName;
+		m_useCustomOverlayScoreFile=true;
+		m_scoreFileName=scoreFileName;
+		m_debug=debug;
+		m_verbose=verbose;
 	}
 }
