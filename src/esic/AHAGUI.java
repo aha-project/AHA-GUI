@@ -17,7 +17,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	protected javax.swing.JTextField m_btmPnlSearch=new javax.swing.JTextField("Search...");
 	protected javax.swing.JPanel m_inspectorPanel=null;
 	protected javax.swing.JCheckBox m_infoPnlShowOnlyMatchedMetrics=new javax.swing.JCheckBox("Show Only Matched Metrics",true), m_infoPnlShowScoringSpecifics=new javax.swing.JCheckBox("Show Score Metric Specifics",false);
-	protected final String[][] m_infoPnlColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process Name", "PID"}, {"Score Metric", "Value"}}; //right now things would break if the number of these ever got changed at runtime, so made static.
+	protected final String[][] m_infoPnlColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process", "PID"}, {"Score Metric", "Value"}}; //right now things would break if the number of these ever got changed at runtime, so made static.
 	protected final String[][] m_infoPnlColumnTooltips={{"Info"},{"Port that is able to be connected to from other processes internally.", "Protocol in use."},{"Port that is able to be connected to from other external hosts/processes.", "Protocol in use."},{"Names of processes connected to this one", "Process Identifier"}, {"The scoring metric checked against.", "Result of the checked metric."}};
 	protected final javax.swing.JTable[] m_infoPnlTables= new javax.swing.JTable[m_infoPnlColumnHeaders.length]; //if you need more tables just add another column header set above
 	protected java.util.concurrent.atomic.AtomicReference<Thread> m_graphRefreshThread=new java.util.concurrent.atomic.AtomicReference<Thread>(null);
@@ -62,6 +62,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		
 		pack(); //populate all the info about the insets
 		setSize(s_preferredSize);
+		setPreferredSize(s_preferredSize);
 		String title="AHA-GUI";
 		try { title=AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]; } catch (Exception e) {}
 		setTitle(title); //This should result in something like "AHA-GUI v0.5.6b1" being displayed
@@ -212,11 +213,13 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			public void componentResized(java.awt.event.ComponentEvent componentEvent) 
 			{
 				s_preferredSize=getSize();
+				int sidePnlWidth=270;
+				if (m_inspectorPanel.getPreferredSize().width>sidePnlWidth) { sidePnlWidth=m_inspectorPanel.getPreferredSize().width+20; }
 				java.awt.Dimension preferredBottomPanelSize=bottomPanel.getPreferredSize();
 				layeredPane.setPreferredSize(getContentPane().getSize());
 				topLeftOverlay.setBounds(0, 0, topLeftOverlay.getPreferredSize().width, topLeftOverlay.getPreferredSize().height);
-				m_graphViewPanel.setBounds(0, 0, getContentPane().getSize().width-270, getContentPane().getSize().height-bottomPanel.getPreferredSize().height/*m_search.getPreferredSize().height-bottomButtons.getPreferredSize().height*/);
-				m_inspectorPanel.setBounds(getContentPane().getSize().width-270, 0, 270, getContentPane().getSize().height-preferredBottomPanelSize.height);
+				m_graphViewPanel.setBounds(0, 0, getContentPane().getSize().width-sidePnlWidth, getContentPane().getSize().height-bottomPanel.getPreferredSize().height/*m_search.getPreferredSize().height-bottomButtons.getPreferredSize().height*/);
+				m_inspectorPanel.setBounds(getContentPane().getSize().width-sidePnlWidth, 0, sidePnlWidth, getContentPane().getSize().height-preferredBottomPanelSize.height);
 				bottomPanel.setBounds(0, getContentPane().getSize().height-preferredBottomPanelSize.height, getContentPane().getSize().width, preferredBottomPanelSize.height);
 			}
 		}; //this is basically the layout manager for the overall frame including the graph itself, the bottom section, and the top overlay
@@ -233,7 +236,8 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 
 		System.err.println("Finished Laying out GUI.");
 		
-		if ( m_model.m_inputFileName==null || m_model.m_inputFileName.equals("") )
+		java.io.File testInputFile=AHAModel.getFileAtPath(m_model.m_inputFileName);
+		if ( m_model.m_inputFileName==null || m_model.m_inputFileName.equals("") || testInputFile==null || !testInputFile.exists() )
 		{
 			javax.swing.JFileChooser fc=new javax.swing.JFileChooser("./");
 			fc.setDialogTitle("Select Input File");
@@ -342,7 +346,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 						}
 						{ // Find data for, create table, etc for the "Listening Processes" tab
 							javax.swing.JTable[] fwTables=new javax.swing.JTable[2];
-							String[][] columnHeaders={{"Listening Internally", "PID", "Proto", "Port", "Connections"},{"Listening Externally", "PID", "Proto", "Port", "Connections"}};
+							String[][] columnHeaders={{"Listening Internally", "PID", "Proto", "Address", "Port", "Connections"},{"Listening Externally", "PID", "Proto", "Address", "Port", "Connections"}};
 							Object[][][] tableData=new Object[2][][];
 							java.util.TreeMap<String,String> dataset=m_model.m_intListeningProcessMap;
 							for (int i=0;i<2;i++)
@@ -352,16 +356,23 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 								{
 									String key=entry.getKey(), value=entry.getValue();
 									String[] keyTokens=key.split("_"), valueTokens=value.split("_");
-									Object strArrVal[]=new Object[5];
-									strArrVal[0]=valueTokens[0];
-									strArrVal[1]=AHAModel.strAsInt(valueTokens[1]);
-									strArrVal[2]=keyTokens[0].toUpperCase();
-									strArrVal[3]=AHAModel.strAsInt(keyTokens[1]);
-									strArrVal[4]=m_model.m_listeningPortConnectionCount.get(key);
+									Object strArrVal[]=new Object[6];
+									Node n=m_model.m_graph.getNode(value); //grab the node from the graph so we can use it for additional metrics
+									String addr="";
+									try
+									{
+										addr=n.getAttribute("localaddress");
+									} catch (Exception e) { e.printStackTrace(); }
+									strArrVal[0]=valueTokens[0]; // process name
+									strArrVal[1]=AHAModel.strAsInt(valueTokens[1]); //PID
+									strArrVal[2]=keyTokens[0].toUpperCase(); //Protocol
+									strArrVal[3]=addr; //the address of the process
+									strArrVal[4]=AHAModel.strAsInt(keyTokens[1]); //Port
+									strArrVal[5]=m_model.m_listeningPortConnectionCount.get(key); //Number of connections
 									String newKey=valueTokens[0]+valueTokens[1]+"-"+keyTokens[0].toUpperCase()+keyTokens[1];
 									sortMe.put(newKey, strArrVal);
 								}
-								Object[][] data = new Object[sortMe.size()][5];
+								Object[][] data = new Object[sortMe.size()][6];
 								int j=0;
 								for (Object[] lineDat : sortMe.values()) { data[j++]=lineDat; }
 								tableData[i]=data;

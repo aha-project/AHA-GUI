@@ -490,13 +490,22 @@ public class AHAModel
 
 			while ((line = br.readLine()) != null) //this is the first loop, in this loop we're loading all the vertexes and their meta data, so we can then later connect the vertices
 			{
-				lineNumber++;
 				try
 				{
 					String[] tokens = fixCSVLine(line); 
-					if (tokens.length<5) { System.err.println("Skipping line #"+lineNumber+" because it is malformed."); continue; }
+					if (tokens.length<5) 
+					{ 
+						if ( line.trim().trim().trim().trim().length() > 0 ) // more than likely this means something converted the line endings and we've and we've got crlf\nclrfloletc, so only print and increment if there's a real issue.
+						{
+							System.err.println("First Stage Read: Skipping line #"+lineNumber+" because it is malformed."); 
+							lineNumber++;
+						}
+						continue; 
+					}
+					lineNumber++;
 					String fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], protoLocalPort=tokens[hdr.get("protocol")]+"_"+tokens[hdr.get("localport")];
 					String connectionState=tokens[hdr.get("state")], localAddr=tokens[hdr.get("localaddress")].trim();
+					if (tokens[hdr.get("protocol")].equals("udp")) { connectionState="listening"; } //fix up in the case that a line is protocol==UDP and state==""
 				
 					Node node = m_graph.getNode(fromNode);
 					if(node == null)
@@ -575,10 +584,19 @@ public class AHAModel
 				try
 				{
 					String[] tokens = fixCSVLine(line);
-					if (tokens.length<5) { System.err.println("Skipping line #"+lineNumber+" because it is malformed."); continue; }
+					if (tokens.length<5) 
+					{ 
+						if ( line.trim().trim().trim().trim().length() > 0 ) // more than likely this means something converted the line endings and we've and we've got crlf\nclrfloletc, so only print and increment if there's a real issue.
+						{
+							System.err.println("Second Stage Read: Skipping line #"+lineNumber+" because it is malformed."); 
+							lineNumber++;
+						}
+						continue; 
+					}
 					String toNode="UnknownToNodeError", fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], proto=tokens[hdr.get("protocol")], localPort=tokens[hdr.get("localport")], remotePort=tokens[hdr.get("remoteport")];
 					String protoLocalPort=proto+"_"+localPort, protoRemotePort=proto+"_"+remotePort;
 					String remoteAddr=tokens[hdr.get("remoteaddress")].trim(), localAddr=tokens[hdr.get("localaddress")], connectionState=tokens[hdr.get("state")], remoteHostname=tokens[hdr.get("remotehostname")];
+					if (tokens[hdr.get("protocol")].equals("udp")) { connectionState="listening"; } //fix up in the case that a line is protocol==UDP and state==""
 					
 					Node node = m_graph.getNode(fromNode);
 					if(node == null)
@@ -968,7 +986,8 @@ public class AHAModel
 	{
 		try
 		{
-			if ( m_inputFileName==null || m_inputFileName.equals("") ) { System.err.println("No input file specified, bailing."); return; }
+			java.io.File testInputFile=getFileAtPath(m_inputFileName);
+			if ( m_inputFileName==null || m_inputFileName.equals("") || testInputFile==null || !testInputFile.exists()) { System.err.println("No input file specified, bailing."); return; }
 			m_gui.m_graphViewer.enableAutoLayout();
 			m_graph.setAutoCreate(true);
 			m_graph.setStrict(false);
@@ -1055,7 +1074,7 @@ public class AHAModel
 			if (synch_report.columnNames==null)
 			{
 				int NUM_SCORE_TABLES=2, tableNumber=0;
-				String[][] columnHeaders= {{"Scan Information", "Value"},{"Process", "PID", "User","Connections","ExtPorts","Signed","ASLR","DEP","CFG","HiVA", "Score", "WPScore",/*"Normalized Score",*/"RelativeScore",/*"RangedRelativeScore","ReversedRangedRelativeScore",*/"parents","sibling"},{}};
+				String[][] columnHeaders= {{"Scan Information", "Value"},{"Process", "PID", "User","Connections","ExtPorts","Signed","ASLR","DEP","CFG","HiVA", "Score", "WPScore",/*"Normalized Score",*/"RelativeScore",/*"RangedRelativeScore","ReversedRangedRelativeScore","parents","sibling"*/},{}};
 				Object[][][] tableData=new Object[NUM_SCORE_TABLES][][];
 				{ //general info
 					Object[][] data=new Object[8][2];
@@ -1158,8 +1177,8 @@ public class AHAModel
 						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
 						// RelativeScore CODE //
 						data[j++]=strAsDouble(n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
-						data[j++]=n.getAttribute("parents");
-						data[j++]=n.getAttribute("sibling");
+						//data[j++]=n.getAttribute("parents");
+						//data[j++]=n.getAttribute("sibling");
 						// END RelativeScore CODE //
 						tableData[tableNumber][i++]=data;
 					}
@@ -1169,6 +1188,12 @@ public class AHAModel
 			}
 			return synch_report;
 		}
+	}
+	
+	public static java.io.File getFileAtPath(String fileName)
+	{
+		try { return new java.io.File(fileName); }
+		catch (Exception e) { return null; }
 	}
 	
 	private void writeReport(TableDataHolder report, String fileName)
@@ -1200,7 +1225,7 @@ public class AHAModel
 	public AHAModel(String inputFileName, boolean useOverlayScoreFile, String scoreFileName, boolean debug, boolean verbose)
 	{
 		m_inputFileName=inputFileName;
-		m_useCustomOverlayScoreFile=true;
+		m_useCustomOverlayScoreFile=useOverlayScoreFile;
 		m_scoreFileName=scoreFileName;
 		m_debug=debug;
 		m_verbose=verbose;
