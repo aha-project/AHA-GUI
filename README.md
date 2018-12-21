@@ -34,7 +34,9 @@ This project uses GraphStream. GraphStream Java `.jar`s are located within this 
 
 # Screeenshots and Videos:
 Beta Screenshot:
+
 ![AHA-GUI Screenshot](resources/AHA-GUI-Screenshot.png)
 
 Video Demo of AHA-GUI Features:
+
 [![AHA-GUI December 2018 Demo Video](https://img.youtube.com/vi/D_4unUlMa2Q/0.jpg)](https://www.youtube.com/watch?v=D_4unUlMa2Q)
