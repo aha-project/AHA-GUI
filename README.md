@@ -27,6 +27,7 @@ This project uses GraphStream. GraphStream Java `.jar`s are located within this 
 
 # Command Line Arguments to AHA-GUI:
  * --debug : print additional information to console while running
+ * --verbose : print additional information to console while running, not as much info as debug, good for figuring out issues with input files rather than with the actual GUI
  * --single : use single lines between nodes with multiple connections
  * --bigfont : use 18pt font instead of the default 12pt font (good for demos)
  * scorefile=scorefile.csv : use the scorefile specified after the equals sign
