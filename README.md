@@ -34,4 +34,4 @@ This project uses GraphStream. GraphStream Java `.jar`s are located within this 
 
 # Screeenshots:
 Beta Screenshot:
-![Alt text](resources/AHA-GUI-Screenshot.png?raw=true "AHA-GUI Screenshot")
+![AHA-GUI Screenshot](resources/AHA-GUI-Screenshot.png)
