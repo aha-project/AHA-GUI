@@ -37,6 +37,6 @@ Beta Screenshot:
 
 ![AHA-GUI Screenshot](resources/AHA-GUI-Screenshot.png)
 
-Video Demo of AHA-GUI Features:
+Video Demo of AHA-GUI Features (link to video hosted on youtube):
 
 [![AHA-GUI December 2018 Demo Video](https://img.youtube.com/vi/D_4unUlMa2Q/0.jpg)](https://www.youtube.com/watch?v=D_4unUlMa2Q)
