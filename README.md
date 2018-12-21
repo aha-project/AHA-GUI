@@ -35,4 +35,4 @@ This project uses GraphStream. GraphStream Java `.jar`s are located within this 
 # Screeenshots:
 Beta Screenshot:
 ![AHA-GUI Screenshot](resources/AHA-GUI-Screenshot.png)
-![TEST](www.eecs.wsu.edu/~danderso/AttackSurface/AttackSurfaceUIDemo2018v4Enc.mp4)
+[![AHA-GUI December 2018 Demo Video](https://img.youtube.com/vi/D_4unUlMa2Q/0.jpg)](https://www.youtube.com/watch?v=D_4unUlMa2Q)
