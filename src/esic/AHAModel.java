@@ -546,7 +546,8 @@ public class AHAModel
 						if (m_debug) { System.out.printf("   Setting attribute %s for process %s\n",header[i],tokens[i]); }
 						node.addAttribute(header[i],processToken);
 					}
-					if (lineNumber<5 && tokens[hdr.get("detectiontime")]!=null) { m_miscMetrics.put("detectiontime", tokens[hdr.get("detectiontime")]); } //only try to set the first few read lines
+					if (lineNumber<5 && hdr.get("addedon")!=null && tokens[hdr.get("addedon")]!=null) { m_miscMetrics.put("detectiontime", tokens[hdr.get("addedon")]); } //only try to set the first few read lines
+					if (lineNumber<5 && hdr.get("detectiontime")!=null && tokens[hdr.get("addedon")]!=null) { m_miscMetrics.put("detectiontime", tokens[hdr.get("detectiontime")]); } //only try to set the first few read lines //back compat for old scans, remove someday
 				}
 				catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
 			}
@@ -1019,7 +1020,7 @@ public class AHAModel
 			}
 			int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
 			leftSideNodes.insertElementAt(m_graph.getNode("external"),leftSideNodes.size()/2);
-			
+			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
 			int i=1;
 			try
 			{
