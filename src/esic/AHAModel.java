@@ -547,7 +547,7 @@ public class AHAModel
 						node.addAttribute(header[i],processToken);
 					}
 					if (lineNumber<5 && hdr.get("addedon")!=null && tokens[hdr.get("addedon")]!=null) { m_miscMetrics.put("detectiontime", tokens[hdr.get("addedon")]); } //only try to set the first few read lines
-					if (lineNumber<5 && hdr.get("detectiontime")!=null && tokens[hdr.get("addedon")]!=null) { m_miscMetrics.put("detectiontime", tokens[hdr.get("detectiontime")]); } //only try to set the first few read lines //back compat for old scans, remove someday
+					if (lineNumber<5 && hdr.get("detectiontime")!=null && tokens[hdr.get("detectiontime")]!=null) { m_miscMetrics.put("detectiontime", tokens[hdr.get("detectiontime")]); } //only try to set the first few read lines //back compat for old scans, remove someday
 				}
 				catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
 			}
