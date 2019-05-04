@@ -14,28 +14,29 @@ public class AHAModel
 	
 	private static class ScoreItem
 	{
-		String criteria="", operation="";
+		String criteria="", operation="",  humanReadableReason="";
 		java.util.Vector<String> criteriaValues=null;
 		int scoreDelta=0;
-		public ScoreItem(String op, String crit, java.util.Vector<String> critvals, int sD)
+		public ScoreItem(String op, String crit, java.util.Vector<String> critvals, int sD, String explanation)
 		{
 			operation=op;
 			criteria=crit;
 			criteriaValues=critvals;
 			scoreDelta=sD;
+			humanReadableReason=explanation;
 		}
 	}
 	
 	private int maxScore=0, metricsTableMultiPlatformScore=0;
-	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<ScoreItem>(32);
+	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<>(32);
 	
 	protected boolean m_debug=false, m_verbose=false, m_useCustomOverlayScoreFile=false;
 	protected String m_inputFileName="", m_scoreFileName="scorefile.csv";
 	protected Graph m_graph=null;
 	protected AHAGUI m_gui=null;
-	protected java.util.TreeMap<String,Integer> platformSpecificMetricsTableScores=new java.util.TreeMap <String,Integer>(), m_listeningPortConnectionCount=new java.util.TreeMap<String,Integer>();
-	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<String,String>(), m_intListeningProcessMap=new java.util.TreeMap<String,String>(), m_extListeningProcessMap=new java.util.TreeMap<String,String>();
-	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<String,String>(), m_miscMetrics=new java.util.TreeMap<String,String>();
+	protected java.util.TreeMap<String,Integer> platformSpecificMetricsTableScores=new java.util.TreeMap<>(), m_listeningPortConnectionCount=new java.util.TreeMap<>();
+	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<>(), m_intListeningProcessMap=new java.util.TreeMap<>(), m_extListeningProcessMap=new java.util.TreeMap<>();
+	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<>(), m_miscMetrics=new java.util.TreeMap<>();
 	
 	protected static enum ScoreMethod {Normal,WorstCommonProcBETA,RelativeScoreBETA}
   protected static final String NormalizedScore="ui.ScoreMethodInternalNormalizedScore",RAWRelativeScore="ui.ScoreMethodInternalRAWRelativeScore", ForSibling="ui.ScoreMethodInternalForSibling", CUSTOMSTYLE="ui.weAppliedCustomStyle";
@@ -72,19 +73,25 @@ public class AHAModel
 				line=line.trim().trim().trim();
 				if (line.startsWith("//") || line.startsWith("#") || line.length()<5) { continue; }
 				String[] tokens=fixCSVLine(line);
-				if (tokens.length<4) { System.out.println("Malformed MetricsTable line:|"+line+"|"); continue;}
+				if (tokens.length<5) { System.out.println("Malformed MetricsTable line:|"+line+"|"); continue;}
 				int scoreDelta=-10000;
 				String platform=tokens[4];
+				String humanReadibleExplanation="";
+				try
+				{
+					int beginIdx=line.toLowerCase().indexOf(tokens[5]);
+					humanReadibleExplanation=line.substring(beginIdx, tokens[5].length()+beginIdx);
+				} catch (Exception e) { e.printStackTrace(); }
 				try { scoreDelta=Integer.parseInt(tokens[3]); }
 				catch (Exception e) { e.printStackTrace(); }
 				
 				if (scoreDelta > -101 && scoreDelta < 101) //valid range is only -100 to 100
 				{
 					String[] criteria=tokens[2].split("\\|");
-					java.util.Vector<String> criteriaVec=new java.util.Vector<String>();
+					java.util.Vector<String> criteriaVec=new java.util.Vector<>();
 					for (String s : criteria) { criteriaVec.add(s.trim().trim().trim()); }
-					System.out.println("MetricsTable read criterion: if "+tokens[1]+"="+criteriaVec.toString()+" score="+scoreDelta); //TODO fix
-					m_scoreTable.add(new ScoreItem(tokens[0],tokens[1],criteriaVec,scoreDelta)); //TODO this should probably get cleaned up, as comments and/or anything after the first main 3 fields will consume memory even though we never use them.
+					System.out.println("MetricsTable read criterion: if "+tokens[1]+"="+criteriaVec.toString()+" score="+scoreDelta+" Explanation='"+humanReadibleExplanation+"'"); //TODO fix
+					m_scoreTable.add(new ScoreItem(tokens[0],tokens[1],criteriaVec,scoreDelta, humanReadibleExplanation)); //TODO this should probably get cleaned up, as comments and/or anything after the first main 3 fields will consume memory even though we never use them.
 					if (scoreDelta>0 && platform.equals("multiplatform")) { metricsTableMultiPlatformScore+=scoreDelta; }
 					else if ( scoreDelta>0 && !platform.equals("optional"))
 					{
@@ -110,16 +117,16 @@ public class AHAModel
 	protected void exploreAndScore(Graph graph) //explores the node graph and assigns a scaryness score
 	{
 		long time=System.currentTimeMillis();
-		java.util.TreeMap<String, Integer> lowestScoreForUserName=new java.util.TreeMap<String, Integer>();
+		java.util.TreeMap<String, Integer> lowestScoreForUserName=new java.util.TreeMap<>();
 		for (Node node : graph) //Stage 1 of scoring, either the entirety of a scoring algorithm, such as "Normal", or the first pass for multi stage algs
 		{
 			try
 			{
 				int score=generateNormalNodeScore(node);
-				node.addAttribute(scrMethdAttr(ScoreMethod.Normal), Integer.toString(score)); //if we didn't have a custom score from another file, use our computed score
+				node.setAttribute(scrMethdAttr(ScoreMethod.Normal), Integer.toString(score)); //if we didn't have a custom score from another file, use our computed score
 				
 				//Begin WorstUserProc stage1 scoring
-				String nodeUserName=node.getAttribute("username");
+				String nodeUserName=(String)node.getAttribute("username");
 				if ( nodeUserName!=null )
 				{
 					Integer lowScore=lowestScoreForUserName.remove(nodeUserName);
@@ -135,14 +142,21 @@ public class AHAModel
 		{
 			try
 			{ //Begin WorstUserProc stage2 scoring
-				String nodeUserName=node.getAttribute("username");
+				String nodeUserName=(String)node.getAttribute("username");
 				if (nodeUserName!=null)
 				{
 					Integer lowScore=lowestScoreForUserName.get(node.getAttribute("username"));
 					if (lowScore==null) { System.err.println("no low score found, this should not happen"); continue; }
-					node.addAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA), lowScore.toString());
+					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA), lowScore.toString());
+					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA)+"Reason", "WPScore="+lowScore);
+					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA)+"ExtendedReason", "WPScore="+lowScore);
 				} 
-				else { node.addAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA), "0"); } 
+				else 
+				{ 
+					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA), "0");
+					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA)+"Reason", "WPScore=0");
+					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA)+"ExtendedReason", "WPScore=0");
+				} 
 			} catch (Exception e) { e.printStackTrace(); } //End WorstUserProc stage2 scoring
 		}
 		computeRelativeScores(graph);
@@ -155,15 +169,15 @@ public class AHAModel
 		{
 			if (node.getAttribute("parents") != null)
 			{
-				java.util.List<String> nodeParents= node.getAttribute("parents");
+				java.util.List<String> nodeParents= castObjectAsStringList(node.getAttribute("parents"));
 				java.util.List<String> nodeParentsDistinct = nodeParents.stream().distinct().collect(java.util.stream.Collectors.toList());
-				node.addAttribute("parents", nodeParentsDistinct);
+				node.setAttribute("parents", nodeParentsDistinct);
 			}
 			if (node.getAttribute("sibling") != null)
 			{
-				java.util.List<String> nodeSiblings= node.getAttribute("sibling");
+				java.util.List<String> nodeSiblings= castObjectAsStringList(node.getAttribute("sibling"));
 				java.util.List<String> nodeSiblingsDistinct = nodeSiblings.stream().distinct().collect(java.util.stream.Collectors.toList());
-				node.addAttribute("sibling", nodeSiblingsDistinct);
+				node.setAttribute("sibling", nodeSiblingsDistinct);
 			}
 		}
 		double maxscore=100, minscore=0;
@@ -172,14 +186,14 @@ public class AHAModel
 		{   
 			if (node.getAttribute(scrMethdAttr(ScoreMethod.Normal))!=null)
 			{
-				double nodeScore   = Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
+				double nodeScore   = Double.valueOf((String)node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
 				double attacksurface =  1 - ((nodeScore-minNorm)/(maxNorm-minNorm));
-				node.addAttribute(NormalizedScore, ((Double)attacksurface).toString());
-				node.addAttribute(RAWRelativeScore, ((Double)0.0).toString());
-				node.addAttribute(ForSibling, ((Double)0.0).toString());
+				node.setAttribute(NormalizedScore, ((Double)attacksurface).toString());
+				node.setAttribute(RAWRelativeScore, ((Double)0.0).toString());
+				node.setAttribute(ForSibling, ((Double)0.0).toString());
 			}
-			node.addAttribute("finishScoring",((int)0));
-			node.addAttribute("readyforsibling",((int)0));
+			node.setAttribute("finishScoring",((int)0));
+			node.setAttribute("readyforsibling",((int)0));
 		}
 		int allDone=0;
 		while (allDone == 0)
@@ -188,23 +202,23 @@ public class AHAModel
 			{
 				if ((node.getAttribute("parents") == null) && (node.getAttribute("sibling") == null))
 				{
-					node.addAttribute("finishScoring",((int)1));
-					node.addAttribute("readyforsibling",((int)1));
-					double normalized = Double.valueOf(node.getAttribute(NormalizedScore));
-					node.addAttribute(RAWRelativeScore, ((Double)normalized).toString());
-					node.addAttribute(ForSibling, ((Double)0.0).toString());
+					node.setAttribute("finishScoring",((int)1));
+					node.setAttribute("readyforsibling",((int)1));
+					double normalized = Double.valueOf((String)node.getAttribute(NormalizedScore));
+					node.setAttribute(RAWRelativeScore, ((Double)normalized).toString());
+					node.setAttribute(ForSibling, ((Double)0.0).toString());
 				}
 				if ((node.getAttribute("parents") == null) && (node.getAttribute("sibling") != null))
 				{
 					if ((int)node.getAttribute("readyforsibling") == 0)
 					{
-						double normalized = Double.valueOf(node.getAttribute(NormalizedScore));
-						node.addAttribute(RAWRelativeScore, ((Double)normalized).toString());
-						node.addAttribute("readyforsibling",((int)1));
+						double normalized = Double.valueOf((String)node.getAttribute(NormalizedScore));
+						node.setAttribute(RAWRelativeScore, ((Double)normalized).toString());
+						node.setAttribute("readyforsibling",((int)1));
 					}
 					if ((int)node.getAttribute("finishScoring") == 0)
 					{
-						java.util.List<String> nodeSiblings= node.getAttribute("sibling");
+						java.util.List<String> nodeSiblings=castObjectAsStringList(node.getAttribute("sibling"));
 						int test =1; // check all the parents of the node have complete scoring process
 						for (int i = 0; i < nodeSiblings.size() ; i++) 
 						{ 
@@ -221,21 +235,21 @@ public class AHAModel
 							for (int i = 0; i < nodeSiblings.size() ; i++) 
 							{ 
 								Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
-								double nScore= Double.valueOf(node.getAttribute(NormalizedScore));
-								double pScore = Double.valueOf(tempSibling.getAttribute(ForSibling));
+								double nScore= Double.valueOf((String)node.getAttribute(NormalizedScore));
+								double pScore = Double.valueOf((String)tempSibling.getAttribute(ForSibling));
 								sum = sum + (nScore * pScore);
 							} 
-							node.addAttribute(RAWRelativeScore, ((Double)sum).toString());
-							node.addAttribute("finishScoring",((int)1));
+							node.setAttribute(RAWRelativeScore, ((Double)sum).toString());
+							node.setAttribute("finishScoring",((int)1));
 						}
 					}  
 				}
 				if ((node.getAttribute("parents") != null) && (node.getAttribute("sibling") == null))
 				{
-					if ((int)node.getAttribute("readyforsibling") == 0) { node.addAttribute("readyforsibling",((int)1)); }
+					if ((int)node.getAttribute("readyforsibling") == 0) { node.setAttribute("readyforsibling",((int)1)); }
 					if ((int)node.getAttribute("finishScoring") == 0)
 					{
-						java.util.List<String> nodeparents= node.getAttribute("parents");
+						java.util.List<String> nodeparents=castObjectAsStringList(node.getAttribute("parents"));
 						int test =1; // check all the parents of the node have complete scoring process
 						for (int i = 0; i < nodeparents.size() ; i++) 
 						{ 
@@ -248,15 +262,15 @@ public class AHAModel
 						} 
 						if (test == 1)
 						{
-							double sum=0, nScore=Double.valueOf(node.getAttribute(NormalizedScore));
+							double sum=0, nScore=Double.valueOf((String)node.getAttribute(NormalizedScore));
 							for (int i = 0; i < nodeparents.size() ; i++) 
 							{ 
 								Node tempParent = graph.getNode(nodeparents.get(i)) ;
-								double pScore = Double.valueOf(tempParent.getAttribute(RAWRelativeScore));
+								double pScore = Double.valueOf((String)tempParent.getAttribute(RAWRelativeScore));
 								sum = sum + (nScore * pScore);
 							} 
-							node.addAttribute(RAWRelativeScore, ((Double)(sum)).toString());
-							node.addAttribute("finishScoring",((int)1));
+							node.setAttribute(RAWRelativeScore, ((Double)(sum)).toString());
+							node.setAttribute("finishScoring",((int)1));
 						}
 					}  
 				}
@@ -264,7 +278,7 @@ public class AHAModel
 				{
 					if ((int)node.getAttribute("readyforsibling") == 0)
 					{
-						java.util.List<String> nodeparents= node.getAttribute("parents");
+						java.util.List<String> nodeparents=castObjectAsStringList(node.getAttribute("parents"));
 						int test =1; // check all the parents of the node have complete scoring process
 						for (int i = 0; i < nodeparents.size() ; i++) 
 						{ 
@@ -278,20 +292,20 @@ public class AHAModel
 						if (test == 1)
 						{
 							double sum = 0;
-							double nScore= Double.valueOf(node.getAttribute(NormalizedScore));
+							double nScore= Double.valueOf((String)node.getAttribute(NormalizedScore));
 							for (int i = 0; i < nodeparents.size() ; i++) 
 							{ 
 								Node tempParent = graph.getNode(nodeparents.get(i)) ;
-								double pScore = Double.valueOf(tempParent.getAttribute(RAWRelativeScore));
+								double pScore = Double.valueOf((String)tempParent.getAttribute(RAWRelativeScore));
 								sum = sum + (nScore * pScore);
 							} 
-							node.addAttribute(ForSibling, ((Double)(sum)).toString());
-							node.addAttribute("readyforsibling",((int)1));
+							node.setAttribute(ForSibling, ((Double)(sum)).toString());
+							node.setAttribute("readyforsibling",((int)1));
 						}
 					}
 					if (((int)node.getAttribute("finishScoring") == 0) && ((int) node.getAttribute("readyforsibling") == 1))
 					{
-						java.util.List<String> nodeSiblings= node.getAttribute("sibling");
+						java.util.List<String> nodeSiblings=castObjectAsStringList(node.getAttribute("sibling"));
 						int test =1; // check all the parents of the node have complete scoring process
 						for (int i = 0; i < nodeSiblings.size() ; i++) 
 						{ 
@@ -305,16 +319,16 @@ public class AHAModel
 						if (test == 1)
 						{
 							double sum = 0;
-							double nScore= Double.valueOf(node.getAttribute(NormalizedScore));
-							double SScore= Double.valueOf(node.getAttribute(ForSibling));
+							double nScore= Double.valueOf((String)node.getAttribute(NormalizedScore));
+							double SScore= Double.valueOf((String)node.getAttribute(ForSibling));
 							for (int i = 0; i < nodeSiblings.size() ; i++) 
 							{ 
 								Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
-								double pScore = Double.valueOf(tempSibling.getAttribute(ForSibling));
+								double pScore = Double.valueOf((String)tempSibling.getAttribute(ForSibling));
 								sum = sum + (nScore * pScore);
 							} 
-							node.addAttribute(RAWRelativeScore, ((Double)(sum+SScore)).toString());
-							node.addAttribute("finishScoring",((int)1));
+							node.setAttribute(RAWRelativeScore, ((Double)(sum+SScore)).toString());
+							node.setAttribute("finishScoring",((int)1));
 						}
 					}
 				}
@@ -329,11 +343,11 @@ public class AHAModel
 				}
 			}
 		}
-		double minRelative = Double.valueOf(graph.getNode(1).getAttribute(RAWRelativeScore)); //TODO: should both of these lines be the same?
-		double maxRelative = Double.valueOf(graph.getNode(1).getAttribute(RAWRelativeScore));
+		double minRelative = Double.valueOf((String)graph.getNode(1).getAttribute(RAWRelativeScore)); //TODO: should both of these lines be the same?
+		double maxRelative = Double.valueOf((String)graph.getNode(1).getAttribute(RAWRelativeScore));
 		for (Node node:graph)
 		{
-			double relativeScore = Double.valueOf(node.getAttribute(RAWRelativeScore));
+			double relativeScore = Double.valueOf((String)node.getAttribute(RAWRelativeScore));
 			if (relativeScore > maxRelative) { maxRelative = relativeScore ; }
 			if (relativeScore < minRelative) { minRelative = relativeScore ; }
 		}
@@ -342,27 +356,29 @@ public class AHAModel
 		int newRangeMax = 100;
 		for (Node node:graph)
 		{
-			double relativeScore = Double.valueOf(node.getAttribute(RAWRelativeScore));
+			double relativeScore = Double.valueOf((String)node.getAttribute(RAWRelativeScore));
 			double newRelativeScore= newRangeMin +((newRangeMax-newRangeMin)/(maxRelative-minRelative))*(relativeScore - minRelative);
 			double newReversedRelativeScore= newRangeMax - newRelativeScore + newRangeMin ;
-			node.addAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), Long.toString(Math.round(newReversedRelativeScore))); //).toString()
-			//node.addAttribute(ReversedRangedRelativeScore, ((Double)newReversedRelativeScore).toString());
+			node.setAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), Long.toString(Math.round(newReversedRelativeScore))); //).toString()
+			node.setAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)+"Reason", "RelativeScore="+Long.toString(Math.round(newReversedRelativeScore))+"");
+			node.setAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)+"ExtendedReason", "RelativeScore="+Long.toString(Math.round(newReversedRelativeScore))+"");
+			//node.setAttribute(ReversedRangedRelativeScore, ((Double)newReversedRelativeScore).toString());
 		}
 	}
 	
-	protected int generateNormalNodeScore(Node n)
+	protected int generateNormalNodeScore(Node node)
 	{
 		int score=0;
 		String scoreReason="", extendedReason="";
-		if (m_verbose) { System.out.println("Process: "+n.getId()+" examining metrics:"); }
+		if (m_verbose) { System.out.println("Process: "+node.getId()+" examining metrics:"); }
 		for (ScoreItem si : m_scoreTable) 
 		{
 			try
 			{
 				int numberOfTimesTrue=0;
-				if(n.getAttribute(si.criteria) != null)
+				if(node.getAttribute(si.criteria) != null)
 				{
-					String attribute=n.getAttribute(si.criteria).toString().toLowerCase();
+					String attribute=node.getAttribute(si.criteria).toString().toLowerCase();
 					for (String criterion : si.criteriaValues)
 					{ 
 						if( (si.operation.equals("eq") && attribute.equals(criterion)) || (si.operation.equals("ct") && attribute.contains(criterion))) 
@@ -370,64 +386,83 @@ public class AHAModel
 							score=score+si.scoreDelta;
 							numberOfTimesTrue++;
 						}
+						if( si.operation.equals("gt") && attribute!=null && criterion!=null && !attribute.equals("null") && !attribute.equals("")) 
+						{ 
+							try
+							{
+								Double criteriaDouble=Double.parseDouble(criterion);
+								Double attributeDouble=Double.parseDouble(attribute);
+								
+								if ( attributeDouble > criteriaDouble )
+								{
+									//System.out.println("matched criteria for attribute="+attribute+" greater than criteria="+criterion);
+									score=score+si.scoreDelta;
+									numberOfTimesTrue++;
+								}
+							} catch (Exception e) { e.printStackTrace(); }
+									
+							
+						}
 					}
 					if (m_verbose) { System.out.println("    "+si.criteria+": input='"+attribute+"' looking for="+si.criteriaValues+" matched "+numberOfTimesTrue+" times"); }
-					if (numberOfTimesTrue>0) { scoreReason+=", "+si.criteria+"="+(si.scoreDelta*numberOfTimesTrue); } 
+					//if (numberOfTimesTrue>0) { scoreReason+=", "+si.criteria+"="+(si.scoreDelta*numberOfTimesTrue); }
+					if (numberOfTimesTrue>0) { scoreReason+=", "+si.humanReadableReason+"="+(si.scoreDelta*numberOfTimesTrue); } 
 				}
 				String xtra="";
 				if (numberOfTimesTrue>1) { xtra=" x"+numberOfTimesTrue; }
-				extendedReason+=", "+si.criteria+"."+si.operation+si.criteriaValues+":"+si.scoreDelta+"="+capitalizeFirstLetter(Boolean.toString(numberOfTimesTrue>0))+xtra;
+				//extendedReason+=", "+si.criteria+"."+si.operation+si.criteriaValues+":"+si.scoreDelta+"="+capitalizeFirstLetter(Boolean.toString(numberOfTimesTrue>0))+xtra;
+				extendedReason+=", "+si.humanReadableReason+"."+si.operation+si.criteriaValues+":"+si.scoreDelta+"="+capitalizeFirstLetter(Boolean.toString(numberOfTimesTrue>0))+xtra;
 			}
 			catch (Exception e) { System.out.println(e.getMessage()); }
 		}
 		if (m_verbose) { System.out.println("    Score: " + score); }
 		if (score < 0) { score=0; } //System.out.println("Minimum final node score is 0. Setting to 0."); 
-		n.addAttribute(scrMethdAttr(ScoreMethod.Normal)+"Reason", "FinalScore="+score+scoreReason);
-		n.addAttribute(scrMethdAttr(ScoreMethod.Normal)+"ExtendedReason", "FinalScore="+score+extendedReason);
+		node.setAttribute(scrMethdAttr(ScoreMethod.Normal)+"Reason", "FinalScore="+score+scoreReason);
+		node.setAttribute(scrMethdAttr(ScoreMethod.Normal)+"ExtendedReason", "FinalScore="+score+extendedReason);
 		return score;
 	}
 
 	public void swapNodeStyles(ScoreMethod m, long startTime)
 	{
-		for (Node n : m_graph)
+		for (Node node : m_graph)
 		{
 			try
 			{
-				String currentClass=n.getAttribute("ui.class"), customStyle=n.getAttribute(CUSTOMSTYLE);
-				String sScore=n.getAttribute(scrMethdAttr(m)), sScoreReason=n.getAttribute(scrMethdAttr(m)+"Reason"), sScoreExtendedReason=n.getAttribute(scrMethdAttr(m)+"ExtendedReason"); 
+				String currentClass=(String)node.getAttribute("ui.class"), customStyle=(String)node.getAttribute(CUSTOMSTYLE);
+				String sScore=(String)node.getAttribute(scrMethdAttr(m)), sScoreReason=(String)node.getAttribute(scrMethdAttr(m)+"Reason"), sScoreExtendedReason=(String)node.getAttribute(scrMethdAttr(m)+"ExtendedReason"); 
 				Integer intScore=null;
 				try { intScore=Integer.parseInt(sScore); }
-				catch (Exception e) { System.err.printf("Failed to parse score for node=%s failed to parse='%s'\n",n.getId(), sScore); } 
+				catch (Exception e) { System.err.printf("Failed to parse score for node=%s failed to parse='%s'\n",node.getId(), sScore); } 
 				if (currentClass==null || !currentClass.equalsIgnoreCase("external") || intScore!=null)
 				{
 					if (currentClass!=null && currentClass.equalsIgnoreCase("external"))
 					{ 
-						n.addAttribute("ui.score", "0");
-						n.addAttribute("ui.scoreReason", "External Node");
-						n.addAttribute("ui.scoreExtendedReason", "External Node");
+						node.setAttribute("ui.score", "0");
+						node.setAttribute("ui.scoreReason", "External Node");
+						node.setAttribute("ui.scoreExtendedReason", "External Node");
 					}
 					else if (m_useCustomOverlayScoreFile==true && customStyle!=null && customStyle.equalsIgnoreCase("yes"))
 					{
-						String score=n.getAttribute(CUSTOMSTYLE+".score");
-						String style=n.getAttribute(CUSTOMSTYLE+".style");
-						n.removeAttribute("ui.class");
-						n.addAttribute("ui.style", style);
-						n.addAttribute("ui.score", score);
-						n.addAttribute("ui.scoreReason", "Custom Scorefile Overlay");
-						n.addAttribute("ui.scoreExtendedReason", "Custom Scorefile Overlay");
+						String score=(String)node.getAttribute(CUSTOMSTYLE+".score");
+						String style=(String)node.getAttribute(CUSTOMSTYLE+".style");
+						node.removeAttribute("ui.class");
+						node.setAttribute("ui.style", style);
+						node.setAttribute("ui.score", score);
+						node.setAttribute("ui.scoreReason", "Custom Scorefile Overlay");
+						node.setAttribute("ui.scoreExtendedReason", "Custom Scorefile Overlay");
 					}
 					else if (intScore!=null)
 					{ 
 						int score=intScore.intValue();
-						n.addAttribute("ui.score", score);
-						if (sScoreReason!=null) { n.addAttribute("ui.scoreReason", sScoreReason); } //TODO: since scoreReason only really exists for 'normal' this means that 'normal' reason persists in other scoring modes. For modes that do not base their reasoning on 'normal' this is probably incorrect.
-						if (sScoreExtendedReason!=null) { n.addAttribute("ui.scoreExtendedReason", sScoreExtendedReason); }
+						node.setAttribute("ui.score", score);
+						if (sScoreReason!=null) { node.setAttribute("ui.scoreReason", sScoreReason); } //TODO: since scoreReason only really exists for 'normal' this means that 'normal' reason persists in other scoring modes. For modes that do not base their reasoning on 'normal' this is probably incorrect.
+						if (sScoreExtendedReason!=null) { node.setAttribute("ui.scoreExtendedReason", sScoreExtendedReason); }
 						String uiClass="severeVuln";
 						if (score > (0.25*maxScore)) { uiClass="highVuln"; }
 						if (score > (0.50*maxScore)) { uiClass="medVuln"; }
 						if (score > (0.75*maxScore)) { uiClass="lowVuln"; }
-						n.addAttribute("ui.class", uiClass); //apply the class
-						if (m_verbose) { System.out.println(n.getId()+" Applying Score: "+score+"   Vulnerability Score given: "+uiClass); }
+						node.setAttribute("ui.class", uiClass); //apply the class
+						if (m_verbose) { System.out.println(node.getId()+" Applying Score: "+score+"   Vulnerability Score given: "+uiClass); }
 					}
 				}
 			}
@@ -465,98 +500,92 @@ public class AHAModel
 		value+=ammountToBump;
 		dataset.put(key, value); //System.out.println("Bumping ref for key="+key+" to new value="+value);
 	}
-
+	
+	
+	@SuppressWarnings("unchecked")
+	public java.util.List<String> castObjectAsStringList(Object o)
+	{
+		try
+		{
+			if (o instanceof java.util.List)
+			{
+				java.util.List<?> temp=(java.util.List<?>)o;
+				if (temp.get(0) instanceof String)
+				{
+					return (java.util.List<String>) temp;
+				}
+			}
+		} catch (Exception e) { System.err.println("Failed to cast to List<String>"); e.printStackTrace(); }
+		return null;
+	}
+	
+	
 	protected void readInputFile()
 	{
 		System.out.println("Reading primary input file=\""+m_inputFileName+"\"");
 		m_knownAliasesForLocalComputer.put("127.0.0.1", "127.0.0.1"); //ensure these obvious ones are inserted in case we never see them in the scan
 		m_knownAliasesForLocalComputer.put("::1", "::1"); //ensure these obvious ones are inserted in case we never see them in the scan
-		java.io.BufferedReader br = null;
-		int lineNumber=0;
-		java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<String,Integer>();
-		try 
-		{
-			br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(m_inputFileName),"UTF8"));
-			String line = "", header[]=fixCSVLine(br.readLine());
-			for (int i=0;i<header.length;i++) 
-			{ 
-				String headerToken=header[i];
-				if (headerToken.contains("processname") && !headerToken.equals("processname") && headerToken.length()=="processname".length() ) { System.out.println("Had to fix up 'processname' headertoken due to ByteOrderMark issues.");headerToken="processname"; }
-				if (headerToken.contains("processname") && !headerToken.equals("processname") && Math.abs(headerToken.length()-"processname".length())<5) { System.out.println("Had to fix up 'processname' headertoken due to ByteOrderMark issues. hdrlen="+headerToken.length()+" ptlen="+"processname".length()); headerToken="processname"; }
-				hdr.put(headerToken, Integer.valueOf(i)); 
-			}
-			String[] required={"processname","pid","protocol","state","localport","localaddress","remoteaddress","remoteport","remotehostname"};
-			for (String s:required) { if (hdr.get(s)==null) { System.out.println("Input file: required column header field=\""+s+"\" was not detected, this will not go well."); } }
+		java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<>();
+		java.util.TreeMap<Integer,String> reverseHdr=new java.util.TreeMap<>();
+		java.util.ArrayList<java.util.ArrayList<String>> inputLines=new java.util.ArrayList<>(512);
+		java.util.TreeMap<String, String> metadata=new java.util.TreeMap<>();
+		metadata.put("RequiredHeaderTokens", "processname,pid,protocol,state,localport,localaddress,remoteaddress,remoteport,remotehostname");
+		if (!readCSVFileIntoArrayList(m_inputFileName, metadata, hdr, inputLines)) { System.out.println("Failed to read input file, bailing."); return; }
+		for (String s:hdr.keySet()) { reverseHdr.put(hdr.get(s), s); } 
 
-			while ((line = br.readLine()) != null) //this is the first loop, in this loop we're loading all the vertexes and their meta data, so we can then later connect the vertices
-			{
-				try
-				{
-					String[] tokens = fixCSVLine(line); 
-					if (tokens.length<5) 
-					{ 
-						if ( line.trim().trim().trim().trim().length() > 0 ) // more than likely this means something converted the line endings and we've and we've got crlf\nclrfloletc, so only print and increment if there's a real issue.
-						{
-							System.err.println("First Stage Read: Skipping line #"+lineNumber+" because it is malformed."); 
-							lineNumber++;
-						}
-						continue; 
-					}
-					lineNumber++;
-					String fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], protoLocalPort=tokens[hdr.get("protocol")]+"_"+tokens[hdr.get("localport")];
-					String connectionState=tokens[hdr.get("state")], localAddr=tokens[hdr.get("localaddress")].trim();
-					if (tokens[hdr.get("protocol")].equals("udp")) { connectionState="listening"; } //fix up in the case that a line is protocol==UDP and state==""
-				
-					Node node = m_graph.getNode(fromNode);
-					if(node == null)
-					{
-						if (m_debug) { System.out.println("Found new process: Name=|"+fromNode+"|"); }
-						node = m_graph.addNode(fromNode);
-					}
-					if (connectionState.contains("listen") )
-					{
-						m_knownAliasesForLocalComputer.put(localAddr, localAddr);
-						m_allListeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
-						if (m_debug) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
-						String portMapKey="ui.localListeningPorts";
-						if( !localAddr.equals("127.0.0.1") && !localAddr.equals("::1") && !localAddr.startsWith("192.168") && !localAddr.startsWith("10.")) //TODO we really want anything that's not listening on localhost here: localAddr.equals("0.0.0.0") || localAddr.equals("::") || 
-						{ 
-							Edge e=m_graph.addEdge(node+"_external",node.toString(),"external");
-							e.addAttribute("ui.class", "external");
-							node.addAttribute("ui.hasExternalConnection", "yes");
-							portMapKey="ui.extListeningPorts"; //since this is external, change the key we read/write when we store this new info
-							m_extListeningProcessMap.put(protoLocalPort,fromNode);
-							// RelativeScore CODE //
-							java.util.List<String> parents= node.getAttribute("parents");
-							if (parents == null) { parents = new java.util.ArrayList<String>(); }
-							parents.add("external");
-							node.addAttribute("parents", parents);
-							// END RelativeScore CODE //
-						}
-						else { m_intListeningProcessMap.put(protoLocalPort,fromNode); }
-						java.util.TreeMap<String,String> listeningPorts=node.getAttribute(portMapKey);
-						if (listeningPorts==null ) { listeningPorts=new java.util.TreeMap<String,String>(); }
-						listeningPorts.put(protoLocalPort, protoLocalPort);
-						node.addAttribute(portMapKey, listeningPorts);
-					}
-					for (int i=0;i<tokens.length && i<header.length;i++)
-					{
-						String processToken=tokens[i];
-						if (  processToken==null || processToken.isEmpty() ) { processToken="null"; }
-						if (m_debug) { System.out.printf("   Setting attribute %s for process %s\n",header[i],tokens[i]); }
-						node.addAttribute(header[i],processToken);
-					}
-					if (lineNumber<5 && hdr.get("addedon")!=null && tokens[hdr.get("addedon")]!=null) { m_miscMetrics.put("detectiontime", tokens[hdr.get("addedon")]); } //only try to set the first few read lines
-					if (lineNumber<5 && hdr.get("detectiontime")!=null && tokens[hdr.get("detectiontime")]!=null) { m_miscMetrics.put("detectiontime", tokens[hdr.get("detectiontime")]); } //only try to set the first few read lines //back compat for old scans, remove someday
-				}
-				catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
-			}
-		} 
-		catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); } 
-		finally 
+		int lineNumber=0;
+		for (java.util.ArrayList<String> tokens : inputLines)
 		{
-				try { if (br!=null) br.close(); } 
-				catch (Exception e) { System.out.print("Failed to close file: "); e.printStackTrace(); }
+			lineNumber++;
+			//fixups for well known file issues (will persist for all of readInputFile since we modify the input tokens)
+			if (tokens.get(hdr.get("protocol")).contains("6")) { tokens.set(hdr.get("protocol"),tokens.get(hdr.get("protocol")).replaceAll("6", "")); } //if we have tcp6/udp6, remove the '6'
+			if (tokens.get(hdr.get("protocol")).equals("udp")) { tokens.set(hdr.get("state"),"listening"); } //fix up in the case that a line is protocol==UDP and state==""
+			if (hdr.get("remotehostname")==null) { tokens.set(hdr.get("remotehostname"),""); } //some versions of the linux scanner forgot to populate this column
+			
+			String fromNode=tokens.get(hdr.get("processname"))+"_"+tokens.get(hdr.get("pid")), protoLocalPort=tokens.get(hdr.get("protocol"))+"_"+tokens.get(hdr.get("localport"));
+			String connectionState=tokens.get(hdr.get("state")), localAddr=tokens.get(hdr.get("localaddress")).trim();
+
+			Node node = m_graph.getNode(fromNode);
+			if(node == null)
+			{
+				if (m_debug) { System.out.println("Found new process: Name=|"+fromNode+"|"); }
+				node = m_graph.addNode(fromNode);
+			}
+			if (connectionState.contains("listen") )
+			{
+				m_knownAliasesForLocalComputer.put(localAddr, localAddr);
+				m_allListeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
+				if (m_debug) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
+				String portMapKey="ui.localListeningPorts";
+				if( !localAddr.equals("127.0.0.1") && !localAddr.equals("::1") && !localAddr.startsWith("192.168") && !localAddr.startsWith("10.")) //TODO we really want anything that's not listening on localhost here: localAddr.equals("0.0.0.0") || localAddr.equals("::") || 
+				{ 
+					Edge e=m_graph.addEdge(node+"_external",node.toString(),"external");
+					e.setAttribute("ui.class", "external");
+					node.setAttribute("ui.hasExternalConnection", "yes");
+					portMapKey="ui.extListeningPorts"; //since this is external, change the key we read/write when we store this new info
+					m_extListeningProcessMap.put(protoLocalPort,fromNode);
+					// BEGIN RelativeScore CODE //
+					java.util.List<String> parents=castObjectAsStringList(node.getAttribute("parents"));
+					if (parents == null) { parents = new java.util.ArrayList<>(); }
+					parents.add("external");
+					node.setAttribute("parents", parents);
+					// END RelativeScore CODE //
+				}
+				else { m_intListeningProcessMap.put(protoLocalPort,fromNode); }
+				java.util.TreeMap<String,String> listeningPorts=getTreeMapFromObj(node.getAttribute(portMapKey));
+				if (listeningPorts==null ) { listeningPorts=new java.util.TreeMap<>(); }
+				listeningPorts.put(protoLocalPort, protoLocalPort);
+				node.setAttribute(portMapKey, listeningPorts);
+			}
+			for (int i=0;i<tokens.size() && i<hdr.size();i++)
+			{
+				String processToken=tokens.get(i);
+				if (  processToken==null || processToken.isEmpty() ) { processToken="null"; }
+				if (m_debug) { System.out.printf("   Setting attribute %s for process %s\n",reverseHdr.get(i),tokens.get(i)); }
+				node.setAttribute(reverseHdr.get(i),processToken);
+			}
+			if (lineNumber<5 && hdr.get("addedon")!=null && tokens.get(hdr.get("addedon"))!=null) { m_miscMetrics.put("detectiontime", tokens.get(hdr.get("addedon"))); } //only try to set the first few read lines
+			if (lineNumber<5 && hdr.get("detectiontime")!=null && tokens.get(hdr.get("detectiontime"))!=null) { m_miscMetrics.put("detectiontime", tokens.get(hdr.get("detectiontime"))); } //only try to set the first few read lines //back compat for old scans, remove someday
 		}
 
 		if (m_debug)
@@ -573,162 +602,153 @@ public class AHAModel
 		m_knownAliasesForLocalComputer.remove("0.0.0.0"); //these don't seem to make sense as aliases to local host, so i'm removing them
 
 		lineNumber=0;
-		br = null;
-		try 
+		for (java.util.ArrayList<String> tokens : inputLines)
 		{
-			br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(m_inputFileName),"UTF8"));
-			String line = "";
-			br.readLine(); //consume first line
-			while ((line = br.readLine()) != null)  //this is the second loop, in this loop we're loading the connections between nodes
 			{
 				lineNumber++;
-				try
+				String toNode="UnknownToNodeError", fromNode=tokens.get(hdr.get("processname"))+"_"+tokens.get(hdr.get("pid")), proto=tokens.get(hdr.get("protocol")), localPort=tokens.get(hdr.get("localport")), remotePort=tokens.get(hdr.get("remoteport"));
+				String protoLocalPort=proto+"_"+localPort, protoRemotePort=proto+"_"+remotePort;
+				String remoteAddr=tokens.get(hdr.get("remoteaddress")).trim(), localAddr=tokens.get(hdr.get("localaddress")), connectionState=tokens.get(hdr.get("state")), remoteHostname=tokens.get(hdr.get("remotehostname"));
+
+				Node node = m_graph.getNode(fromNode);
+				if(node == null)
 				{
-					String[] tokens = fixCSVLine(line);
-					if (tokens.length<5) 
-					{ 
-						if ( line.trim().trim().trim().trim().length() > 0 ) // more than likely this means something converted the line endings and we've and we've got crlf\nclrfloletc, so only print and increment if there's a real issue.
+					System.out.println("WARNING: Second scan found new process: Name=|"+fromNode+"|, on line "+lineNumber+" ignoring."); 
+					continue;
+				}
+				boolean duplicateEdge=false, timewait=false, exactSameEdgeAlreadyExists=false, isLocalOnly=false;
+				Node tempNode=null;
+				String connectionName=null,reverseConnectionName=null;
+				if ( !connectionState.contains("listen") && !connectionState.equalsIgnoreCase("") ) //empty string is listening state for a bound udp socket on windows apparently
+				{
+					if (connectionState.toLowerCase().contains("wait") || connectionState.toLowerCase().contains("syn_") || connectionState.toLowerCase().contains("last_")) { timewait=true; }
+					if ( m_knownAliasesForLocalComputer.get(remoteAddr)!=null ) 
+					{ //if it's in that map, then this should be a connection to ourself
+						isLocalOnly=true;
+						if ( (toNode=m_allListeningProcessMap.get(protoRemotePort))!=null )
 						{
-							System.err.println("Second Stage Read: Skipping line #"+lineNumber+" because it is malformed."); 
-							lineNumber++;
-						}
-						continue; 
-					}
-					String toNode="UnknownToNodeError", fromNode=tokens[hdr.get("processname")]+"_"+tokens[hdr.get("pid")], proto=tokens[hdr.get("protocol")], localPort=tokens[hdr.get("localport")], remotePort=tokens[hdr.get("remoteport")];
-					String protoLocalPort=proto+"_"+localPort, protoRemotePort=proto+"_"+remotePort;
-					String remoteAddr=tokens[hdr.get("remoteaddress")].trim(), localAddr=tokens[hdr.get("localaddress")], connectionState=tokens[hdr.get("state")], remoteHostname=tokens[hdr.get("remotehostname")];
-					if (tokens[hdr.get("protocol")].equals("udp")) { connectionState="listening"; } //fix up in the case that a line is protocol==UDP and state==""
-					
-					Node node = m_graph.getNode(fromNode);
-					if(node == null)
-					{
-						System.out.println("WARNING: Second scan found new process: Name=|"+fromNode+"|, on line "+lineNumber+" ignoring."); 
-						continue;
-					}
-					boolean duplicateEdge=false, timewait=false, exactSameEdgeAlreadyExists=false, isLocalOnly=false;
-					Node tempNode=null;
-					String connectionName=null,reverseConnectionName=null;
-					if ( !connectionState.equalsIgnoreCase("listening") && !connectionState.equalsIgnoreCase("") ) //empty string is listening state for a bound udp socket on windows apparently
-					{
-						if (connectionState.toLowerCase().contains("wait") || connectionState.toLowerCase().contains("syn_") || connectionState.toLowerCase().contains("last_")) { timewait=true; }
-						if ( m_knownAliasesForLocalComputer.get(remoteAddr)!=null ) 
-						{ //if it's in that map, then this should be a connection to ourself
-							isLocalOnly=true;
-							if ( (toNode=m_allListeningProcessMap.get(protoRemotePort))!=null )
-							{
-								connectionName=(protoLocalPort+"<->"+protoRemotePort);
-								reverseConnectionName=(protoRemotePort+"<->"+protoLocalPort);
-							}
-							else if ( m_knownAliasesForLocalComputer.get(localAddr)==null ) { System.out.printf("WARNING1: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);}
-							else if (  m_knownAliasesForLocalComputer.get(localAddr)!=null && (m_allListeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
-							else if ( !connectionState.contains("syn-sent") ){ System.out.printf("WARNING3: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
-							if (toNode==null) { /*System.err.println("toNode is null, problems may arrise. Setting toNode='UnknownToNodeError'");*/ toNode="UnknownToNodeError";}
-						}
-						else 
-						{ 
-							if (timewait && m_allListeningProcessMap.get(protoLocalPort)!=null) 
-							{ 
-								if (!fromNode.startsWith("unknown") && m_verbose) {System.out.println("Found a timewait we could correlate, but the name does not contain unknown. Would have changed from: "+fromNode+" to: "+m_allListeningProcessMap.get(protoLocalPort)+"?"); }
-								else { fromNode=m_allListeningProcessMap.get(protoLocalPort); }
-							}
 							connectionName=(protoLocalPort+"<->"+protoRemotePort);
-							reverseConnectionName=(protoRemotePort+"<->"+protoLocalPort);	
-							toNode="Ext_"+remoteAddr;
-							if (remoteHostname==null || remoteHostname.equals("")) { remoteHostname=remoteAddr; } //cover the case that there is no FQDN
+							reverseConnectionName=(protoRemotePort+"<->"+protoLocalPort);
 						}
-						
-						if (connectionName!=null) { tempNode=m_graph.getNode(fromNode); } //some of the cases above wont actually result in a sane node setup, so only grab a node if we have connection name
-						if (tempNode!=null)
+						else if ( m_knownAliasesForLocalComputer.get(localAddr)==null ) { System.out.printf("WARNING1: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);}
+						else if (  m_knownAliasesForLocalComputer.get(localAddr)!=null && (m_allListeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
+						else if ( !connectionState.contains("syn-sent") ){ System.out.printf("WARNING3: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState); }
+						if (toNode==null) { /*System.err.println("toNode is null, problems may arrise. Setting toNode='UnknownToNodeError'");*/ toNode="UnknownToNodeError";}
+					}
+					else 
+					{ 
+						if (timewait && m_allListeningProcessMap.get(protoLocalPort)!=null) 
+						{ 
+							if (!fromNode.startsWith("unknown") && m_verbose) {System.out.println("Found a timewait we could correlate, but the name does not contain unknown. Would have changed from: "+fromNode+" to: "+m_allListeningProcessMap.get(protoLocalPort)+"?"); }
+							else { fromNode=m_allListeningProcessMap.get(protoLocalPort); }
+						}
+						connectionName=(protoLocalPort+"<->"+protoRemotePort);
+						reverseConnectionName=(protoRemotePort+"<->"+protoLocalPort);	
+						toNode="Ext_"+remoteAddr;
+						if (remoteHostname.equals("")) { remoteHostname=remoteAddr; } //cover the case that there is no FQDN
+					}
+
+					if (connectionName!=null) { tempNode=m_graph.getNode(fromNode); } //some of the cases above wont actually result in a sane node setup, so only grab a node if we have connection name
+					if (tempNode!=null)
+					{
+						java.util.Iterator<Edge> it=tempNode.iterator(); //TODO rewrite in gs2.0 parlance
+						while (it.hasNext())
 						{
-							for (Edge e : tempNode.getEdgeSet())
+							Edge e=it.next();
+							if (e.getOpposite(tempNode).getId().equals(toNode)) { duplicateEdge=true; }
+							if (e.getId().equals(connectionName) || e.getId().equals(reverseConnectionName) ) { exactSameEdgeAlreadyExists=true; System.out.println("Exact same edge already exists!"); }
+						}
+						if (!exactSameEdgeAlreadyExists)
+						{
+							Edge e=m_graph.addEdge(connectionName,fromNode,toNode);
+							if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode); }
+							if (m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); }
+							if (e!=null && isLocalOnly)
 							{
-								if (e.getOpposite(tempNode).getId().equals(toNode)) { duplicateEdge=true; }
-								if (e.getId().equals(connectionName) || e.getId().equals(reverseConnectionName) ) { exactSameEdgeAlreadyExists=true; System.out.println("Exact same edge already exists!"); }
+								e.setAttribute("layout.weight", 10); //try to make internal edges longer
+								if (duplicateEdge) { e.setAttribute("layout.weight", 5); }
+								if (timewait && !duplicateEdge) { e.setAttribute("ui.class", "tw"); }
+								if (!timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate"); }
+								if (timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate, tw"); }
+								if (m_allListeningProcessMap.get(protoRemotePort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoRemotePort,1); }
 							}
-							if (!exactSameEdgeAlreadyExists)
+							else if(e!=null)
 							{
-								Edge e=m_graph.addEdge(connectionName,fromNode,toNode);
-								if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode); }
-								if (m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); }
-								if (e!=null && isLocalOnly)
+								m_graph.getNode(toNode).setAttribute("ui.class", "external");
+								m_graph.getNode(toNode).setAttribute("hostname", remoteHostname);
+								m_graph.getNode(toNode).setAttribute("IP", remoteAddr);
+								e.setAttribute("layout.weight", 9); //try to make internal edges longer
+								if (duplicateEdge) { e.setAttribute("layout.weight", 4); }
+								if (!timewait && !duplicateEdge) { e.setAttribute("ui.class", "external"); }
+								if (!timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate, xternal"); }
+								if (timewait && !duplicateEdge) { e.setAttribute("ui.class", "external, tw"); } 
+								if (timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate, external, tw"); }
+							}
+							// BEGIN RelativeScore CODE //
+							Node toNode_node = m_graph.getNode(toNode);
+							if ( toNode.startsWith("Ext_") || node.toString().startsWith("Ext_") )
+							{
+								java.util.List<String> parents=castObjectAsStringList(node.getAttribute("parents"));
+								if (parents== null) { parents = new java.util.ArrayList<>(); }
+								if (toNode.startsWith("Ext_"))
 								{
-									e.addAttribute("layout.weight", 10); //try to make internal edges longer
-									if (duplicateEdge) { e.addAttribute("layout.weight", 5); }
-									if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "tw"); }
-									if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate"); }
-									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate, tw"); }
-									if (m_allListeningProcessMap.get(protoRemotePort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoRemotePort,1); }
-								}
-								else if(e!=null)
-								{
-									m_graph.getNode(toNode).addAttribute("ui.class", "external");
-									m_graph.getNode(toNode).addAttribute("hostname", remoteHostname);
-									m_graph.getNode(toNode).addAttribute("IP", remoteAddr);
-									e.addAttribute("layout.weight", 9); //try to make internal edges longer
-									if (duplicateEdge) { e.addAttribute("layout.weight", 4); }
-									if (!timewait && !duplicateEdge) { e.addAttribute("ui.class", "external"); }
-									if (!timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate, xternal"); }
-									if (timewait && !duplicateEdge) { e.addAttribute("ui.class", "external, tw"); } 
-									if (timewait && duplicateEdge) { e.addAttribute("ui.class", "duplicate, external, tw"); }
-								}
-								// RelativeScore CODE //
-								Node toNode_node = m_graph.getNode(toNode);
-								if ( toNode.startsWith("Ext_") || node.toString().startsWith("Ext_") )
-								{
-									java.util.List<String> parents= node.getAttribute("parents");
-									if (parents== null) { parents = new java.util.ArrayList<String>(); }
-									if (toNode.startsWith("Ext_"))
-									{
-										parents.add(toNode);
-										node.addAttribute("parents", parents);
-									}
-									else
-									{
-										parents.add(node.toString());
-										toNode_node.addAttribute("parents", parents);
-									}
+									parents.add(toNode);
+									node.setAttribute("parents", parents);
 								}
 								else
 								{
-									java.util.List<String> siblings=node.getAttribute("sibling");
-									if (siblings == null) { siblings=new java.util.ArrayList<String>(); }
-									siblings.add(toNode);
-									node.addAttribute("sibling", siblings);
-									
-									siblings=toNode_node.getAttribute("sibling");
-									if (siblings == null) { siblings = new java.util.ArrayList<String>(); }
-									siblings.add(node.toString());
-									toNode_node.addAttribute("sibling", siblings);
-								} // END RelativeScore CODE //
-								
+									parents.add(node.toString());
+									toNode_node.setAttribute("parents", parents);
+								}
 							}
+							else
+							{
+								java.util.List<String> siblings=castObjectAsStringList(node.getAttribute("sibling"));
+								if (siblings == null) { siblings=new java.util.ArrayList<>(); }
+								siblings.add(toNode);
+								node.setAttribute("sibling", siblings);
+
+								siblings=castObjectAsStringList(toNode_node.getAttribute("sibling"));
+								if (siblings == null) { siblings = new java.util.ArrayList<>(); }
+								siblings.add(node.toString());
+								toNode_node.setAttribute("sibling", siblings);
+							} // END RelativeScore CODE //
 						}
 					}
 				}
-				catch (Exception e) { System.out.print("start: second readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
-			}
-		} 
-		catch (Exception e) { System.out.print("start: second readthrough: input line "+lineNumber+":"); e.printStackTrace(); } 
-		finally 
-		{ if (br != null) 
-			{ try { br.close(); } 
-				catch (Exception e) { System.out.print("Failed to close file: "); e.printStackTrace(); }
 			}
 		}
-		if (m_verbose) { System.out.println("All known aliases for the local machine address:"+m_knownAliasesForLocalComputer.keySet()); }
 	}
 	
-	public static String getCommaSepKeysFromStringMap(java.util.Map<String, String> map)
+	public static String getCommaSepKeysFromStringMap(Object o)
 	{
+		java.util.TreeMap<?, ?> map=(java.util.TreeMap<?, ?>) o;
 		StringBuilder sb=new StringBuilder("");
-		if (map==null || map.isEmpty()) { return "None"; } //right now this makes for optimal code on the clients of this function, may not be the case in the future. 
-		java.util.Iterator<String> it=map.keySet().iterator();
-		while (it.hasNext())
+		try
 		{
-			sb.append(it.next());
-			if (it.hasNext()) { sb.append(", "); }
-		}
-		return sb.toString();
+			if (map!=null && !map.isEmpty())
+			{
+				java.util.Iterator<?> it=map.keySet().iterator();
+				while (it.hasNext())
+				{
+					sb.append((String)it.next());
+					if (it.hasNext()) { sb.append(", "); }
+				}
+				return sb.toString();
+			}
+		} catch (Exception e) { System.err.println("Error in getCommanSepKeysFromStringMap returning 'None'."); e.printStackTrace(); }
+		return "None.";
+	}
+	
+	
+	@SuppressWarnings("unchecked")
+	public static java.util.TreeMap<String,String> getTreeMapFromObj(Object o)
+	{
+		try
+		{
+			return (java.util.TreeMap<String, String>) o;
+		} catch (Exception e) {}
+		return null;
 	}
 
 	protected void readCustomScorefile()
@@ -753,28 +773,30 @@ public class AHAModel
 					{
 						try
 						{
-							String processPath=node.getAttribute("processpath");
+							String processPath=(String)node.getAttribute("processpath");
 							if (processPath!=null && processPath.equalsIgnoreCase(nodePathName))
 							{
 								if(directive.equals("node") && nodePathName!=null)
 								{
-									node.addAttribute(CUSTOMSTYLE,"yes");
-									node.addAttribute(CUSTOMSTYLE+".score", score);
-									node.addAttribute(CUSTOMSTYLE+".style", style);
+									node.setAttribute(CUSTOMSTYLE,"yes");
+									node.setAttribute(CUSTOMSTYLE+".score", score);
+									node.setAttribute(CUSTOMSTYLE+".style", style);
 									System.out.printf("CustomScoreOverlay read line: node=%s path=%s, setting score=%s color=%s\n", node.getId(),nodePathName,score, style);
 								}
 								else if (directive.equals("edge") && nodePathName!=null)
 								{
 									String toName=tokens[4];
-									for (Edge e : node.getEdgeSet())
+									java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
+									while (it.hasNext())
 									{
+										Edge e=it.next();
 										Node toNode=e.getOpposite(node);
-										String toNodeProcessPath=toNode.getAttribute("processpath");
+										String toNodeProcessPath=(String)toNode.getAttribute("processpath");
 										if ( toNodeProcessPath.equalsIgnoreCase(toName) )
 										{
-											e.addAttribute(CUSTOMSTYLE,"yes");
-											e.addAttribute(CUSTOMSTYLE+".score", score);
-											e.addAttribute(CUSTOMSTYLE+".style", style);
+											e.setAttribute(CUSTOMSTYLE,"yes");
+											e.setAttribute(CUSTOMSTYLE+".score", score);
+											e.setAttribute(CUSTOMSTYLE+".style", style);
 											System.out.printf("scorefile: found edge from=%s to=%s score=%s\n", nodePathName,toName,score);
 										}
 									}
@@ -804,15 +826,15 @@ public class AHAModel
 	
 	protected void useFQDNLabels(Graph g, boolean useFQDN) 
 	{
-		for (Node n : m_graph) { n.addAttribute("ui.label", capitalizeFirstLetter(n.getId())); } //add labels
+		for (Node n : m_graph) { n.setAttribute("ui.label", capitalizeFirstLetter(n.getId())); } //add labels
 		if (useFQDN) 
 		{  
 			for (Node n : m_graph) 
 			{ 
-				String temp=n.getAttribute("ui.class");
+				String temp=(String)n.getAttribute("ui.class");
 				if (temp!=null && temp.equals("external"))
 				{
-					if (!n.getId().equals("external")) { n.addAttribute("ui.label", capitalizeFirstLetter("Ext_"+n.getAttribute("hostname"))); }
+					if (!n.getId().equals("external")) { n.setAttribute("ui.label", capitalizeFirstLetter("Ext_"+n.getAttribute("hostname"))); }
 				}
 			}
 		} 
@@ -847,14 +869,14 @@ public class AHAModel
 			for (Node node:m_graph)
 			{
 				String seeking=args[1].toLowerCase(); //important to do every loop since seeking may be modified if it is inverted
-				String attrValue=node.getAttribute(attribute);
+				String attrValue=(String)node.getAttribute(attribute);
 				if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
 				{
 					if (notInverseSearch==false) { seeking="!"+seeking; } 
-					java.util.TreeMap<String, String> hideReasons=node.getAttribute("ui.hideReasons");
+					java.util.TreeMap<String, String> hideReasons=getTreeMapFromObj(node.getAttribute("ui.hideReasons"));
 					if (hideReasons==null)
 					{
-						hideReasons=new java.util.TreeMap<String, String>();
+						hideReasons=new java.util.TreeMap<>();
 						node.setAttribute("ui.hideReasons", hideReasons);
 					}
 					if (hide) { hideReasons.put(seeking, seeking); }
@@ -864,7 +886,7 @@ public class AHAModel
 					if (nodeWillHide)
 					{
 						if (node.getAttribute("ui.hide")==null) { hidden++; } //if it's not already hidden, count that we're going to hide it
-						node.addAttribute( "ui.hide" );
+						node.setAttribute( "ui.hide" );
 						if (m_verbose) { System.out.println("Hide node="+node.getId()); }
 						
 					}
@@ -874,9 +896,11 @@ public class AHAModel
 						if (m_verbose) { System.out.println("Unhide node="+node.getId()); }
 					}
 					
-					for (Edge e : node.getEdgeSet())
+					java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
+					while (it.hasNext())
 					{
-						if (nodeWillHide) { e.addAttribute( "ui.hide" ); }
+						Edge e=it.next();
+						if (nodeWillHide) { e.setAttribute( "ui.hide" ); }
 						else { if (e.getOpposite(node).getAttribute("ui.hide")==null ) { e.removeAttribute( "ui.hide" ); } }
 					}
 				}
@@ -901,21 +925,21 @@ public class AHAModel
 			for (Node node:m_graph)
 			{
 				String seeking=args[1].toLowerCase(); //important to do every loop since seeking may be modified if it is inverted
-				String attrValue=node.getAttribute(attribute);
+				String attrValue=(String)node.getAttribute(attribute);
 				if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
 				{
 					if (notInverseSearch==false) { seeking="!"+seeking; } 
-					java.util.TreeMap<String, String> emphasizeReasons=node.getAttribute("ui.emphasizeReasons");
+					java.util.TreeMap<String, String> emphasizeReasons=getTreeMapFromObj(node.getAttribute("ui.emphasizeReasons"));
 					if (emphasizeReasons==null)
 					{
-						emphasizeReasons=new java.util.TreeMap<String, String>();
+						emphasizeReasons=new java.util.TreeMap<>();
 						node.setAttribute("ui.emphasizeReasons", emphasizeReasons);
 					}
 					if (emphasize) { emphasizeReasons.put(seeking, seeking); }
 					else { emphasizeReasons.remove(seeking); }
 					
 					boolean nodeWillEmphasize=!emphasizeReasons.isEmpty();
-					String nodeClass=node.getAttribute("ui.class");
+					String nodeClass=(String)node.getAttribute("ui.class");
 					if (nodeClass==null) { nodeClass=""; }
 					if (nodeWillEmphasize)
 					{
@@ -930,9 +954,11 @@ public class AHAModel
 					//System.out.println("Writing node class=|"+nodeClass+"|");
 					node.setAttribute("ui.class", nodeClass);
 					
-					for (Edge e : node.getEdgeSet())
+					java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
+					while (it.hasNext())
 					{
-						String edgeClass=e.getAttribute("ui.class");
+						Edge e=it.next();
+						String edgeClass=(String)e.getAttribute("ui.class");
 						if (edgeClass==null) { edgeClass=""; }
 						if (nodeWillEmphasize) 
 						{ 
@@ -948,7 +974,7 @@ public class AHAModel
 		return emphasized;
 	}
 	
-	protected java.util.Vector<String> m_lastSearchTokens=new java.util.Vector<String>();
+	protected java.util.Vector<String> m_lastSearchTokens=new java.util.Vector<>();
 	protected String handleSearch (String searchText)
 	{
 		if (searchText==null ) { return ""; }
@@ -993,8 +1019,8 @@ public class AHAModel
 			m_graph.setAutoCreate(true);
 			m_graph.setStrict(false);
 			Node ext=m_graph.addNode("external");
-			ext.addAttribute("ui.class", "external"); //Add a node for "external"
-			ext.addAttribute("processpath","external"); //add fake process path
+			ext.setAttribute("ui.class", "external"); //Add a node for "external"
+			ext.setAttribute("processpath","external"); //add fake process path
 			
 			System.out.println("JRE: Vendor="+System.getProperty("java.vendor")+", Version="+System.getProperty("java.version"));
 			System.out.println("OS: Arch="+System.getProperty("os.arch")+" Name="+System.getProperty("os.name")+" Vers="+System.getProperty("os.version"));
@@ -1012,31 +1038,31 @@ public class AHAModel
 			m_gui.m_graphViewer.disableAutoLayout();
 			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
 			
-			java.util.Vector<Node> leftSideNodes=new java.util.Vector<Node>(); //moved this below the 1.5s graph stabilization threshold to see if it makes odd occasional issues with moving ext nodes better
+			java.util.Vector<Node> leftSideNodes=new java.util.Vector<>(); //moved this below the 1.5s graph stabilization threshold to see if it makes odd occasional issues with moving ext nodes better
 			for (Node n : m_graph) 
 			{
 				if (n.getId().contains("Ext_")) { leftSideNodes.add(n); }
-				n.addAttribute("layout.weight", 6); //switched to add attribute rather than set attribute since it seems to prevent a possible race condition.
+				n.setAttribute("layout.weight", 6); //switched to add attribute rather than set attribute since it seems to prevent a possible race condition.
 			}
-			int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
-			leftSideNodes.insertElementAt(m_graph.getNode("external"),leftSideNodes.size()/2);
-			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
-			int i=1;
-			try
-			{
-				for (Node n : leftSideNodes)
-				{ 
-					org.graphstream.ui.geom.Point3 loc=m_gui.m_graphViewPanel.getCamera().transformPxToGu(60, (m_gui.m_graphViewPanel.getHeight()/numLeftNodes)*i);
-					n.addAttribute("xyz", loc.x,loc.y,loc.z);
-					i++;
-				}
-				m_gui.m_graphViewPanel.getCamera().setViewPercent(1.01d);
-				org.graphstream.ui.geom.Point3 center=m_gui.m_graphViewPanel.getCamera().getViewCenter();
-				org.graphstream.ui.geom.Point3 pixels=m_gui.m_graphViewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
-				pixels.x-=60;
-				center=m_gui.m_graphViewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
-				m_gui.m_graphViewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
-			} catch (Exception e) { e.printStackTrace(); }
+//			int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
+//			leftSideNodes.insertElementAt(m_graph.getNode("external"),leftSideNodes.size()/2);
+//			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
+//			int i=1;
+//			try //FIX TODO FIXME 
+//			{
+//				for (Node n : leftSideNodes)
+//				{ 
+//					org.graphstream.ui.geom.Point3 loc=m_gui.m_graphViewPanel.getCamera().transformPxToGu(60, (m_gui.m_graphViewPanel.getHeight()/numLeftNodes)*i);
+//					n.setAttribute("xyz", loc.x,loc.y,loc.z);
+//					i++;
+//				}
+//				m_gui.m_graphViewPanel.getCamera().setViewPercent(1.01d);
+//				org.graphstream.ui.geom.Point3 center=m_gui.m_graphViewPanel.getCamera().getViewCenter();
+//				org.graphstream.ui.geom.Point3 pixels=m_gui.m_graphViewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
+//				pixels.x-=60;
+//				center=m_gui.m_graphViewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
+//				m_gui.m_graphViewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
+//			} catch (Exception e) { e.printStackTrace(); }
 			
 			java.io.File fname=new java.io.File(m_inputFileName);
 			String inputFileName=fname.getName(), outputPath="";//get the file name only sans the path
@@ -1095,7 +1121,7 @@ public class AHAModel
 							if (n.getAttribute("username")!=null && n.getAttribute("ui.hasExternalConnection")!=null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
 							{ 
 								numExt++;
-								String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
+								String normalScore=(String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
 								try
 								{
 									Integer temp=Integer.parseInt(normalScore);
@@ -1123,7 +1149,7 @@ public class AHAModel
 							if (n.getAttribute("username")!=null && n.getAttribute("ui.hasExternalConnection")==null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
 							{ 
 								numInt++;
-								String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
+								String normalScore=(String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
 								try
 								{
 									Integer temp=Integer.parseInt(normalScore);
@@ -1151,14 +1177,14 @@ public class AHAModel
 					{
 						int j=0; //tired of reordering numbers after moving columns around
 						Object[] data=new Object[columnHeaders[tableNumber].length]; //if we run out of space we forgot to make a column header anyway
-						String name=n.getAttribute("processname");
-						if (name==null) { name=n.getAttribute("ui.label"); }
+						String name=(String)n.getAttribute("processname");
+						if (name==null) { name=(String)n.getAttribute("ui.label"); }
 						data[j++]=name;
-						data[j++]=strAsInt(n.getAttribute("pid"));
+						data[j++]=strAsInt((String)n.getAttribute("pid"));
 						data[j++]=n.getAttribute("username");
-						data[j++]=Integer.valueOf(n.getEdgeSet().size()); //cant use wrapInt here because  //TODO: deduplicate connection set?
+						data[j++]=Integer.valueOf((int)n.edges().count()); //cant use wrapInt here because  //TODO: deduplicate connection set?
 						String extPortString="";
-						java.util.TreeMap<String,String> extPorts=n.getAttribute("ui.extListeningPorts");
+						java.util.TreeMap<String,String> extPorts=getTreeMapFromObj(n.getAttribute("ui.extListeningPorts"));
 						if (extPorts!=null) 
 						{ 
 							for (String s : extPorts.keySet())
@@ -1174,10 +1200,10 @@ public class AHAModel
 						data[j++]=n.getAttribute("dep");
 						data[j++]=n.getAttribute("controlflowguard");
 						data[j++]=n.getAttribute("highentropyva");
-						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
-						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
+						data[j++]=strAsInt((String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
+						data[j++]=strAsInt((String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
 						// RelativeScore CODE //
-						data[j++]=strAsDouble(n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
+						data[j++]=strAsDouble((String)n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
 						//data[j++]=n.getAttribute("parents");
 						//data[j++]=n.getAttribute("sibling");
 						// END RelativeScore CODE //
@@ -1222,7 +1248,63 @@ public class AHAModel
 		catch (Exception e) { e.printStackTrace(); }
 	}
 	
-//	public AHAModel(String args[], boolean firstRun)
+	private static boolean readCSVFileIntoArrayList(String inputFileName, java.util.TreeMap<String, String> metadata, java.util.TreeMap<String,Integer> headerTokens, java.util.ArrayList<java.util.ArrayList<String>> inputLines)
+	{
+		if (inputFileName.equals("")) { inputFileName="BinaryAnalysis.csv"; } //try the default filename here if all else fails
+		int lineNumber=0;
+		try ( java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(inputFileName),"UTF8")); )
+		{
+			System.out.printf("Reading inputFile=%s\n", inputFileName);
+			java.io.File input=new java.io.File(inputFileName);
+			int minTokens=5;
+			if (!input.exists()) { System.out.println("Failed to open input file, bailing."); return false; }
+			String originalHeaderLine=br.readLine();
+			metadata.put("OriginalHeaderLine", originalHeaderLine);
+			String line = "", header[]=fixCSVLine(originalHeaderLine);
+			for (int i=0;i<header.length;i++) 
+			{ 
+				String headerToken=header[i];
+				if (headerToken.contains("processname") && !headerToken.equals("processname") && headerToken.length()=="processname".length() ) { System.out.println("Had to fix up 'processname' headertoken due to ByteOrderMark issues.");headerToken="processname"; }
+				if (headerToken.contains("processname") && !headerToken.equals("processname") && Math.abs(headerToken.length()-"processname".length())<5) { System.out.println("Had to fix up 'processname' headertoken due to ByteOrderMark issues. hdrlen="+headerToken.length()+" ptlen="+"processname".length()); headerToken="processname"; }
+				headerTokens.put(headerToken, Integer.valueOf(i)); 
+			}
+			String requiredTokens=metadata.get("RequiredHeaderTokens"); //leave the others between process name and the sums as this might point to a malformed file
+			if (requiredTokens!=null)
+			{
+				String[] required=requiredTokens.split(",");
+				if (required.length>2) { minTokens=required.length; }
+				for (String s:required) { if (s.length() > 2 && headerTokens.get(s)==null) { System.out.println("Input file: required column header field=\""+s+"\" was not detected, this will not go well."); } }
+			}
+
+			while ((line = br.readLine()) != null) //this is the first loop, in this loop we're loading all the vertexes and their meta data, so we can then later connect the vertices
+			{
+				try
+				{
+					String[] tokens = fixCSVLine(line); 
+					if (tokens.length<minTokens) 
+					{ 
+						if ( line.trim().trim().length() > 0 ) // more than likely this means something converted the line endings and we've and we've got crlf\nclrfloletc, so only print and increment if there's a real issue.
+						{
+							System.err.println("First Stage Read: Skipping line #"+lineNumber+" because it is malformed."); 
+							lineNumber++;
+						}
+						continue;
+					}
+					lineNumber++;
+					java.util.ArrayList<String> saveTokens=new java.util.ArrayList<>();
+					saveTokens.addAll(java.util.Arrays.asList(tokens));
+					inputLines.add(saveTokens); //save these for when we write out the new results file
+				}
+				catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
+			}
+		} 
+		catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); } 
+		return true;
+	}
+	
+	
+	
+	
 	public AHAModel(String inputFileName, boolean useOverlayScoreFile, String scoreFileName, boolean debug, boolean verbose)
 	{
 		m_inputFileName=inputFileName;
@@ -1232,3 +1314,5 @@ public class AHAModel
 		m_verbose=verbose;
 	}
 }
+
+

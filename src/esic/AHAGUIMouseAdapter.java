@@ -1,5 +1,7 @@
 package esic;
 
+import org.graphstream.ui.graphicGraph.GraphicElement;
+
 /*
  * This class is built upon a modified version of a mouse adapter class which only exists in the git master for graph stream
  * so is back ported here, and then modified to meet our needs. Original CeCILL-C / LGPL license applies to this class only. 
@@ -19,8 +21,10 @@ package esic;
  * We (ESIC @ WSU) relinquish any copyright claims to this modified class and defer to the original copyrights/licenses
  */
 
-public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMouseManager 
+public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.DefaultMouseManager
 {
+	private static java.util.EnumSet<org.graphstream.ui.view.util.InteractiveElement> ALL_ELEMENTS=java.util.EnumSet.of(org.graphstream.ui.view.util.InteractiveElement.NODE ,org.graphstream.ui.view.util.InteractiveElement.SPRITE);
+	private float scaleFactor=1, inverseScaleFactor=1;
 	public AHAGUIMouseAdapter(final long delay, AHAGUI target) 
 	{
 		super();
@@ -28,22 +32,22 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 		m_target=target;
 	}
 	public void mousePressed(java.awt.event.MouseEvent e) 
-	{ //System.out.println("PRESSED point x="+e.getX()+" y="+e.getY());
-		curElement = view.findNodeOrSpriteAt(e.getX(), e.getY());
+	{ 
+		curElement = view.findGraphicElementAt(ALL_ELEMENTS, e.getX()*scaleFactor, e.getY()*scaleFactor);
 		if (curElement != null) 
 		{
 			mouseButtonPressOnElement(curElement, e);
 		} 
 		else 
 		{
-			x1 = e.getX();
-			y1 = e.getY();
+			x1 = e.getX()*scaleFactor;
+			y1 = e.getY()*scaleFactor;
 			mouseButtonPress(e);
 		}
 	}
 
 	public void mouseReleased(java.awt.event.MouseEvent e) 
-	{ //System.out.println("RELEASED point x="+e.getX()+" y="+e.getY()+"\n");
+	{ 
 		if (curElement != null) 
 		{
 			mouseButtonReleaseOffElement(curElement, e);
@@ -51,7 +55,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 		} 
 		else 
 		{
-			float x2 = e.getX(), y2 = e.getY(), t;
+			float x2 = e.getX()*scaleFactor, y2 = e.getY()*scaleFactor, t;
 			if (x1 > x2) 
 			{
 				t = x1;
@@ -64,26 +68,39 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 				y1 = y2;
 				y2 = t;
 			}
-			mouseButtonRelease(e, view.allNodesOrSpritesIn(x1, y1, x2, y2));
+			mouseButtonRelease(e, view.allGraphicElementsIn(ALL_ELEMENTS, x1, y1, x2, y2)); //view.allNodesOrSpritesIn(x1, y1, x2, y2) //TODO FIX
 		}
 	}
 
 	public void mouseDragged(java.awt.event.MouseEvent e) 
-	{ //System.out.println("DRAGGED point x="+e.getX()+" y="+e.getY());
-		int x2 = e.getX(), y2 = e.getY();
+	{ 
+		float x2 = e.getX()*scaleFactor, y2 = e.getY()*scaleFactor;
 		if (x1==x2 && y1==y2) { return; }
 		if (curElement != null) { elementMoving(curElement, e); } //TODO: this function occasionally seems to make _wild_ jumps on the graph rather than moving it a little bit. Not sure how it determines acceleration/etc, but often single pixel moves will throw things off the graph edge
 		else 
 		{
+			//System.out.println("strt------------------------------------");
 			org.graphstream.ui.geom.Point3 center=view.getCamera().getViewCenter();
+			//System.out.printf("center x=%f y=%f z=%f\n", center.x, center.y, center.z);
 			org.graphstream.ui.geom.Point3 pixels=view.getCamera().transformGuToPx(center.x, center.y, center.z);
-			pixels.x+=(x1-x2);
-			pixels.y+=(y1-y2);
+			//System.out.printf("pixels x=%f y=%f z=%f\n", pixels.x, pixels.y, pixels.z);
+
+			//System.out.printf("pixels*2 x=%f y=%f z=%f\n", pixels.x, pixels.y, pixels.z);
+			pixels.x+=((x1-x2)/inverseScaleFactor);
+			pixels.y+=((y1-y2)/inverseScaleFactor);
+			//System.out.printf("pixelsmoved x=%f y=%f z=%f\n", pixels.x, pixels.y, pixels.z);
+			
 			center=view.getCamera().transformPxToGu(pixels.x, pixels.y);
+			//System.out.printf("newcenter x=%f y=%f z=%f\n", center.x, center.y, center.z);
 			view.getCamera().setViewCenter(center.x, center.y, center.z);
+			//System.out.println("end------------------------------------");
 			x1=x2;
 			y1=y2;
 		}
+	}
+	
+	protected void elementMoving(GraphicElement element, java.awt.event.MouseEvent e) {
+		view.moveElementAtPx(element, e.getX()*scaleFactor, e.getY()*scaleFactor);
 	}
 
 	private org.graphstream.ui.graphicGraph.GraphicElement hoveredElement;
@@ -95,11 +112,12 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.view.util.DefaultMous
 	private final AHAGUI m_target;
 
 	public void mouseMoved(java.awt.event.MouseEvent e) 
-	{ //System.out.println("MOVED point x="+e.getX()+" y="+e.getY());
+	{ 
 		try {
+			
 			hoverLock.lockInterruptibly();
 			boolean stayedOnElement = false;
-			org.graphstream.ui.graphicGraph.GraphicElement currentElement = view.findNodeOrSpriteAt(e.getX(), e.getY());
+			org.graphstream.ui.graphicGraph.GraphicElement currentElement = view.findGraphicElementAt(ALL_ELEMENTS, e.getX()*scaleFactor, e.getY()*scaleFactor); 
 			if (hoveredElement != null) 
 			{
 				stayedOnElement = currentElement == null ? false : currentElement.equals(hoveredElement);

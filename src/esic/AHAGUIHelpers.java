@@ -54,12 +54,21 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("List.font", uiFont);
 		javax.swing.UIManager.put("List.background", backgroundColor);
 		javax.swing.UIManager.put("OptionPane.foreground", foregroundColor);
+		javax.swing.UIManager.put("OptionPane.messageForeground", foregroundColor);
 		javax.swing.UIManager.put("OptionPane.background", backgroundColor);
+		javax.swing.UIManager.put("OptionPane.font", uiFont);
 		
 		javax.swing.UIManager.put("Frame.foreground", foregroundColor);
 		javax.swing.UIManager.put("Frame.background", backgroundColor);
 		javax.swing.UIManager.put("Panel.foreground", foregroundColor);
 		javax.swing.UIManager.put("Panel.background", backgroundColor);
+		javax.swing.UIManager.put("ProgressBar.selectionForeground", foregroundColor);
+		javax.swing.UIManager.put("ProgressBar.selectionBackground", backgroundColor);
+		javax.swing.UIManager.put("ProgressBar.foreground", foregroundColor);
+		javax.swing.UIManager.put("ProgressBar.background", backgroundColor);
+		javax.swing.UIManager.put("ProgressBar.border", BorderFactory.createLineBorder(accentColor.brighter().brighter(),2));
+		javax.swing.UIManager.put("ProgressBar.font", uiFont);
+		
 		javax.swing.UIManager.put("ScrollBar.track", backgroundColor);
 		javax.swing.UIManager.put("ScrollBar.thumbDarkShadow", backgroundColor);
 		javax.swing.UIManager.put("ScrollBar.thumb", accentColor.brighter().brighter().brighter());
@@ -200,14 +209,66 @@ public class AHAGUIHelpers
 			}
 			s=sb.toString();
 		}
-		return "<html><p style='font-style:bold;color:black;background:white;'>"+s+"</p></html> ";
+		return "<html><p style='font-style:bold;color:black;background:white;'>"+s+"</p></html>";
 	}
+	
+//	public static class AttributedLabel extends javax.swing.JLabel {
+//
+//    java.text.AttributedString str=null;
+//    int length=0;
+//    public AttributedLabel(Object o)
+//    {
+//    	if (o instanceof String) { str = new java.text.AttributedString((String)o); }
+//			if (o instanceof java.text.AttributedString) { str = (java.text.AttributedString)o; }
+//			if (str!=null)
+//			{
+//				length=str.getIterator().getEndIndex();
+//			}
+//    }
+//    public void paintComponent(java.awt.Graphics g){
+//        // Render the string
+//    	if (str==null || length < 1) { return; }
+//    	java.awt.Graphics2D g2=(java.awt.Graphics2D)g;
+//    	java.awt.Rectangle r=g.getClipBounds();
+//    	//System.out.println("height="+r.height);
+//    	java.awt.Font uiFont=(java.awt.Font)javax.swing.UIManager.get("Label.font");
+//			if (uiFont!=null) 
+//			{ 
+//				g2.setFont(uiFont); 
+//				str.addAttribute(java.awt.font.TextAttribute.FONT, uiFont); 
+//			}
+//			
+//			g2.setRenderingHint(
+//	        java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+//	        java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+//			
+//      	g2.drawString(str.getIterator(), 1, r.height-3);
+////	      java.text.AttributedCharacterIterator it = str.getIterator();
+////	      StringBuilder stringBuilder = new StringBuilder();
+////	
+////	      char ch = it.current();
+////	      while( ch != java.text.CharacterIterator.DONE)
+////	      {
+////	          stringBuilder.append( ch);
+////	          ch = it.next();
+////	      }
+////	      System.out.println(stringBuilder.toString());
+//    }
+//
+//}
+	
+//	public static class AttributedLabelRenderer extends javax.swing.table.DefaultTableCellRenderer {
+//    public Component getTableCellRendererComponent(javax.swing.JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) 
+//    {
+//    	return new AttributedLabel(value);
+//    }
+//}
 	
 	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][] columnTooltips, Object[][][] initialData, javax.swing.JTable[] tableRefs, int[] columnWidths)
 	{
 		javax.swing.JPanel scrollContent=new javax.swing.JPanel();
 		scrollContent.setLayout(new javax.swing.BoxLayout(scrollContent, javax.swing.BoxLayout.Y_AXIS));
-		javax.swing.table.DefaultTableCellRenderer tcRenderer=new javax.swing.table.DefaultTableCellRenderer(){{setHorizontalAlignment(javax.swing.table.DefaultTableCellRenderer.LEFT);}};
+		javax.swing.table.DefaultTableCellRenderer tcLeftAlignRenderer=new javax.swing.table.DefaultTableCellRenderer(){{setHorizontalAlignment(javax.swing.table.DefaultTableCellRenderer.LEFT);}};
 		for (int i=0; i<tableRefs.length; i++)
 		{
 			final String[] columnToolt=columnTooltips[i];
@@ -245,6 +306,9 @@ public class AHAGUIHelpers
 					}
 				}; 
 			}
+
+//			tableRefs[i].setDefaultRenderer(java.text.AttributedString.class, new AttributedLabelRenderer());
+//			tableRefs[i].setDefaultRenderer(String.class, new AttributedLabelRenderer());
 			tableRefs[i].setModel( new javax.swing.table.DefaultTableModel(initialData[i], columnHeaders[i]) 
 			{ 
 				public Class<?> getColumnClass(int column) //makes it so row sorters work properly
@@ -257,18 +321,19 @@ public class AHAGUIHelpers
 							o=getValueAt(row, column);
 							if (o!=null) { break; }
 						}
-						if (o instanceof String) { return String.class; }
+						if (o instanceof String) { return String.class; }//return java.text.AttributedString.class; }
 						if (o instanceof Integer) { return Integer.class; }
 						if (o instanceof Double) { return Double.class; }
 						if (o instanceof Float) { return Float.class; }
 						if (o instanceof Long) { return Long.class; }
+						//if (o instanceof java.text.AttributedString) { return java.text.AttributedString.class; }
 					} catch (Exception e) { e.printStackTrace(); }
 					return Object.class;
 				}
 			});
-			tableRefs[i].setDefaultRenderer(Integer.class, tcRenderer);
-			tableRefs[i].getTableHeader().setBorder(null);
-			tableRefs[i].setBorder(null);
+			tableRefs[i].setDefaultRenderer(Integer.class, tcLeftAlignRenderer);
+			//tableRefs[i].getTableHeader().setBorder(null);
+			//tableRefs[i].setBorder(null);
 			tableRefs[i].setPreferredScrollableViewportSize(tableRefs[i].getPreferredSize());
 			tableRefs[i].setAlignmentY(javax.swing.JTable.TOP_ALIGNMENT);
 			tableRefs[i].getTableHeader().setAlignmentY(javax.swing.JTable.TOP_ALIGNMENT);
@@ -282,4 +347,32 @@ public class AHAGUIHelpers
 		scrollPane.setBorder(javax.swing.BorderFactory.createEmptyBorder());
 		return scrollPane;
 	}
+	
+	protected static void tryUpdateProgress(javax.swing.ProgressMonitor pm, int progress, int max, String note) //updating ignored if int is <0 or any of the args is null
+	{
+		try
+		{
+			if (pm==null) { return; }
+			if (progress >= 0) pm.setProgress(progress);
+			if (max >= 0) { pm.setMaximum(max); }
+			if (note!=null) { pm.setNote(note); }
+		}
+		catch (Exception e) {}
+	}
+	
+	protected static boolean tryGetProgressCanceled(javax.swing.ProgressMonitor pm) //updating ignored if int is <0 or any of the args is null
+	{
+		try
+		{
+			if (pm!=null) { return pm.isCanceled(); }
+		}
+		catch (Exception e) {}
+		return false;
+	}
+	
+	protected static void tryCancelSplashScreen()
+	{
+		try { java.awt.SplashScreen.getSplashScreen().close(); } catch(Exception e) {}
+	}
+	
 }
