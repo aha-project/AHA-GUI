@@ -14,10 +14,10 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	protected AHAModel m_model=null;
 	
 	protected javax.swing.JLabel m_btmPnlSearchStatus=new javax.swing.JLabel("");
-	protected javax.swing.JCheckBoxMenuItem m_btmPnlChangeOnMouseOver=new javax.swing.JCheckBoxMenuItem("Update on MouseOver",false);
+	protected javax.swing.JCheckBoxMenuItem m_btmPnlChangeOnMouseOver=new javax.swing.JCheckBoxMenuItem("Update on MouseOver",false), m_infoPnlShowOnlyMatchedMetrics=new javax.swing.JCheckBoxMenuItem("Show Only Matched Metrics",true), m_infoPnlShowScoringSpecifics=new javax.swing.JCheckBoxMenuItem("Show Score Metric Specifics",false);
+
 	protected javax.swing.JTextField m_btmPnlSearch=new javax.swing.JTextField("Search...");
-	protected javax.swing.JPanel m_inspectorPanel=null;
-	protected javax.swing.JCheckBox m_infoPnlShowOnlyMatchedMetrics=new javax.swing.JCheckBox("Show Only Matched Metrics",true), m_infoPnlShowScoringSpecifics=new javax.swing.JCheckBox("Show Score Metric Specifics",false);
+	protected javax.swing.JScrollPane m_inspectorPanel=null;
 	protected final String[][] m_infoPnlColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process", "PID"}, {"Score Metric", "Value"}}; //right now things would break if the number of these ever got changed at runtime, so made static.
 	protected final String[][] m_infoPnlColumnTooltips={{"Info"},{"Port that is able to be connected to from other processes internally.", "Protocol in use."},{"Port that is able to be connected to from other external hosts/processes.", "Protocol in use."},{"Names of processes connected to this one", "Process Identifier"}, {"The scoring metric checked against.", "Result of the checked metric."}};
 	protected final javax.swing.JTable[] m_infoPnlTables= new javax.swing.JTable[m_infoPnlColumnHeaders.length]; //if you need more tables just add another column header set above
@@ -103,15 +103,19 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Hide Windows Operating System Processes"), this, "hideOSProcs", "Hides the usual Windows™ operating system processes, while interesting these processes can get in the way of other analysis.", viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Hide External Node"), this, "hideExtNode", "Hides the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to.",viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Use DNS Names"), this, "showFQDN", "Show the DNS names of external nodes rather than IPs.", viewMenu);
-			AHAGUIHelpers.createMenuItem(m_btmPnlChangeOnMouseOver, this, "refreshInfoPanel", "Enable change of the inspector above on hovering over nodes in addition to clicking.", viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Use Custom ScoreFile", m_model.m_useCustomOverlayScoreFile), this, "useCustom", "If a custom score file was loaded, this option will apply those custom directives to the graph view.", viewMenu);
 
+			viewMenu.addSeparator();
+			AHAGUIHelpers.createMenuItem(m_btmPnlChangeOnMouseOver, this, "refreshInfoPanel", "Enable change of the inspector above on hovering over nodes in addition to clicking.", viewMenu);
+			AHAGUIHelpers.createMenuItem(m_infoPnlShowOnlyMatchedMetrics, this, "refreshInfoPanel", "Only displays metrics which were matched, for example if ASLR was true.", viewMenu);
+			AHAGUIHelpers.createMenuItem(m_infoPnlShowScoringSpecifics, this, "refreshInfoPanel", "Shows the specific metric in the inspector above that matched.", viewMenu);
+			
 			viewMenu.addSeparator();
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show TCP", true), this, "protocol==tcp", "Show / Hide TCP protocol nodes in the graph.", viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show UDP", true), this, "protocol==udp", "Show / Hide UDP protocol nodes in the graph.", viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show Pipe", true), this, "protocol==pipe", "Show / Hide Pipe protocol nodes in the graph.", viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show Connectionless Nodes", true), this, "protocol==none", "Show / Hide nodes with no protocol in the graph.", viewMenu);
-
+			
 			viewMenu.addSeparator();
 			javax.swing.ButtonGroup buttonGroup=new javax.swing.ButtonGroup();
 			buttonGroup.add(AHAGUIHelpers.createMenuItem(new javax.swing.JRadioButtonMenuItem("Normal Score Method", true), this, "scoreMethod-0", "Use the default scoring method", viewMenu));
@@ -166,33 +170,8 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		javax.swing.ToolTipManager.sharedInstance().setInitialDelay(500);
 		setLayout(new java.awt.BorderLayout(1,0));
 
-		m_inspectorPanel=new javax.swing.JPanel();
-		{
-			m_infoPnlShowOnlyMatchedMetrics.setToolTipText(AHAGUIHelpers.styleToolTipText("Only displays metrics which were matched, for example if ASLR was true."));
-			m_infoPnlShowScoringSpecifics.setToolTipText(AHAGUIHelpers.styleToolTipText("Shows the specific metric in the inspector above that matched."));
-
-			m_inspectorPanel.setBorder(null);//new javax.swing.border.MatteBorder(0,1,0,0,java.awt.Color.GRAY));
-			m_inspectorPanel.setLayout(new java.awt.GridBagLayout());
-			java.awt.GridBagConstraints gbc=new java.awt.GridBagConstraints();
-			gbc.insets = new java.awt.Insets(0, 0, 0, 0);
-			gbc.fill=gbc.fill=java.awt.GridBagConstraints.BOTH;
-			gbc.gridx=0; gbc.gridy=0;  gbc.weightx=1; gbc.weighty=100;
-
-			String[][][] initialData={{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},}; //digging this new 3d array literal initializer: this is a String[5][1][1] where element[i][0][0]="None".
-			m_inspectorPanel.add(AHAGUIHelpers.createTablesInScrollPane(m_infoPnlColumnHeaders, m_infoPnlColumnTooltips, initialData, m_infoPnlTables, new int[]{160,40}), gbc);
-
-			gbc.gridy++;
-			gbc.weighty=1;
-			gbc.fill=java.awt.GridBagConstraints.HORIZONTAL;
-			m_infoPnlShowOnlyMatchedMetrics.setActionCommand("refreshInfoPanel");
-			m_infoPnlShowScoringSpecifics.setActionCommand("refreshInfoPanel");
-			m_infoPnlShowOnlyMatchedMetrics.addActionListener(this);
-			m_infoPnlShowScoringSpecifics.addActionListener(this);
-			m_inspectorPanel.add(m_infoPnlShowOnlyMatchedMetrics, gbc);
-			gbc.gridy++;
-			m_inspectorPanel.add(m_infoPnlShowScoringSpecifics, gbc);
-		}
-
+		String[][][] initialData={{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},}; //digging this new 3d array literal initializer: this is a String[5][1][1] where element[i][0][0]="None".
+		m_inspectorPanel=AHAGUIHelpers.createTablesInScrollPane(m_infoPnlColumnHeaders, m_infoPnlColumnTooltips, initialData, m_infoPnlTables, new int[]{160,40});
 
 		topLeftOverlay.setBounds(0, 0, topLeftOverlay.getPreferredSize().width, topLeftOverlay.getPreferredSize().height);
 		((java.awt.FlowLayout)m_graphViewPanel.getLayout()).setAlignment(java.awt.FlowLayout.LEFT); //reset the existing flowlayout of m_graphViewPane
@@ -208,7 +187,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			mainContentSplitPane.setResizeWeight(1);
 		}
 		add(mainContentSplitPane, java.awt.BorderLayout.CENTER);
-		add (bottomPanel, java.awt.BorderLayout.SOUTH);
+		add(bottomPanel, java.awt.BorderLayout.SOUTH);
 		windowResizeHandler=new java.awt.event.ComponentAdapter() {
 			public void componentResized(java.awt.event.ComponentEvent componentEvent) 
 			{
