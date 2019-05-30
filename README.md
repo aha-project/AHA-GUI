@@ -9,7 +9,7 @@ Developed by ESIC, Washington State University.
 [Click here for user walkthrough / documentation](https://aha-project.github.io/)
 
 # Build Instructions
-**Note:** if you ***only want to run*** AHA-GUI builds are periodically posted under **[the GitHub Repo's releases tab](https://github.com/aha-project/AHA-GUI/releases)**.
+Note: if you're just looking to run AHA-GUI builds are periodically posted under **[the GitHub Repo's releases tab](https://github.com/aha-project/AHA-GUI/releases)**.
 
 ## Build Prerequisites
 1. Install Java 1.8 (required to build and run)
@@ -25,19 +25,6 @@ Developed by ESIC, Washington State University.
 # NOTE:
 This project uses GraphStream. GraphStream Java `.jar`s are located within this repo for ease of securely building. For more info about GraphStream refer to [the GraphStream project page](http://graphstream-project.org/), additional GraphStream copyright and license(s)ing information are included both in the repo and the release builds. Since the graphstream site does not have HTTPS enabled right now, this is the easiest way to ensure people can get the deps quickly, easily, and safely.
 
-# Command Line Arguments to AHA-GUI:
- * --debug : print additional information to console while running
- * --verbose : print additional information to console while running, not as much info as debug, good for figuring out issues with input files rather than with the actual GUI
- * --single : use single lines between nodes with multiple connections
- * --bigfont : use 18pt font instead of the default 12pt font (good for demos)
- * scorefile=scorefile.csv : use the scorefile specified after the equals sign
- * inputFile=inputFile.csv : use the inputFile specified after the equals sign
-
-# Screeenshots and Videos:
+# Screeenshots:
 Beta Screenshot:
-
-![AHA-GUI Screenshot](resources/AHA-GUI-Screenshot.png)
-
-Video Demo of AHA-GUI Features (link to video hosted on youtube):
-
-[![AHA-GUI December 2018 Demo Video](https://img.youtube.com/vi/D_4unUlMa2Q/0.jpg)](https://www.youtube.com/watch?v=D_4unUlMa2Q)
+![Alt text](resources/AHA-GUI-Screenshot.png?raw=true "AHA-GUI Screenshot")

@@ -38,7 +38,35 @@ public class AHAModel
 	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<>(), m_intListeningProcessMap=new java.util.TreeMap<>(), m_extListeningProcessMap=new java.util.TreeMap<>();
 	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<>(), m_miscMetrics=new java.util.TreeMap<>();
 	
-	protected static enum ScoreMethod {Normal,WorstCommonProcBETA,RelativeScoreBETA}
+	protected static enum ScoreMethod //method to number the enums is a bit ridiculous, but oh well.
+	{
+		Normal(0),WorstCommonProcBETA(1),RelativeScoreBETA(2);
+		private int value;
+    private static java.util.HashMap<Integer,ScoreMethod> map = new java.util.HashMap<>();
+
+    private ScoreMethod(int value) {
+        this.value = value;
+    }
+
+    static {
+        for (ScoreMethod pageType : ScoreMethod.values()) {
+            map.put(pageType.value, pageType);
+        }
+    }
+
+    public static ScoreMethod valueOf(int scoreMethod) {
+        return (ScoreMethod) map.get(scoreMethod);
+    }
+    
+    public static ScoreMethod getValue(String scoreMethod) {
+     try { return (ScoreMethod) map.get(Integer.parseInt(scoreMethod)); }
+     catch (Exception e) { e.printStackTrace(); return Normal; }
+  }
+
+    public int getValue() {
+        return value;
+    }
+	}
   protected static final String NormalizedScore="ui.ScoreMethodInternalNormalizedScore",RAWRelativeScore="ui.ScoreMethodInternalRAWRelativeScore", ForSibling="ui.ScoreMethodInternalForSibling", CUSTOMSTYLE="ui.weAppliedCustomStyle";
 	protected String styleSheet = "graph { fill-color: black; }"+
 			"node { size: 30px; fill-color: red; text-color: white; text-style: bold; text-size: 12; text-background-color: #222222; text-background-mode: plain; }"+
@@ -540,6 +568,7 @@ public class AHAModel
 			//fixups for well known file issues (will persist for all of readInputFile since we modify the input tokens)
 			if (tokens.get(hdr.get("protocol")).contains("6")) { tokens.set(hdr.get("protocol"),tokens.get(hdr.get("protocol")).replaceAll("6", "")); } //if we have tcp6/udp6, remove the '6'
 			if (tokens.get(hdr.get("protocol")).equals("udp")) { tokens.set(hdr.get("state"),"listening"); } //fix up in the case that a line is protocol==UDP and state==""
+			//if (tokens.get(hdr.get("protocol")).equals("pipe")) { tokens.set(hdr.get("state"),"listening"); } //TEST treating every pipe as a listener...
 			if (hdr.get("remotehostname")==null) { tokens.set(hdr.get("remotehostname"),""); } //some versions of the linux scanner forgot to populate this column
 			
 			String fromNode=tokens.get(hdr.get("processname"))+"_"+tokens.get(hdr.get("pid")), protoLocalPort=tokens.get(hdr.get("protocol"))+"_"+tokens.get(hdr.get("localport"));
@@ -606,6 +635,7 @@ public class AHAModel
 		{
 			{
 				lineNumber++;
+				//if (tokens.get(hdr.get("protocol")).equals("pipe")) { tokens.set(hdr.get("state"),"established"); } //TEST treating every pipe as a listener...
 				String toNode="UnknownToNodeError", fromNode=tokens.get(hdr.get("processname"))+"_"+tokens.get(hdr.get("pid")), proto=tokens.get(hdr.get("protocol")), localPort=tokens.get(hdr.get("localport")), remotePort=tokens.get(hdr.get("remoteport"));
 				String protoLocalPort=proto+"_"+localPort, protoRemotePort=proto+"_"+remotePort;
 				String remoteAddr=tokens.get(hdr.get("remoteaddress")).trim(), localAddr=tokens.get(hdr.get("localaddress")), connectionState=tokens.get(hdr.get("state")), remoteHostname=tokens.get(hdr.get("remotehostname"));
@@ -627,8 +657,8 @@ public class AHAModel
 						isLocalOnly=true;
 						if ( (toNode=m_allListeningProcessMap.get(protoRemotePort))!=null )
 						{
-							connectionName=(protoLocalPort+"<->"+protoRemotePort);
-							reverseConnectionName=(protoRemotePort+"<->"+protoLocalPort);
+							connectionName=(toNode+":"+protoLocalPort+"<->"+fromNode+":"+protoRemotePort);
+							reverseConnectionName=(fromNode+":"+protoRemotePort+"<->"+toNode+":"+protoLocalPort);	
 						}
 						else if ( m_knownAliasesForLocalComputer.get(localAddr)==null ) { System.out.printf("WARNING1: Failed to find listener for: %s External connection? info: line=%d name=%s local=%s:%s remote=%s:%s status=%s\n",protoRemotePort,lineNumber,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);}
 						else if (  m_knownAliasesForLocalComputer.get(localAddr)!=null && (m_allListeningProcessMap.get(protoLocalPort)!=null) ) { /*TODO: probably in this case we should store this line and re-examine it later after reversing the from/to and make sure someone else has the link?*/ /*System.out.printf("     Line=%d expected?: Failed to find listener for: %s External connection? info: name=%s local=%s:%s remote=%s:%s status=%s\n",lineNumber,protoRemotePort,fromNode,localAddr,localPort,remoteAddr,remotePort,connectionState);*/  }
@@ -642,9 +672,9 @@ public class AHAModel
 							if (!fromNode.startsWith("unknown") && m_verbose) {System.out.println("Found a timewait we could correlate, but the name does not contain unknown. Would have changed from: "+fromNode+" to: "+m_allListeningProcessMap.get(protoLocalPort)+"?"); }
 							else { fromNode=m_allListeningProcessMap.get(protoLocalPort); }
 						}
-						connectionName=(protoLocalPort+"<->"+protoRemotePort);
-						reverseConnectionName=(protoRemotePort+"<->"+protoLocalPort);	
 						toNode="Ext_"+remoteAddr;
+						connectionName=(toNode+":"+protoLocalPort+"<->"+fromNode+":"+protoRemotePort);
+						reverseConnectionName=(fromNode+":"+protoRemotePort+"<->"+toNode+":"+protoLocalPort);	
 						if (remoteHostname.equals("")) { remoteHostname=remoteAddr; } //cover the case that there is no FQDN
 					}
 
@@ -661,7 +691,8 @@ public class AHAModel
 						if (!exactSameEdgeAlreadyExists)
 						{
 							Edge e=m_graph.addEdge(connectionName,fromNode,toNode);
-							if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode); }
+							if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode+" name="+connectionName); }
+							if (e==null) { System.out.println("!!WARNING: Failed to add edge (null) from="+fromNode+" to="+toNode+" name="+connectionName+" forcing creation."); e=m_graph.addEdge("Fake+"+System.nanoTime(),fromNode,toNode);}
 							if (m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); }
 							if (e!=null && isLocalOnly)
 							{
@@ -866,13 +897,15 @@ public class AHAModel
 		try
 		{
 			String attribute=args[0].toLowerCase();
+			String seeking="";
+			if (args.length >1 && args[1]!=null) { seeking=args[1].toLowerCase(); }//important to do every loop since seeking may be modified if it is inverted
+			//System.out.println("attr='"+attribute+"' seeking='"+seeking+"'");
 			for (Node node:m_graph)
 			{
-				String seeking=args[1].toLowerCase(); //important to do every loop since seeking may be modified if it is inverted
 				String attrValue=(String)node.getAttribute(attribute);
 				if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
 				{
-					if (notInverseSearch==false) { seeking="!"+seeking; } 
+					if (notInverseSearch==false) { seeking="!"+seeking; }
 					java.util.TreeMap<String, String> hideReasons=getTreeMapFromObj(node.getAttribute("ui.hideReasons"));
 					if (hideReasons==null)
 					{
@@ -1029,7 +1062,7 @@ public class AHAModel
 			readInputFile();
 			readScoreTable(null);
 			readCustomScorefile();
-			useFQDNLabels(m_graph, m_gui.m_btmPnlShowFQDN.isSelected());
+			useFQDNLabels(m_graph, false);
 			exploreAndScore(m_graph);
 			
 			m_gui.startGraphRefreshThread();
@@ -1044,25 +1077,25 @@ public class AHAModel
 				if (n.getId().contains("Ext_")) { leftSideNodes.add(n); }
 				n.setAttribute("layout.weight", 6); //switched to add attribute rather than set attribute since it seems to prevent a possible race condition.
 			}
-//			int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
-//			leftSideNodes.insertElementAt(m_graph.getNode("external"),leftSideNodes.size()/2);
-//			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
-//			int i=1;
-//			try //FIX TODO FIXME 
-//			{
-//				for (Node n : leftSideNodes)
-//				{ 
-//					org.graphstream.ui.geom.Point3 loc=m_gui.m_graphViewPanel.getCamera().transformPxToGu(60, (m_gui.m_graphViewPanel.getHeight()/numLeftNodes)*i);
-//					n.setAttribute("xyz", loc.x,loc.y,loc.z);
-//					i++;
-//				}
-//				m_gui.m_graphViewPanel.getCamera().setViewPercent(1.01d);
-//				org.graphstream.ui.geom.Point3 center=m_gui.m_graphViewPanel.getCamera().getViewCenter();
-//				org.graphstream.ui.geom.Point3 pixels=m_gui.m_graphViewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
-//				pixels.x-=60;
-//				center=m_gui.m_graphViewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
-//				m_gui.m_graphViewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
-//			} catch (Exception e) { e.printStackTrace(); }
+			int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
+			leftSideNodes.insertElementAt(m_graph.getNode("external"),leftSideNodes.size()/2);
+			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
+			int i=1;
+			try //FIX TODO FIXME 
+			{
+				for (Node n : leftSideNodes)
+				{ 
+					org.graphstream.ui.geom.Point3 loc=m_gui.m_graphViewPanel.getCamera().transformPxToGu(60, (m_gui.m_graphViewPanel.getHeight()/numLeftNodes)*i);
+					n.setAttribute("xyz", loc.x,loc.y,loc.z);
+					i++;
+				}
+				m_gui.m_graphViewPanel.getCamera().setViewPercent(1.01d);
+				org.graphstream.ui.geom.Point3 center=m_gui.m_graphViewPanel.getCamera().getViewCenter();
+				org.graphstream.ui.geom.Point3 pixels=m_gui.m_graphViewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
+				pixels.x-=60;
+				center=m_gui.m_graphViewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
+				m_gui.m_graphViewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
+			} catch (Exception e) { e.printStackTrace(); }
 			
 			java.io.File fname=new java.io.File(m_inputFileName);
 			String inputFileName=fname.getName(), outputPath="";//get the file name only sans the path
@@ -1248,7 +1281,7 @@ public class AHAModel
 		catch (Exception e) { e.printStackTrace(); }
 	}
 	
-	private static boolean readCSVFileIntoArrayList(String inputFileName, java.util.TreeMap<String, String> metadata, java.util.TreeMap<String,Integer> headerTokens, java.util.ArrayList<java.util.ArrayList<String>> inputLines)
+	protected static boolean readCSVFileIntoArrayList(String inputFileName, java.util.TreeMap<String, String> metadata, java.util.TreeMap<String,Integer> headerTokens, java.util.ArrayList<java.util.ArrayList<String>> inputLines)
 	{
 		if (inputFileName.equals("")) { inputFileName="BinaryAnalysis.csv"; } //try the default filename here if all else fails
 		int lineNumber=0;
@@ -1301,9 +1334,6 @@ public class AHAModel
 		catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); } 
 		return true;
 	}
-	
-	
-	
 	
 	public AHAModel(String inputFileName, boolean useOverlayScoreFile, String scoreFileName, boolean debug, boolean verbose)
 	{

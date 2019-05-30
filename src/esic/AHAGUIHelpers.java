@@ -1,5 +1,7 @@
 package esic;
 
+//Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
+
 import java.awt.Component;
 import java.awt.Font;
 import javax.swing.BorderFactory;
@@ -35,6 +37,50 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("CheckBox.font", uiFont);
 		javax.swing.UIManager.put("CheckBox.gradient", java.util.Arrays.asList( new Object[] {Float.valueOf(0f),Float.valueOf(0f), java.awt.Color.LIGHT_GRAY, java.awt.Color.LIGHT_GRAY, java.awt.Color.GRAY.brighter() }));
 		//javax.swing.UIManager.put("CheckBox.icon", new AHACheckBoxIcon(13,13)); //disabled because it does odd things on openjdk/linux. TODO: fixable? if not, delete related artifacts
+		
+		javax.swing.UIManager.put("CheckBoxMenuItem.foreground", foregroundColor);
+		javax.swing.UIManager.put("CheckBoxMenuItem.background", accentColor);
+		javax.swing.UIManager.put("CheckBoxMenuItem.selectionBackground", foregroundColor);
+		javax.swing.UIManager.put("CheckBoxMenuItem.selectionForeground", backgroundColor);
+		javax.swing.UIManager.put("CheckBoxMenuItem.gradient", null);
+		javax.swing.UIManager.put("CheckBoxMenuItem.border", javax.swing.BorderFactory.createEmptyBorder());
+		
+		javax.swing.UIManager.put("RadioButtonMenuItem.foreground", foregroundColor);
+		javax.swing.UIManager.put("RadioButtonMenuItem.background", accentColor);
+		javax.swing.UIManager.put("RadioButtonMenuItem.selectionBackground", foregroundColor);
+		javax.swing.UIManager.put("RadioButtonMenuItem.selectionForeground", backgroundColor);
+		javax.swing.UIManager.put("RadioButtonMenuItem.gradient", null);
+		javax.swing.UIManager.put("RadioButtonMenuItem.border", javax.swing.BorderFactory.createEmptyBorder());
+		
+		javax.swing.UIManager.put("Menu.foreground", foregroundColor);
+		javax.swing.UIManager.put("Menu.background", accentColor.brighter());
+		javax.swing.UIManager.put("Menu.selectionBackground", foregroundColor);
+		javax.swing.UIManager.put("Menu.selectionForeground", backgroundColor);
+		javax.swing.UIManager.put("Menu.acceleratorForeground", foregroundColor);
+		javax.swing.UIManager.put("Menu.acceleratorSelectionForeground", accentColor);
+		javax.swing.UIManager.put("Menu.border", javax.swing.BorderFactory.createEmptyBorder()); //new javax.swing.border.LineBorder(accentColor));//
+		javax.swing.UIManager.put("Menu.opaque", true);
+		
+		javax.swing.UIManager.put("MenuBar.foreground", foregroundColor);
+		javax.swing.UIManager.put("MenuBar.background", accentColor.brighter());
+		javax.swing.UIManager.put("MenuBar.border", javax.swing.BorderFactory.createEmptyBorder());
+		javax.swing.UIManager.put("MenuBar.font", uiFont);
+
+		javax.swing.UIManager.put("MenuItem.foreground", foregroundColor);
+		javax.swing.UIManager.put("MenuItem.background", accentColor);
+		javax.swing.UIManager.put("MenuItem.selectionBackground", foregroundColor);
+		javax.swing.UIManager.put("MenuItem.selectionForeground", backgroundColor);
+		javax.swing.UIManager.put("MenuItem.border", javax.swing.BorderFactory.createEmptyBorder());
+		javax.swing.UIManager.put("MenuItem.borderPainted", false);
+		
+		javax.swing.UIManager.put("PopupMenu.foreground", foregroundColor);
+		javax.swing.UIManager.put("PopupMenu.background", accentColor);
+		javax.swing.UIManager.put("PopupMenu.border", javax.swing.BorderFactory.createEmptyBorder());
+		
+		javax.swing.UIManager.put("Separator.foreground", java.awt.Color.LIGHT_GRAY); //the separator used in menus
+		javax.swing.UIManager.put("Separator.background", accentColor);
+		javax.swing.UIManager.put("Separator.shadow", accentColor);
+		
 		javax.swing.UIManager.put("ComboBox.background", accentColor.brighter().brighter());
 		javax.swing.UIManager.put("ComboBox.font", uiFont); 
 		javax.swing.UIManager.put("ComboBox.foreground", foregroundColor);
@@ -78,6 +124,7 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("ScrollBar.width", 8);
 		javax.swing.UIManager.put("ScrollPane.foreground", foregroundColor);
 		javax.swing.UIManager.put("ScrollPane.background", backgroundColor);
+		javax.swing.UIManager.put("SplitPaneDivider.border", new javax.swing.border.LineBorder(lightAccent));
 		javax.swing.UIManager.put("TabbedPane.foreground", foregroundColor);
 		javax.swing.UIManager.put("TabbedPane.background", backgroundColor);
 		javax.swing.UIManager.put("TabbedPane.light", backgroundColor);
@@ -113,7 +160,7 @@ public class AHAGUIHelpers
 		javax.swing.UIManager.put("TextField.background", backgroundColor);
 		javax.swing.UIManager.put("TextField.focus", backgroundColor);
 		javax.swing.UIManager.put("TextField.font", uiFont);
-		javax.swing.UIManager.put("TextField.border", new javax.swing.border.LineBorder(java.awt.Color.GRAY,1));
+		javax.swing.UIManager.put("TextField.border", new javax.swing.border.LineBorder(lightAccent,1));
 		
 		javax.swing.UIManager.put("ToolTip.foreground", java.awt.Color.BLACK);
 		javax.swing.UIManager.put("ToolTip.border", java.awt.Color.WHITE);
@@ -139,6 +186,15 @@ public class AHAGUIHelpers
 		}
 		public int getIconWidth() { return 6; }
 		public int getIconHeight() { return 6; }
+	}
+	
+	public static javax.swing.JMenuItem createMenuItem(javax.swing.JMenuItem item, java.awt.event.ActionListener listener, String actionCommand, String tooltip, javax.swing.JMenu menu)
+	{
+		item.setActionCommand(actionCommand);
+		item.addActionListener(listener);
+		item.setToolTipText(AHAGUIHelpers.styleToolTipText(tooltip));
+		menu.add(item);
+		return item;
 	}
 	
 //	public static class AHACheckBoxIcon implements javax.swing.Icon
@@ -174,16 +230,6 @@ public class AHAGUIHelpers
 //		public int getIconWidth() { return width; }
 //		public int getIconHeight() { return height; }
 //	}
-//java.awt.event.MouseAdapter passThroughToGraphView=new java.awt.event.MouseAdapter()
-//{
-//	public void mousePressed(java.awt.event.MouseEvent me)  { m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); } 
-//	public void mouseReleased(java.awt.event.MouseEvent me) { m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
-//	public void mouseDragged(java.awt.event.MouseEvent me)  { m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); } 
-//	//public void mouseMoved(java.awt.event.MouseEvent me) {  m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
-//	//public void mouseClicked(java.awt.event.MouseEvent me) {  m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
-//	//public void mouseEntered(java.awt.event.MouseEvent me) {  m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
-//	//public void mouseExited(java.awt.event.MouseEvent me) {  m_viewPanel.dispatchEvent(javax.swing.SwingUtilities.convertMouseEvent(me.getComponent(), me, m_viewPanel)); }
-//};
 
 	public static String styleToolTipText(String s) //format all tool tip texts by making them HTML (so we can apply text effects, and more importantly line breaks)
 	{

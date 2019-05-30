@@ -23,7 +23,7 @@ import org.graphstream.ui.graphicGraph.GraphicElement;
 
 public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.DefaultMouseManager
 {
-	private static java.util.EnumSet<org.graphstream.ui.view.util.InteractiveElement> ALL_ELEMENTS=java.util.EnumSet.of(org.graphstream.ui.view.util.InteractiveElement.NODE ,org.graphstream.ui.view.util.InteractiveElement.SPRITE);
+	private static java.util.EnumSet<org.graphstream.ui.view.util.InteractiveElement> CHECK_ELEMENTS=java.util.EnumSet.of(org.graphstream.ui.view.util.InteractiveElement.NODE); // ,org.graphstream.ui.view.util.InteractiveElement.SPRITE
 	private float scaleFactor=1, inverseScaleFactor=1;
 	public AHAGUIMouseAdapter(final long delay, AHAGUI target) 
 	{
@@ -33,8 +33,8 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 	}
 	public void mousePressed(java.awt.event.MouseEvent e) 
 	{ 
-		curElement = view.findGraphicElementAt(ALL_ELEMENTS, e.getX()*scaleFactor, e.getY()*scaleFactor);
-		if (curElement != null) 
+		curElement = view.findGraphicElementAt(CHECK_ELEMENTS, e.getX()*scaleFactor, e.getY()*scaleFactor);
+		if (curElement != null && !curElement.hidden) 
 		{
 			mouseButtonPressOnElement(curElement, e);
 		} 
@@ -68,7 +68,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 				y1 = y2;
 				y2 = t;
 			}
-			mouseButtonRelease(e, view.allGraphicElementsIn(ALL_ELEMENTS, x1, y1, x2, y2)); //view.allNodesOrSpritesIn(x1, y1, x2, y2) //TODO FIX
+			mouseButtonRelease(e, view.allGraphicElementsIn(CHECK_ELEMENTS, x1, y1, x2, y2)); //view.allNodesOrSpritesIn(x1, y1, x2, y2) //TODO FIX
 		}
 	}
 
@@ -117,7 +117,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 			
 			hoverLock.lockInterruptibly();
 			boolean stayedOnElement = false;
-			org.graphstream.ui.graphicGraph.GraphicElement currentElement = view.findGraphicElementAt(ALL_ELEMENTS, e.getX()*scaleFactor, e.getY()*scaleFactor); 
+			org.graphstream.ui.graphicGraph.GraphicElement currentElement = view.findGraphicElementAt(CHECK_ELEMENTS, e.getX()*scaleFactor, e.getY()*scaleFactor); 
 			if (hoveredElement != null) 
 			{
 				stayedOnElement = currentElement == null ? false : currentElement.equals(hoveredElement);
@@ -127,7 +127,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 					this.hoveredElement = null;
 				}
 			}
-			if (!stayedOnElement && currentElement != null) 
+			if (!stayedOnElement && currentElement!=null && !currentElement.hidden) 
 			{
 				if (delay <= 0) { m_target.startedHoveringOverElement(curElement); } 
 				else 

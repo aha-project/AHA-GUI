@@ -1,6 +1,5 @@
 package esic;
 
-
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
 import org.graphstream.graph.*;
@@ -15,7 +14,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	protected AHAModel m_model=null;
 	
 	protected javax.swing.JLabel m_btmPnlSearchStatus=new javax.swing.JLabel("");
-	protected javax.swing.JCheckBox m_btmPnlHideProcsCheckbox=new javax.swing.JCheckBox("Hide OS Procs"), m_btmPnlHideExtCheckbox=new javax.swing.JCheckBox("Hide Ext Node"), m_btmPnlShowFQDN=new javax.swing.JCheckBox("DNS Names"), m_btmPnlChangeOnMouseOver=new javax.swing.JCheckBox("Update on MouseOver",false);
+	protected javax.swing.JCheckBoxMenuItem m_btmPnlChangeOnMouseOver=new javax.swing.JCheckBoxMenuItem("Update on MouseOver",false);
 	protected javax.swing.JTextField m_btmPnlSearch=new javax.swing.JTextField("Search...");
 	protected javax.swing.JPanel m_inspectorPanel=null;
 	protected javax.swing.JCheckBox m_infoPnlShowOnlyMatchedMetrics=new javax.swing.JCheckBox("Show Only Matched Metrics",true), m_infoPnlShowScoringSpecifics=new javax.swing.JCheckBox("Show Score Metric Specifics",false);
@@ -38,28 +37,25 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		setBackground(java.awt.Color.BLACK); //this does indeed reduce a bit of flicker on load/reload of the frame
 		setDefaultCloseOperation(javax.swing.JFrame.DISPOSE_ON_CLOSE);
 		addWindowListener(this);
-		
+
 		pack(); //populate all the info about the insets
 		setSize(s_preferredTotalSize);
 		setPreferredSize(s_preferredTotalSize);
 		String title="AHA-GUI";
 		try { title=AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]; } catch (Exception e) {}
 		setTitle(title); //This should result in something like "AHA-GUI v0.5.6b1" being displayed
-		
-		//System.setProperty("org.graphstream.ui", "org.graphstream.ui.swing.util.Display");
-		//System.setProperty("org.graphstream.ui.renderer", "org.graphstream.ui.j2dviewer.J2DGraphRenderer");
+
+		System.setProperty("org.graphstream.ui", "swing");
 		if (useMultiLineGraph) { m_model.m_graph = new org.graphstream.graph.implementations.MultiGraph("MultiGraph", false, true, 256, 2048); }
 		else { m_model.m_graph = new org.graphstream.graph.implementations.SingleGraph("SingleGraph", false, true, 256, 2048); }
 		m_model.m_graph.setAttribute("ui.stylesheet", m_model.styleSheet);
-		
+
 		m_graphViewer = new org.graphstream.ui.swing_viewer.SwingViewer(m_model.m_graph, org.graphstream.ui.view.Viewer.ThreadingModel.GRAPH_IN_ANOTHER_THREAD);
 		m_graphViewPanel=(org.graphstream.ui.swing_viewer.ViewPanel)m_graphViewer.addDefaultView(false);
 		m_graphViewPanel.setBackground(java.awt.Color.YELLOW);
-		
+
 		addMouseWheelListener(this);
 		org.graphstream.ui.view.util.MouseManager mouseManager=new AHAGUIMouseAdapter(500,this);
-		//mouseManager.init(m_graphViewer.getGraphicGraph(), m_graphViewPanel);
-		//mouseManager.release(); //want it to be initialized, but we want to add it to the graph ourselves on the next line, otherwise we will get 2x the events.
 		m_graphViewPanel.setMouseManager(null); 
 		m_graphViewPanel.setMouseManager(mouseManager); 
 		m_model.m_graph.setAttribute("layout.gravity", 0.000001); //layout.quality
@@ -67,9 +63,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		m_model.m_graph.setAttribute("layout.stabilization-limit", 0.95);
 		m_model.m_graph.setAttribute("ui.antialias", true); //enable anti aliasing (looks way better this way)
 
-		//this.add(m_graphViewPanel);
-		
-		javax.swing.JPanel bottomPanel=new javax.swing.JPanel(), topLeftOverlay=new javax.swing.JPanel();
+		javax.swing.JPanel topLeftOverlay=new javax.swing.JPanel();
 		java.awt.Font boldFont=m_btmPnlSearchStatus.getFont().deriveFont(java.awt.Font.BOLD);
 		topLeftOverlay.setLayout(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT,2,2));
 		{
@@ -87,70 +81,60 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			m_overlayLabels[3].setBackground(java.awt.Color.RED);
 			topLeftOverlay.setOpaque(false);
 		}
-		bottomPanel.setLayout(new java.awt.GridBagLayout());
-		javax.swing.JPanel bottomButtons=new javax.swing.JPanel(); //silly, but had to do this or the clickable area of the JCheckbox gets stretched the whole width...which makes for strange clicking
+
+		final javax.swing.JMenuBar menuBar = new javax.swing.JMenuBar();
+		{ // Menubar code
+			
+			javax.swing.JMenu fileMenu=new javax.swing.JMenu(" File "), viewMenu=new javax.swing.JMenu(" View "), windowMenu=new javax.swing.JMenu(" Window ");
+			menuBar.add(fileMenu);
+			menuBar.add(viewMenu);
+			menuBar.add(windowMenu);
+			setJMenuBar(menuBar);
+
+			// -- begin file menu --
+			AHAGUIHelpers.createMenuItem(new javax.swing.JMenuItem("Open..."), this, "openNewFile", "Open a new file", fileMenu);
+			//openMenuItem.setMnemonic(KeyEvent.VK_N);
+
+
+			fileMenu.addSeparator();
+			AHAGUIHelpers.createMenuItem(new javax.swing.JMenuItem("Exit"), this, "exit", "Exit AHA-GUI", fileMenu);
+
+
+			// -- begin view menu --
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Hide Windows Operating System Processes"), this, "hideOSProcs", "Hides the usual Windows™ operating system processes, while interesting these processes can get in the way of other analysis.", viewMenu);
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Hide External Node"), this, "hideExtNode", "Hides the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to.",viewMenu);
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Use DNS Names"), this, "showFQDN", "Show the DNS names of external nodes rather than IPs.", viewMenu);
+			AHAGUIHelpers.createMenuItem(m_btmPnlChangeOnMouseOver, this, "refreshInfoPanel", "Enable change of the inspector above on hovering over nodes in addition to clicking.", viewMenu);
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Use Custom ScoreFile", m_model.m_useCustomOverlayScoreFile), this, "useCustom", "If a custom score file was loaded, this option will apply those custom directives to the graph view.", viewMenu);
+
+			viewMenu.addSeparator();
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show TCP", true), this, "protocol==tcp", "Show / Hide TCP protocol nodes in the graph.", viewMenu);
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show UDP", true), this, "protocol==udp", "Show / Hide UDP protocol nodes in the graph.", viewMenu);
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show Pipe", true), this, "protocol==pipe", "Show / Hide Pipe protocol nodes in the graph.", viewMenu);
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show Connectionless Nodes", true), this, "protocol==none", "Show / Hide nodes with no protocol in the graph.", viewMenu);
+
+			viewMenu.addSeparator();
+			javax.swing.ButtonGroup buttonGroup=new javax.swing.ButtonGroup();
+			buttonGroup.add(AHAGUIHelpers.createMenuItem(new javax.swing.JRadioButtonMenuItem("Normal Score Method", true), this, "scoreMethod-0", "Use the default scoring method", viewMenu));
+			buttonGroup.add(AHAGUIHelpers.createMenuItem(new javax.swing.JRadioButtonMenuItem("WorstCommonProc Score Method (beta)", true), this, "scoreMethod-1", "Use the WorstCommonProc scoring method (beta)", viewMenu));
+			buttonGroup.add(AHAGUIHelpers.createMenuItem(new javax.swing.JRadioButtonMenuItem("Relative Score Method (beta)", true), this, "scoreMethod-2", "Use the RelativeScore scoring method (beta)", viewMenu));
+
+
+			// -- begin window menu --
+			AHAGUIHelpers.createMenuItem(new javax.swing.JMenuItem("Open Data View"), this, "dataView", "Shows the list of listening processes to aid in creation of firewall rules.", windowMenu);
+			windowMenu.addSeparator();
+			AHAGUIHelpers.createMenuItem(new javax.swing.JMenuItem("Reset Zoom"), this, "resetZoom", "Resets the zoom of the graph view to default.", windowMenu);
+		}
+
+		javax.swing.JPanel bottomPanel=new javax.swing.JPanel();
 		{
+			bottomPanel.setLayout(new java.awt.GridBagLayout());
 			java.awt.GridBagConstraints gbc=new java.awt.GridBagConstraints();
 			gbc.fill=java.awt.GridBagConstraints.HORIZONTAL;
-			bottomButtons.setLayout(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT,1,0));
 
-			javax.swing.JButton dataViewBtn=new javax.swing.JButton(" Show Data View ");
-			dataViewBtn.setActionCommand("dataView");
-			dataViewBtn.addActionListener(this);
-			dataViewBtn.setToolTipText(AHAGUIHelpers.styleToolTipText("Shows the list of listening processes to aid in creation of firewall rules."));
-
-			javax.swing.JButton resetBtn=new javax.swing.JButton(" Reset Zoom ");
-			resetBtn.setActionCommand("resetZoom");
-			resetBtn.addActionListener(this);
-			resetBtn.setToolTipText(AHAGUIHelpers.styleToolTipText("Resets the zoom of the graph view to default."));
-
-			javax.swing.JButton openNewFileBtn=new javax.swing.JButton(" Open New File ");
-			openNewFileBtn.setActionCommand("openNewFile");
-			openNewFileBtn.addActionListener(this);
-			openNewFileBtn.setToolTipText(AHAGUIHelpers.styleToolTipText("Close this file and open a new one."));
-			
-			javax.swing.JComboBox<AHAModel.ScoreMethod> scoreMethod=new javax.swing.JComboBox<>(AHAModel.ScoreMethod.values());
-			scoreMethod.setActionCommand("scoreMethod");
-			scoreMethod.addActionListener(this);
-			scoreMethod.setToolTipText(AHAGUIHelpers.styleToolTipText("Select the scoring method used to calculate node scores"));
-			((javax.swing.JLabel)scoreMethod.getRenderer()).setHorizontalAlignment(javax.swing.JLabel.CENTER);
-			java.awt.Dimension newDimension=scoreMethod.getPreferredSize();
-			newDimension.setSize(newDimension.getWidth(), dataViewBtn.getPreferredSize().height);
-			scoreMethod.setPreferredSize(newDimension); //prevent this from being off by one pixel from the other buttons in height (which was annoying me)
-
-			m_btmPnlHideProcsCheckbox.setActionCommand("hideOSProcs");
-			m_btmPnlHideProcsCheckbox.addActionListener(this);
-			m_btmPnlHideProcsCheckbox.setToolTipText(AHAGUIHelpers.styleToolTipText("Hides the usual Windows™ operating system processes, while interesting these processes can get in the way of other analysis."));
-
-			m_btmPnlHideExtCheckbox.setActionCommand("hideExtNode");
-			m_btmPnlHideExtCheckbox.addActionListener(this);
-			m_btmPnlHideExtCheckbox.setToolTipText(AHAGUIHelpers.styleToolTipText("Hides the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to."));
-
-			m_btmPnlShowFQDN.setActionCommand("showFQDN");
-			m_btmPnlShowFQDN.addActionListener(this);
-			m_btmPnlShowFQDN.setToolTipText(AHAGUIHelpers.styleToolTipText("Show the DNS names of external nodes rather than IPs."));
-
-			javax.swing.JCheckBox useCustom=new javax.swing.JCheckBox("Custom ScoreFile");
-			useCustom.setActionCommand("useCustom");
-			useCustom.setSelected(m_model.m_useCustomOverlayScoreFile);
-			useCustom.addActionListener(this);
-			useCustom.setToolTipText(AHAGUIHelpers.styleToolTipText("If a custom score file was loaded, this option will apply those custom directives to the graph view."));
-
-			m_btmPnlChangeOnMouseOver.setToolTipText(AHAGUIHelpers.styleToolTipText("Enable change of the inspector above on hovering over nodes in addition to clicking."));
-
-			bottomButtons.add(dataViewBtn);
-			bottomButtons.add(resetBtn);
-			bottomButtons.add(scoreMethod);
-			bottomButtons.add(openNewFileBtn);
-			bottomButtons.add(m_btmPnlHideProcsCheckbox);
-			bottomButtons.add(m_btmPnlHideExtCheckbox);
-			bottomButtons.add(m_btmPnlShowFQDN);
-			bottomButtons.add(useCustom);
-			bottomButtons.add(m_btmPnlChangeOnMouseOver);
-			bottomButtons.setBorder(null);
 
 			gbc.gridx=0; gbc.gridy=0; gbc.anchor=java.awt.GridBagConstraints.WEST; gbc.weightx=10; gbc.insets=new java.awt.Insets(0,2,0,0); gbc.gridwidth=java.awt.GridBagConstraints.REMAINDER;
-			
+
 			m_btmPnlSearch.addFocusListener(new java.awt.event.FocusListener()
 			{
 				public void focusGained(java.awt.event.FocusEvent e)
@@ -177,29 +161,24 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			gbc.insets=new java.awt.Insets(0,0,0,0);
 			bottomPanel.add(m_btmPnlSearchStatus, gbc);
 
-			gbc.gridy++;
-			gbc.gridx=0;
-			gbc.gridwidth=java.awt.GridBagConstraints.REMAINDER;
-			bottomPanel.add(bottomButtons, gbc);
 			bottomPanel.setBorder( new javax.swing.border.MatteBorder(1, 0, 0, 0, java.awt.Color.GRAY));
 		}
 		javax.swing.ToolTipManager.sharedInstance().setDismissDelay(Integer.MAX_VALUE);
 		javax.swing.ToolTipManager.sharedInstance().setInitialDelay(500);
 		setLayout(new java.awt.BorderLayout(1,0));
-//		javax.swing.JLayeredPane layeredPane = new javax.swing.JLayeredPane();
-		
+
 		m_inspectorPanel=new javax.swing.JPanel();
 		{
 			m_infoPnlShowOnlyMatchedMetrics.setToolTipText(AHAGUIHelpers.styleToolTipText("Only displays metrics which were matched, for example if ASLR was true."));
 			m_infoPnlShowScoringSpecifics.setToolTipText(AHAGUIHelpers.styleToolTipText("Shows the specific metric in the inspector above that matched."));
-	
-			m_inspectorPanel.setBorder(new javax.swing.border.MatteBorder(0,1,0,0,java.awt.Color.GRAY));
+
+			m_inspectorPanel.setBorder(null);//new javax.swing.border.MatteBorder(0,1,0,0,java.awt.Color.GRAY));
 			m_inspectorPanel.setLayout(new java.awt.GridBagLayout());
 			java.awt.GridBagConstraints gbc=new java.awt.GridBagConstraints();
 			gbc.insets = new java.awt.Insets(0, 0, 0, 0);
 			gbc.fill=gbc.fill=java.awt.GridBagConstraints.BOTH;
 			gbc.gridx=0; gbc.gridy=0;  gbc.weightx=1; gbc.weighty=100;
-	
+
 			String[][][] initialData={{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},}; //digging this new 3d array literal initializer: this is a String[5][1][1] where element[i][0][0]="None".
 			m_inspectorPanel.add(AHAGUIHelpers.createTablesInScrollPane(m_infoPnlColumnHeaders, m_infoPnlColumnTooltips, initialData, m_infoPnlTables, new int[]{160,40}), gbc);
 
@@ -220,6 +199,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		((java.awt.FlowLayout)m_graphViewPanel.getLayout()).setAlignment(java.awt.FlowLayout.LEFT); //reset the existing flowlayout of m_graphViewPane
 		m_graphViewPanel.add(topLeftOverlay);
 		
+
 		if (m_inspectorPanel.getPreferredSize().width>m_preferredInfoPnlWidth) { m_preferredInfoPnlWidth=m_inspectorPanel.getPreferredSize().width+20; }
 		javax.swing.JSplitPane mainContentSplitPane=new javax.swing.JSplitPane(javax.swing.JSplitPane.HORIZONTAL_SPLIT, m_graphViewPanel, m_inspectorPanel);
 		{
@@ -230,7 +210,6 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		}
 		add(mainContentSplitPane, java.awt.BorderLayout.CENTER);
 		add (bottomPanel, java.awt.BorderLayout.SOUTH);
-		
 		windowResizeHandler=new java.awt.event.ComponentAdapter() {
 			public void componentResized(java.awt.event.ComponentEvent componentEvent) 
 			{
@@ -238,20 +217,20 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			}
 		}; //this is basically the layout manager for the overall frame including the graph itself, the bottom section, and the top overlay
 		addComponentListener(windowResizeHandler);
-		
+
 		getRootPane().setBorder(new javax.swing.border.LineBorder(java.awt.Color.GRAY,2)); //TODO: tried this to clean up the weird dashed appearance of the right gray border on macOS, but to no avail. figure it out later.
 		setVisible(true);
 		AHAGUIHelpers.tryCancelSplashScreen();
 
 		System.err.println("Finished Laying out GUI.");
-		
+
 		java.io.File testInputFile=AHAModel.getFileAtPath(m_model.m_inputFileName);
 		if ( m_model.m_inputFileName==null || m_model.m_inputFileName.equals("") || testInputFile==null || !testInputFile.exists() )
 		{
 			javax.swing.JFileChooser fc=new javax.swing.JFileChooser("./");
 			fc.setDialogTitle("Select Input File");
 			javax.swing.filechooser.FileNameExtensionFilter filter = new javax.swing.filechooser.FileNameExtensionFilter("Comma Separated Value","csv");
-	    fc.setFileFilter(filter);
+			fc.setFileFilter(filter);
 			int retVal=fc.showOpenDialog(this);
 			if (retVal==javax.swing.JFileChooser.APPROVE_OPTION)
 			{ 
@@ -280,14 +259,14 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 						m_graphViewPump = m_graphViewer.newViewerPipe();
 						m_graphViewPump.addViewerListener(m_model.m_gui);
 						m_graphViewPump.addSink(m_model.m_graph);
-						
+
 						while (!Thread.interrupted())
 						{
 							try { m_graphViewPump.blockingPump(); }
 							catch (InterruptedException ie) { throw ie; }
 							catch (Exception e) { e.printStackTrace(); if (++pumpErrs > 5) { e.printStackTrace(); System.err.println("Breaking loop due to pump errors."); break; } }
 						}
-						
+
 					}
 					catch (InterruptedException ie) { System.err.println("Graph refresh thread exiting."); return; }
 					catch (Exception e) { e.printStackTrace();}
@@ -296,8 +275,45 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			}
 		});
 	}
-	public void startGraphRefreshThread() { m_graphRefreshThread.get().start(); }
+	
+	public void actionPerformed(java.awt.event.ActionEvent e) //swing actions go to here
+	{
+		Object source=e.getSource();
+		String actionCommand=e.getActionCommand();
+		if (actionCommand.equals("dataView")) { showDataView(this); }
+		else if (actionCommand.equals("hideOSProcs")) { m_model.hideOSProcs(m_model.m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
+		else if (actionCommand.equals("hideExtNode")) { m_model.hideFalseExternalNode(m_model.m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
+		else if (actionCommand.equals("showFQDN")) { m_model.useFQDNLabels(m_model.m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
+		else if (actionCommand.equals("resetZoom")) { m_graphViewPanel.getCamera().resetView(); }
+		else if (actionCommand.equals("exit")) { terminateGUI(false, false); } //close window
+		else if (actionCommand.equals("openNewFile")) { s_userWantsToRelaunch.set(true); terminateGUI(false, false); } //close window
+		else if (actionCommand.equals("refreshInfoPanel")) { updateInfoDisplays(m_currentlyDisplayedNode.get(), false, m_model); } //update info display because a checkbox somewhere changed
+		else if (actionCommand.equals("search")) { m_btmPnlSearchStatus.setText(m_model.handleSearch(m_btmPnlSearch.getText())); }
+		else if (actionCommand.contains("protocol==")) 
+		{ 
+			boolean hide=!((javax.swing.JCheckBoxMenuItem)e.getSource()).isSelected();
+			m_model.genericHideUnhideNodes( actionCommand,hide );
+		}
+		else if (actionCommand.contains("scoreMethod"))
+		{ 
+			AHAModel.ScoreMethod scoremethod=AHAModel.ScoreMethod.Normal;
+			try 
+			{
+				String method=e.getActionCommand().split("-")[1];
+				scoremethod=AHAModel.ScoreMethod.getValue(method);
+			} catch (Exception ex) { ex.printStackTrace(); } 
+			m_model.swapNodeStyles(scoremethod, System.currentTimeMillis());
+			updateInfoDisplays(m_currentlyDisplayedNode.get(), false, m_model); //refresh the info panel now that we're probably on a new score mode
+		}
+		else if (actionCommand.equals("useCustom"))
+		{
+			m_model.m_useCustomOverlayScoreFile=((javax.swing.JCheckBoxMenuItem)e.getSource()).isSelected();
+			m_model.exploreAndScore(m_model.m_graph);
+		}
+		else { System.err.println("Unknown action command='"+e.getActionCommand()+"'"); }
+	}
 
+	public void startGraphRefreshThread() { m_graphRefreshThread.get().start(); }
 	public void updateOverlayLegendScale(int maxScore)
 	{ 
 		javax.swing.SwingUtilities.invokeLater(new Runnable() //perform task on gui thread
@@ -311,29 +327,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			}
 		});
 	}
-
-	public void actionPerformed(java.awt.event.ActionEvent e) //swing actions go to here
-	{
-		if (e.getActionCommand().equals("hideOSProcs")) { m_model.hideOSProcs(m_model.m_graph, m_btmPnlHideProcsCheckbox.isSelected()); }
-		if (e.getActionCommand().equals("hideExtNode")) { m_model.hideFalseExternalNode(m_model.m_graph, m_btmPnlHideExtCheckbox.isSelected()); }
-		if (e.getActionCommand().equals("showFQDN")) { m_model.useFQDNLabels(m_model.m_graph, m_btmPnlShowFQDN.isSelected()); }
-		if (e.getActionCommand().equals("dataView")) { showDataView(this); }
-		if (e.getActionCommand().equals("resetZoom")) { m_graphViewPanel.getCamera().resetView(); }
-		if (e.getActionCommand().equals("openNewFile")) { s_userWantsToRelaunch.set(true); terminateGUI(false, false); } //close window
-		if (e.getActionCommand().equals("refreshInfoPanel")) { this.updateInfoDisplays(m_currentlyDisplayedNode.get(), false, m_model); } //update info display because a checkbox somewhere changed
-		if (e.getActionCommand().equals("search")) { m_btmPnlSearchStatus.setText(m_model.handleSearch(m_btmPnlSearch.getText())); }
-		if (e.getActionCommand().equals("scoreMethod")) 
-		{ 	
-			m_model.swapNodeStyles(((AHAModel.ScoreMethod)((javax.swing.JComboBox<?>)e.getSource()).getSelectedItem()), System.currentTimeMillis());
-			this.updateInfoDisplays(m_currentlyDisplayedNode.get(), false, m_model); //refresh the info panel now that we're probably on a new score mode
-		}
-		if (e.getActionCommand().equals("useCustom"))
-		{
-			m_model.m_useCustomOverlayScoreFile=((javax.swing.JCheckBox)e.getSource()).isSelected();
-			m_model.exploreAndScore(m_model.m_graph);
-		}
-	}
-
+	
 	private Object synch_dataViewLock=new Object();
 	private javax.swing.JFrame synch_dataViewFrame=null;
 	private void showDataView(AHAGUI parent) //shows the window that lists the listening sockets
@@ -532,12 +526,6 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 						{
 							m_infoPnlTables[i].getColumnModel().getColumn(1).setPreferredWidth(40);
 						}
-//						m_btmPnlName.setText(bottomAreaName);
-//						m_btmPnlName.setToolTipText(AHAGUIHelpers.styleToolTipText(bottomAreaName));
-//						m_btmPnlConnections.setText(bottomAreaConnnection);
-//						m_btmPnlConnections.setToolTipText(AHAGUIHelpers.styleToolTipText(bottomAreaConnnection));
-//						m_btmPnlScore.setText(bottomAreaScoreInfo);
-//						m_btmPnlScore.setToolTipText(AHAGUIHelpers.styleToolTipText(bottomAreaScoreInfo));
 					} catch (Exception e) { e.printStackTrace(); }
 				}
 			}
@@ -652,8 +640,18 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		updateInfoDisplays(node, true, m_model);
 	}
 	
-	public void mouseOver(String id) {}
-	public void mouseLeft(String id) {}
+	@Override
+	public void mouseOver(String id)
+	{
+		// TODO Auto-generated method stub
+		
+	}
+	@Override
+	public void mouseLeft(String id)
+	{
+		// TODO Auto-generated method stub
+		
+	}
 	//END graph interaction handlers
 	
 	public void windowOpened(java.awt.event.WindowEvent e) {} //Window listener related events
@@ -689,7 +687,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public static void main(String args[])
 	{ 
 		boolean debug=false, verbose=false, useMultiLineGraph=true, useOverlayScoreFile=false, applyTheme=true, force100percentScale=true;
-		String scoreFileName="", inputFileName="";
+		String scoreFileName="", inputFileName="", credentialsFileName="credentials.txt"; 
 		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
 		for (String s : args)
 		{
@@ -699,24 +697,9 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 				if (argTokens[0]==null) { continue; }
 				if (argTokens[0].equalsIgnoreCase("--debug")) { debug=true; } //print more debugs while running
 				if (argTokens[0].equalsIgnoreCase("--verbose")) { verbose=true; } //print more debugs while running
-				if (argTokens[0].equalsIgnoreCase("--single")) { useMultiLineGraph=false; } //draw single lines between nodes
-				if (argTokens[0].equalsIgnoreCase("--notheme")) { applyTheme=false; } //draw single lines between nodes
-				if (argTokens[0].equalsIgnoreCase("--noforcescale")) { force100percentScale=false; } //draw single lines between nodes
-				if (argTokens[0].equalsIgnoreCase("--bigfont")) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); } //use 18pt font instead of default
-				if (argTokens[0].equalsIgnoreCase("scorefile")) { scoreFileName=argTokens[1]; useOverlayScoreFile=true; } //path to custom score file, and enable since...that makes sense in this case
-				if (argTokens[0].equalsIgnoreCase("inputFile")) { inputFileName=argTokens[1]; } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
-				
-				if (argTokens[0].equals("help")||argTokens[0].equals("?")) 
-				{  
-					System.out.println
-					(
-							"Arguments are as follows:"+
-							"--debug : print additional information to console while running\n"+
-							"--single : use single lines between nodes with multiple connections\n"+
-							"--bigfont : use 18pt font instead of the default 12pt font (good for demos). Will have no effect if used with --notheme\n"+
-							"--notheme : attempt to minimize theming information set on gui components so that the OS theme will be used. Unsupported / components may be oddly sized.\n"+
 							"scorefile=scorefile.csv : use the scorefile specified after the equals sign\n"+
-							"inputFile=inputFile.csv : use the inputFile specified after the equals sign\n"
+							"inputFile=inputFile.csv : use the inputFile specified after the equals sign\n"+
+							"credsFile=inputFile.csv : use the credsFile for the credentials to update the input file (used with --updateFile) specified after the equals sign"
 					); return;
 				}
 			} catch (Exception e) { e.printStackTrace(); }
@@ -724,18 +707,20 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		if (force100percentScale) { System.setProperty("sun.java2d.uiScale", "100%"); } //sad little hack to work around current issues on HiDPI machines 
 		if (applyTheme) { AHAGUIHelpers.applyTheme(uiFont); }
 		
-		try
 		{
-			while (!Thread.interrupted() && AHAGUI.s_userWantsToRelaunch.get()) //quit out if they didn't ask to open a new file
+			try
 			{
-				AHAModel model=new AHAModel(inputFileName, useOverlayScoreFile, scoreFileName, debug, verbose);
-				model.m_gui=new AHAGUI(model, useMultiLineGraph);
-				model.start();
-				model.m_gui.m_GUIActive.acquire(); //block here until the GUI is closed
-				inputFileName=model.m_inputFileName; //allow user to specify filename to load next time or relaod the file depending on what just happened.
-			}
-		} catch (Exception e) { e.printStackTrace(System.err); }
-		System.err.println("Reqeusting exit.");
+				while (!Thread.interrupted() && AHAGUI.s_userWantsToRelaunch.get()) //quit out if they didn't ask to open a new file
+				{
+					AHAModel model=new AHAModel(inputFileName, useOverlayScoreFile, scoreFileName, debug, verbose);
+					model.m_gui=new AHAGUI(model, useMultiLineGraph);
+					model.start();
+					model.m_gui.m_GUIActive.acquire(); //block here until the GUI is closed
+					inputFileName=model.m_inputFileName; //allow user to specify filename to load next time or relaod the file depending on what just happened.
+				}
+			} catch (Exception e) { e.printStackTrace(System.err); }
+			System.err.println("Reqeusting exit.");
+		}
 		System.exit(0);
 	}
 }
