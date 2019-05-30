@@ -92,8 +92,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 			setJMenuBar(menuBar);
 
 			// -- begin file menu --
-			AHAGUIHelpers.createMenuItem(new javax.swing.JMenuItem("Open..."), this, "openNewFile", "Open a new file", fileMenu);
-			//openMenuItem.setMnemonic(KeyEvent.VK_N);
+			AHAGUIHelpers.createMenuItem(new javax.swing.JMenuItem("Open..."), this, "openNewFile", "Open a new file", fileMenu); //openMenuItem.setMnemonic(KeyEvent.VK_N);
 
 
 			fileMenu.addSeparator();

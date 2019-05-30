@@ -17,8 +17,8 @@
 	<!-- Temporary build directories -->
 	<property name="build.dir" value="build"/>
 	<property name="build.classes" value="${build.dir}/classes"/>
-	<property name="java.source" value="11"/> <!-- this removes the final warning on newer JDKs about bootclasspath not being set, but means that jars built on newer releases wont necessarily be backwards compatible-->
-	<property name="java.target" value="11"/>
+	<property name="java.source" value="1.8"/> <!-- this removes the final warning on newer JDKs about bootclasspath not being set, but means that jars built on newer releases wont necessarily be backwards compatible-->
+	<property name="java.target" value="1.8"/>
 	<property name="javadoc.additionalparam" value="-breakiterator"/>
 	<property name="compile.optimize" value="true"/>
 	<property name="compile.warnings" value="true"/>
