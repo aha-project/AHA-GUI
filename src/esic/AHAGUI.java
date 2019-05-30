@@ -15,7 +15,6 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	
 	protected javax.swing.JLabel m_btmPnlSearchStatus=new javax.swing.JLabel("");
 	protected javax.swing.JCheckBoxMenuItem m_btmPnlChangeOnMouseOver=new javax.swing.JCheckBoxMenuItem("Update on MouseOver",false), m_infoPnlShowOnlyMatchedMetrics=new javax.swing.JCheckBoxMenuItem("Show Only Matched Metrics",true), m_infoPnlShowScoringSpecifics=new javax.swing.JCheckBoxMenuItem("Show Score Metric Specifics",false);
-
 	protected javax.swing.JTextField m_btmPnlSearch=new javax.swing.JTextField("Search...");
 	protected javax.swing.JScrollPane m_inspectorPanel=null;
 	protected final String[][] m_infoPnlColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process", "PID"}, {"Score Metric", "Value"}}; //right now things would break if the number of these ever got changed at runtime, so made static.
@@ -665,7 +664,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	public static void main(String args[])
 	{ 
 		boolean debug=false, verbose=false, useMultiLineGraph=true, useOverlayScoreFile=false, applyTheme=true, force100percentScale=true;
-		String scoreFileName="", inputFileName="", credentialsFileName="credentials.txt"; 
+		String scoreFileName="", inputFileName="";
 		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
 		for (String s : args)
 		{
@@ -675,9 +674,23 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 				if (argTokens[0]==null) { continue; }
 				if (argTokens[0].equalsIgnoreCase("--debug")) { debug=true; } //print more debugs while running
 				if (argTokens[0].equalsIgnoreCase("--verbose")) { verbose=true; } //print more debugs while running
+				if (argTokens[0].equalsIgnoreCase("--single")) { useMultiLineGraph=false; } //draw single lines between nodes
+				if (argTokens[0].equalsIgnoreCase("--notheme")) { applyTheme=false; } //draw single lines between nodes
+				if (argTokens[0].equalsIgnoreCase("--noforcescale")) { force100percentScale=false; } //draw single lines between nodes
+				if (argTokens[0].equalsIgnoreCase("--bigfont")) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); } //use 18pt font instead of default
+				if (argTokens[0].equalsIgnoreCase("scorefile")) { scoreFileName=argTokens[1]; useOverlayScoreFile=true; } //path to custom score file, and enable since...that makes sense in this case
+				if (argTokens[0].equalsIgnoreCase("inputFile")) { inputFileName=argTokens[1]; } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
+				if (argTokens[0].equals("help")||argTokens[0].equals("?")) 
+				{  
+					System.out.println
+					(
+							"Arguments are as follows:"+
+							"--debug : print additional information to console while running\n"+
+							"--single : use single lines between nodes with multiple connections\n"+
+							"--bigfont : use 18pt font instead of the default 12pt font (good for demos). Will have no effect if used with --notheme\n"+
+							"--notheme : attempt to minimize theming information set on gui components so that the OS theme will be used. Unsupported / components may be oddly sized.\n"+
 							"scorefile=scorefile.csv : use the scorefile specified after the equals sign\n"+
-							"inputFile=inputFile.csv : use the inputFile specified after the equals sign\n"+
-							"credsFile=inputFile.csv : use the credsFile for the credentials to update the input file (used with --updateFile) specified after the equals sign"
+							"inputFile=inputFile.csv : use the inputFile specified after the equals sign\n"
 					); return;
 				}
 			} catch (Exception e) { e.printStackTrace(); }
