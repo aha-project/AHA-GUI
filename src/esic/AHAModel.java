@@ -879,11 +879,7 @@ public class AHAModel
 			genericHideUnhideNodes( "processpath=="+s,hide );
 		}
 	}
-	
-	protected void hideFalseExternalNode(Graph g, boolean hide) 
-	{
-		genericHideUnhideNodes( "processpath==external",hide );
-	}
+	protected void hideFalseExternalNode(Graph g, boolean hide)  { genericHideUnhideNodes( "processpath==external",hide ); }
 	
 	protected int genericHideUnhideNodes( String criteria, boolean hide )
 	{
@@ -899,8 +895,7 @@ public class AHAModel
 			String attribute=args[0].toLowerCase();
 			String seeking="";
 			if (args.length >1 && args[1]!=null) { seeking=args[1].toLowerCase(); }//important to do every loop since seeking may be modified if it is inverted
-			//System.out.println("attr='"+attribute+"' seeking='"+seeking+"'");
-			for (Node node:m_graph)
+			for (Node node:m_graph) //System.out.println("attr='"+attribute+"' seeking='"+seeking+"'");
 			{
 				String attrValue=(String)node.getAttribute(attribute);
 				if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
@@ -984,7 +979,6 @@ public class AHAModel
 						nodeClass=nodeClass.replaceAll("emphasize, ", ""); 
 						if (m_verbose) { System.out.println("unEmphasize node="+node.getId()); }
 					}
-					//System.out.println("Writing node class=|"+nodeClass+"|");
 					node.setAttribute("ui.class", nodeClass);
 					
 					java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
@@ -1236,9 +1230,7 @@ public class AHAModel
 						data[j++]=strAsInt((String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
 						data[j++]=strAsInt((String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
 						// RelativeScore CODE //
-						data[j++]=strAsDouble((String)n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)));
-						//data[j++]=n.getAttribute("parents");
-						//data[j++]=n.getAttribute("sibling");
+						data[j++]=strAsDouble((String)n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA))); //data[j++]=n.getAttribute("parents"); //data[j++]=n.getAttribute("sibling");
 						// END RelativeScore CODE //
 						tableData[tableNumber][i++]=data;
 					}

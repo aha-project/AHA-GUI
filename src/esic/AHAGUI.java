@@ -14,7 +14,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 	protected AHAModel m_model=null;
 	
 	protected javax.swing.JLabel m_btmPnlSearchStatus=new javax.swing.JLabel("");
-	protected javax.swing.JCheckBoxMenuItem m_btmPnlChangeOnMouseOver=new javax.swing.JCheckBoxMenuItem("Update on MouseOver",false), m_infoPnlShowOnlyMatchedMetrics=new javax.swing.JCheckBoxMenuItem("Show Only Matched Metrics",true), m_infoPnlShowScoringSpecifics=new javax.swing.JCheckBoxMenuItem("Show Score Metric Specifics",false);
+	protected javax.swing.JCheckBoxMenuItem m_infoPnlUpdateOnMouseover=new javax.swing.JCheckBoxMenuItem("Update on MouseOver",false), m_infoPnlShowOnlyMatchedMetrics=new javax.swing.JCheckBoxMenuItem("Show Only Matched Metrics",true), m_infoPnlShowScoringSpecifics=new javax.swing.JCheckBoxMenuItem("Show Score Metric Specifics",false);
 	protected javax.swing.JTextField m_btmPnlSearch=new javax.swing.JTextField("Search...");
 	protected javax.swing.JScrollPane m_inspectorPanel=null;
 	protected final String[][] m_infoPnlColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process", "PID"}, {"Score Metric", "Value"}}; //right now things would break if the number of these ever got changed at runtime, so made static.
@@ -92,28 +92,26 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 
 			// -- begin file menu --
 			AHAGUIHelpers.createMenuItem(new javax.swing.JMenuItem("Open..."), this, "openNewFile", "Open a new file", fileMenu); //openMenuItem.setMnemonic(KeyEvent.VK_N);
-
-
 			fileMenu.addSeparator();
 			AHAGUIHelpers.createMenuItem(new javax.swing.JMenuItem("Exit"), this, "exit", "Exit AHA-GUI", fileMenu);
 
 
 			// -- begin view menu --
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Hide Windows Operating System Processes"), this, "hideOSProcs", "Hides the usual Windows™ operating system processes, while interesting these processes can get in the way of other analysis.", viewMenu);
-			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Hide External Node"), this, "hideExtNode", "Hides the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to.",viewMenu);
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show External Node", true), this, "processpath==external", "Shows the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to.",viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Use DNS Names"), this, "showFQDN", "Show the DNS names of external nodes rather than IPs.", viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Use Custom ScoreFile", m_model.m_useCustomOverlayScoreFile), this, "useCustom", "If a custom score file was loaded, this option will apply those custom directives to the graph view.", viewMenu);
 
 			viewMenu.addSeparator();
-			AHAGUIHelpers.createMenuItem(m_btmPnlChangeOnMouseOver, this, "refreshInfoPanel", "Enable change of the inspector above on hovering over nodes in addition to clicking.", viewMenu);
 			AHAGUIHelpers.createMenuItem(m_infoPnlShowOnlyMatchedMetrics, this, "refreshInfoPanel", "Only displays metrics which were matched, for example if ASLR was true.", viewMenu);
 			AHAGUIHelpers.createMenuItem(m_infoPnlShowScoringSpecifics, this, "refreshInfoPanel", "Shows the specific metric in the inspector above that matched.", viewMenu);
+			AHAGUIHelpers.createMenuItem(m_infoPnlUpdateOnMouseover, this, "refreshInfoPanel", "Enable change of the inspector above on hovering over nodes in addition to clicking.", viewMenu);
 			
 			viewMenu.addSeparator();
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show Connectionless Nodes", true), this, "protocol==none", "Show / Hide nodes with no protocol in the graph.", viewMenu);
+			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show Pipe", true), this, "protocol==pipe", "Show / Hide Pipe protocol nodes in the graph.", viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show TCP", true), this, "protocol==tcp", "Show / Hide TCP protocol nodes in the graph.", viewMenu);
 			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show UDP", true), this, "protocol==udp", "Show / Hide UDP protocol nodes in the graph.", viewMenu);
-			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show Pipe", true), this, "protocol==pipe", "Show / Hide Pipe protocol nodes in the graph.", viewMenu);
-			AHAGUIHelpers.createMenuItem(new javax.swing.JCheckBoxMenuItem("Show Connectionless Nodes", true), this, "protocol==none", "Show / Hide nodes with no protocol in the graph.", viewMenu);
 			
 			viewMenu.addSeparator();
 			javax.swing.ButtonGroup buttonGroup=new javax.swing.ButtonGroup();
@@ -259,14 +257,14 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		String actionCommand=e.getActionCommand();
 		if (actionCommand.equals("dataView")) { showDataView(this); }
 		else if (actionCommand.equals("hideOSProcs")) { m_model.hideOSProcs(m_model.m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
-		else if (actionCommand.equals("hideExtNode")) { m_model.hideFalseExternalNode(m_model.m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
+		//else if (actionCommand.equals("hideExtNode")) { m_model.hideFalseExternalNode(m_model.m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
 		else if (actionCommand.equals("showFQDN")) { m_model.useFQDNLabels(m_model.m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
 		else if (actionCommand.equals("resetZoom")) { m_graphViewPanel.getCamera().resetView(); }
 		else if (actionCommand.equals("exit")) { terminateGUI(false, false); } //close window
 		else if (actionCommand.equals("openNewFile")) { s_userWantsToRelaunch.set(true); terminateGUI(false, false); } //close window
 		else if (actionCommand.equals("refreshInfoPanel")) { updateInfoDisplays(m_currentlyDisplayedNode.get(), false, m_model); } //update info display because a checkbox somewhere changed
 		else if (actionCommand.equals("search")) { m_btmPnlSearchStatus.setText(m_model.handleSearch(m_btmPnlSearch.getText())); }
-		else if (actionCommand.contains("protocol==")) 
+		else if (actionCommand.contains("protocol==") || actionCommand.contains("processpath==")) 
 		{ 
 			boolean hide=!((javax.swing.JCheckBoxMenuItem)e.getSource()).isSelected();
 			m_model.genericHideUnhideNodes( actionCommand,hide );
@@ -375,7 +373,7 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 
 	protected void updateInfoDisplays(Node node, boolean occuredFromMouseOver, AHAModel model)
 	{
-		if ( node==null || (occuredFromMouseOver && !m_btmPnlChangeOnMouseOver.isSelected()) ) { return; } //if element is null, or triggered from mosueover and we're presently supposed to ignore that, return
+		if ( node==null || (occuredFromMouseOver && !m_infoPnlUpdateOnMouseover.isSelected()) ) { return; } //if element is null, or triggered from mosueover and we're presently supposed to ignore that, return
 		m_currentlyDisplayedNode.set(node);
 		//final String bottomAreaConnnection="Connections: "+getNodeConnectionString(node), bottomAreaName=getNameString(node,"  "), bottomAreaScoreInfo="Score: "+getNodeScoreReasonString(node, false);
 		Object[][] infoData=null, intPorts=null, extPorts=null, connectionData=null, scoreReasons=null;
@@ -473,10 +471,6 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 							if (!isNegativeScore) { scoreValue="+"+scoreValue; } //scoreReasons[j][0]=scoreString+" (+"+scoreValue+")";
 							String output=scoreString+" ("+scoreValue+")";
 							if (isNegativeScore) { output="<html><font color=red>"+output+"</font></html>"; }
-							//if (isNegativeScore) { output="<html><p style='color:red;overflow:elipsis'>"+output+"</p></html>"; }
-
-//							java.text.AttributedString s=new java.text.AttributedString(scoreString+" ("+scoreValue+")");
-//							if (isNegativeScore) { s.setAttribute(java.awt.font.TextAttribute.FOREGROUND, java.awt.Color.red); }
 							
 							scoreReasons[j][0]=output;
 						}
@@ -617,19 +611,8 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 		updateInfoDisplays(node, true, m_model);
 	}
 	
-	@Override
-	public void mouseOver(String id)
-	{
-		// TODO Auto-generated method stub
-		
-	}
-	@Override
-	public void mouseLeft(String id)
-	{
-		// TODO Auto-generated method stub
-		
-	}
-	//END graph interaction handlers
+	public void mouseOver(String id) {}
+	public void mouseLeft(String id) {}
 	
 	public void windowOpened(java.awt.event.WindowEvent e) {} //Window listener related events
 	public void windowIconified(java.awt.event.WindowEvent e) {}
@@ -663,8 +646,9 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 
 	public static void main(String args[])
 	{ 
+		
 		boolean debug=false, verbose=false, useMultiLineGraph=true, useOverlayScoreFile=false, applyTheme=true, force100percentScale=true;
-		String scoreFileName="", inputFileName="";
+		String scoreFileName="", inputFileName="", useAppleTopOfScreenMenubarIfApplicable="true";
 		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
 		for (String s : args)
 		{
@@ -675,26 +659,32 @@ public class AHAGUI extends javax.swing.JFrame implements org.graphstream.ui.vie
 				if (argTokens[0].equalsIgnoreCase("--debug")) { debug=true; } //print more debugs while running
 				if (argTokens[0].equalsIgnoreCase("--verbose")) { verbose=true; } //print more debugs while running
 				if (argTokens[0].equalsIgnoreCase("--single")) { useMultiLineGraph=false; } //draw single lines between nodes
+				if (argTokens[0].equalsIgnoreCase("--bigfont")) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); } //use 18pt font instead of default
+				
+				if (argTokens[0].equalsIgnoreCase("--forceJMenu")) { useAppleTopOfScreenMenubarIfApplicable="false"; } //draw single lines between nodes
 				if (argTokens[0].equalsIgnoreCase("--notheme")) { applyTheme=false; } //draw single lines between nodes
 				if (argTokens[0].equalsIgnoreCase("--noforcescale")) { force100percentScale=false; } //draw single lines between nodes
-				if (argTokens[0].equalsIgnoreCase("--bigfont")) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); } //use 18pt font instead of default
 				if (argTokens[0].equalsIgnoreCase("scorefile")) { scoreFileName=argTokens[1]; useOverlayScoreFile=true; } //path to custom score file, and enable since...that makes sense in this case
 				if (argTokens[0].equalsIgnoreCase("inputFile")) { inputFileName=argTokens[1]; } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
-				if (argTokens[0].equals("help")||argTokens[0].equals("?")) 
+				if (argTokens[0].toLowerCase().contains("help")||argTokens[0].equals("?")) 
 				{  
 					System.out.println
 					(
-							"Arguments are as follows:"+
-							"--debug : print additional information to console while running\n"+
+							"Possible arguments are as follows:\n"+
+							"--debug : print tons of additional information for debugging use to console while running\n"+
+							"--verbose : print additional information to console while running (but less than debug)\n"+
 							"--single : use single lines between nodes with multiple connections\n"+
 							"--bigfont : use 18pt font instead of the default 12pt font (good for demos). Will have no effect if used with --notheme\n"+
+							"--forceJMenu : on macs, force use of normal JMenu rather than using the traditional macOS menubar at the top of the screen\n"+
 							"--notheme : attempt to minimize theming information set on gui components so that the OS theme will be used. Unsupported / components may be oddly sized.\n"+
+							"--noforcescale : ignore the app attempting to force the scale down to 100% to avoid several existing graphstream bugs. \n"+
 							"scorefile=scorefile.csv : use the scorefile specified after the equals sign\n"+
 							"inputFile=inputFile.csv : use the inputFile specified after the equals sign\n"
 					); return;
 				}
 			} catch (Exception e) { e.printStackTrace(); }
 		}
+		System.setProperty("apple.laf.useScreenMenuBar", useAppleTopOfScreenMenubarIfApplicable);
 		if (force100percentScale) { System.setProperty("sun.java2d.uiScale", "100%"); } //sad little hack to work around current issues on HiDPI machines 
 		if (applyTheme) { AHAGUIHelpers.applyTheme(uiFont); }
 		

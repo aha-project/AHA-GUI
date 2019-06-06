@@ -177,8 +177,7 @@ public class AHAGUIHelpers
 		public AHASortIcon(boolean icon) { thingToDraw=icon; }
 		public void paintIcon(Component c, java.awt.Graphics g, int x, int y)
 		{
-			java.awt.Graphics2D g2 = (java.awt.Graphics2D)g;
-			//System.out.printf("paintIcon called x=%d y=%d\n",x,y);
+			java.awt.Graphics2D g2 = (java.awt.Graphics2D)g; //System.out.printf("paintIcon called x=%d y=%d\n",x,y);
 			g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
 			g2.setColor(java.awt.Color.GREEN);
 			if (thingToDraw==true) { g2.fillPolygon(new int[]{x,x+6,x+3}, new int[]{y+5,y+5,y}, 3); }
@@ -192,7 +191,11 @@ public class AHAGUIHelpers
 	{
 		item.setActionCommand(actionCommand);
 		item.addActionListener(listener);
-		item.setToolTipText(AHAGUIHelpers.styleToolTipText(tooltip));
+		try
+		{
+			if (System.getProperty("os.name").toLowerCase().contains("mac") && System.getProperty("apple.laf.useScreenMenuBar")!=null && System.getProperty("apple.laf.useScreenMenuBar").equalsIgnoreCase("false")) { tooltip=AHAGUIHelpers.styleToolTipText(tooltip); }
+		} catch (Exception e) { System.err.print("Failed to style tooltip text...possibly due to inability to assess platform. error: ");e.printStackTrace(); }  
+		item.setToolTipText(tooltip);
 		menu.add(item);
 		return item;
 	}
@@ -258,57 +261,6 @@ public class AHAGUIHelpers
 		return "<html><p style='font-style:bold;color:black;background:white;'>"+s+"</p></html>";
 	}
 	
-//	public static class AttributedLabel extends javax.swing.JLabel {
-//
-//    java.text.AttributedString str=null;
-//    int length=0;
-//    public AttributedLabel(Object o)
-//    {
-//    	if (o instanceof String) { str = new java.text.AttributedString((String)o); }
-//			if (o instanceof java.text.AttributedString) { str = (java.text.AttributedString)o; }
-//			if (str!=null)
-//			{
-//				length=str.getIterator().getEndIndex();
-//			}
-//    }
-//    public void paintComponent(java.awt.Graphics g){
-//        // Render the string
-//    	if (str==null || length < 1) { return; }
-//    	java.awt.Graphics2D g2=(java.awt.Graphics2D)g;
-//    	java.awt.Rectangle r=g.getClipBounds();
-//    	//System.out.println("height="+r.height);
-//    	java.awt.Font uiFont=(java.awt.Font)javax.swing.UIManager.get("Label.font");
-//			if (uiFont!=null) 
-//			{ 
-//				g2.setFont(uiFont); 
-//				str.addAttribute(java.awt.font.TextAttribute.FONT, uiFont); 
-//			}
-//			
-//			g2.setRenderingHint(
-//	        java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
-//	        java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-//			
-//      	g2.drawString(str.getIterator(), 1, r.height-3);
-////	      java.text.AttributedCharacterIterator it = str.getIterator();
-////	      StringBuilder stringBuilder = new StringBuilder();
-////	
-////	      char ch = it.current();
-////	      while( ch != java.text.CharacterIterator.DONE)
-////	      {
-////	          stringBuilder.append( ch);
-////	          ch = it.next();
-////	      }
-////	      System.out.println(stringBuilder.toString());
-//    }
-//
-//}
-	
-//	public static class AttributedLabelRenderer extends javax.swing.table.DefaultTableCellRenderer {
-//    public Component getTableCellRendererComponent(javax.swing.JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) 
-//    {
-//    	return new AttributedLabel(value);
-//    }
-//}
 	
 	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][] columnTooltips, Object[][][] initialData, javax.swing.JTable[] tableRefs, int[] columnWidths)
 	{
@@ -352,16 +304,13 @@ public class AHAGUIHelpers
 					}
 				}; 
 			}
-
-//			tableRefs[i].setDefaultRenderer(java.text.AttributedString.class, new AttributedLabelRenderer());
-//			tableRefs[i].setDefaultRenderer(String.class, new AttributedLabelRenderer());
 			tableRefs[i].setModel( new javax.swing.table.DefaultTableModel(initialData[i], columnHeaders[i]) 
 			{ 
 				public Class<?> getColumnClass(int column) //makes it so row sorters work properly
 				{ 
 					try
 					{
-						Object o=null; //System.out.println("ColDetectorCalled for column="+column); //lazy hack but seems to work so shrug
+						Object o=null;
 						for (int row=0;row<getRowCount();row++) 
 						{
 							o=getValueAt(row, column);
@@ -372,14 +321,11 @@ public class AHAGUIHelpers
 						if (o instanceof Double) { return Double.class; }
 						if (o instanceof Float) { return Float.class; }
 						if (o instanceof Long) { return Long.class; }
-						//if (o instanceof java.text.AttributedString) { return java.text.AttributedString.class; }
 					} catch (Exception e) { e.printStackTrace(); }
 					return Object.class;
 				}
 			});
 			tableRefs[i].setDefaultRenderer(Integer.class, tcLeftAlignRenderer);
-			//tableRefs[i].getTableHeader().setBorder(null);
-			//tableRefs[i].setBorder(null);
 			tableRefs[i].setPreferredScrollableViewportSize(tableRefs[i].getPreferredSize());
 			tableRefs[i].setAlignmentY(javax.swing.JTable.TOP_ALIGNMENT);
 			tableRefs[i].getTableHeader().setAlignmentY(javax.swing.JTable.TOP_ALIGNMENT);
