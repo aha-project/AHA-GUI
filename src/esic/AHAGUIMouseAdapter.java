@@ -23,9 +23,10 @@ import org.graphstream.ui.graphicGraph.GraphicElement;
 
 public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.DefaultMouseManager
 {
+	private final AHAController m_target;
 	private static java.util.EnumSet<org.graphstream.ui.view.util.InteractiveElement> CHECK_ELEMENTS=java.util.EnumSet.of(org.graphstream.ui.view.util.InteractiveElement.NODE); // ,org.graphstream.ui.view.util.InteractiveElement.SPRITE
 	private float scaleFactor=1, inverseScaleFactor=1;
-	public AHAGUIMouseAdapter(final long delay, AHAGUI target) 
+	public AHAGUIMouseAdapter(final long delay, AHAController target) 
 	{
 		super();
 		this.delay = delay;
@@ -109,12 +110,11 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 	private static java.util.Timer hoverTimer = new java.util.Timer("AHAGUIMouseAdapterTimer",true); //TODO, changed this to static so we stop creating new ones on new file load...might be a bad move, we'll see
 	private HoverTimerTask latestHoverTimerTask;
 	private final long delay;
-	private final AHAGUI m_target;
 
 	public void mouseMoved(java.awt.event.MouseEvent e) 
 	{ 
-		try {
-			
+		try 
+		{
 			hoverLock.lockInterruptibly();
 			boolean stayedOnElement = false;
 			org.graphstream.ui.graphicGraph.GraphicElement currentElement = view.findGraphicElementAt(CHECK_ELEMENTS, e.getX()*scaleFactor, e.getY()*scaleFactor); 
