@@ -141,6 +141,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 			}
 		} 
 		catch(InterruptedException iex) { /*NOP*/ } 
+		catch (Exception ex) { System.err.println("AHAGUIMouseAdapter: MouseMoved: probably recoverable error: "); ex.printStackTrace(); } 
 		finally { hoverLock.unlock(); }
 	}
 	private final class HoverTimerTask extends java.util.TimerTask 
@@ -157,9 +158,11 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 			try 
 			{
 				hoverLock.lock();
+				if (m_target==null) {System.err.print("target is null");}
+				if (element==null) {System.err.print("element is null");}
 				if (hoveredElementLastChanged == lastChanged) { m_target.startedHoveringOverElement(element); }
 			} 
-			catch (Exception ex) { ex.printStackTrace(); } 
+			catch (Exception ex) { System.err.println("AHAGUIMouseAdapter:HoverTask: probably recoverable error: "); ex.printStackTrace(); } 
 			finally { hoverLock.unlock(); }
 		}
 	}	

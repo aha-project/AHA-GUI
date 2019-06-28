@@ -36,6 +36,7 @@ public class AHAGUIHelpers
 		//UIManager.put("CheckBox.icon", new AHACheckBoxIcon(13,13)); //disabled because it does odd things on openjdk/linux. TODO: fixable? if not, delete related artifacts
 		
 		UIManager.put("CheckBoxMenuItem.foreground", foregroundColor);
+		UIManager.put("CheckBoxMenuItem.acceleratorForeground", foregroundColor);
 		UIManager.put("CheckBoxMenuItem.background", accentColor);
 		UIManager.put("CheckBoxMenuItem.selectionBackground", foregroundColor);
 		UIManager.put("CheckBoxMenuItem.selectionForeground", backgroundColor);
@@ -48,10 +49,10 @@ public class AHAGUIHelpers
 		UIManager.put("ComboBox.selectionBackground", accentColor.brighter().brighter()); 
 		UIManager.put("ComboBox.border", javax.swing.BorderFactory.createCompoundBorder(javax.swing.BorderFactory.createLineBorder(java.awt.Color.GRAY),javax.swing.BorderFactory.createLineBorder(accentColor.brighter().brighter(),2)));
 		UIManager.put("ComboBoxUI", javax.swing.plaf.basic.BasicComboBoxUI.class.getName());
+		
 		UIManager.put("Desktop.background", backgroundColor);
 		UIManager.put("Frame.foreground", foregroundColor);
 		UIManager.put("Frame.background", backgroundColor);
-
 		UIManager.put("Label.foreground", foregroundColor);
 		UIManager.put("Label.background", backgroundColor);
 		UIManager.put("Label.font", uiFont);
@@ -68,7 +69,7 @@ public class AHAGUIHelpers
 		UIManager.put("Menu.selectionBackground", foregroundColor);
 		UIManager.put("Menu.selectionForeground", backgroundColor);
 		UIManager.put("Menu.acceleratorForeground", foregroundColor);
-		UIManager.put("Menu.acceleratorSelectionForeground", accentColor);
+		UIManager.put("Menu.acceleratorSelectionForeground", backgroundColor);
 		UIManager.put("Menu.border", javax.swing.BorderFactory.createEmptyBorder()); //new javax.swing.border.LineBorder(accentColor));//
 		UIManager.put("Menu.opaque", true);
 		UIManager.put("MenuBar.foreground", foregroundColor);
@@ -79,8 +80,10 @@ public class AHAGUIHelpers
 		UIManager.put("MenuItem.background", accentColor);
 		UIManager.put("MenuItem.selectionBackground", foregroundColor);
 		UIManager.put("MenuItem.selectionForeground", backgroundColor);
+		UIManager.put("MenuItem.acceleratorForeground", foregroundColor);
 		UIManager.put("MenuItem.border", javax.swing.BorderFactory.createEmptyBorder());
 		UIManager.put("MenuItem.borderPainted", false);
+		UIManager.put("MenuItem.acceleratorFont", UIManager.get("MenuItem.font")); //make this consistent otherwise accelerators are in a crazy font
 		
 		UIManager.put("OptionPane.foreground", foregroundColor);
 		UIManager.put("OptionPane.messageForeground", foregroundColor);
@@ -97,13 +100,14 @@ public class AHAGUIHelpers
 		UIManager.put("ProgressBar.background", backgroundColor);
 		UIManager.put("ProgressBar.border", javax.swing.BorderFactory.createLineBorder(accentColor.brighter().brighter(),2));
 		UIManager.put("ProgressBar.font", uiFont);
-		
 		UIManager.put("RadioButtonMenuItem.foreground", foregroundColor);
 		UIManager.put("RadioButtonMenuItem.background", accentColor);
 		UIManager.put("RadioButtonMenuItem.selectionBackground", foregroundColor);
 		UIManager.put("RadioButtonMenuItem.selectionForeground", backgroundColor);
 		UIManager.put("RadioButtonMenuItem.gradient", null);
 		UIManager.put("RadioButtonMenuItem.border", javax.swing.BorderFactory.createEmptyBorder());
+		UIManager.put("RadioButtonMenuItem.acceleratorForeground", foregroundColor);
+		
 		UIManager.put("ScrollBar.track", backgroundColor);
 		UIManager.put("ScrollBar.thumbDarkShadow", backgroundColor);
 		UIManager.put("ScrollBar.thumb", accentColor.brighter().brighter().brighter());
@@ -178,7 +182,7 @@ public class AHAGUIHelpers
 		public int getIconHeight() { return 6; }
 	}
 	
-	public static javax.swing.JMenuItem createMenuItem(javax.swing.JMenuItem item, java.awt.event.ActionListener listener, String actionCommand, String tooltip, javax.swing.JMenu menu, java.util.Vector<javax.swing.JMenuItem> defaultSet)
+	public static javax.swing.JMenuItem createMenuItem(javax.swing.JMenuItem item, java.awt.event.ActionListener listener, String actionCommand, String tooltip, javax.swing.JMenu menu, javax.swing.KeyStroke accelerator, java.util.Vector<javax.swing.JMenuItem> defaultSet)
 	{
 		item.setActionCommand(actionCommand);
 		item.addActionListener(listener);
@@ -189,6 +193,7 @@ public class AHAGUIHelpers
 		item.setToolTipText(tooltip);
 		menu.add(item);
 		if (defaultSet!=null) { defaultSet.add(item); }
+		if (accelerator!=null) { item.setAccelerator(accelerator); }
 		return item;
 	}
 	

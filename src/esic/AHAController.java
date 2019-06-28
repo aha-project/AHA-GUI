@@ -2,32 +2,39 @@ package esic;
 
 import org.graphstream.graph.Edge;
 import org.graphstream.graph.Node;
+import org.graphstream.ui.view.camera.Camera;
 
 public class AHAController implements org.graphstream.ui.view.ViewerListener, java.awt.event.ActionListener, java.awt.event.MouseWheelListener, java.awt.event.WindowListener
 {
-	private AHAModel m_model;
+	private java.util.concurrent.atomic.AtomicReference<AHAModel> m_model=new java.util.concurrent.atomic.AtomicReference<>();
 	private AHAGUI m_gui;
 	private final java.util.concurrent.atomic.AtomicReference<Node> m_currentlyDisplayedNode=new java.util.concurrent.atomic.AtomicReference<>(null);
 	
-	public AHAController(AHAModel m, AHAGUI g)
+	public AHAController(String inputFileName, String scoreFileName, int verbosity, boolean useMultiLineGraph)
 	{
-		m_model=m;
-		m_gui=g;
+		m_model.set(new AHAModel(this, inputFileName, scoreFileName, verbosity));
+		m_gui=new AHAGUI(m_model.get(), this, useMultiLineGraph);
 	}
+	
+	public void start() { model().run(); }
+	private AHAModel model() { return m_model.get(); }
 	
 	protected void openfileOrReload(boolean reload)
 	{
 		String title="AHA-GUI";
 		try { title=AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]; } catch (Exception ex) {ex.printStackTrace();}
 		boolean ret=reload;
-		if (!reload) { ret=m_gui.openFile(title); }
+		if (!reload) { ret=m_gui.openFile(model(), title); }
 		if (ret==true)
 		{
 			synchronized (m_gui.synch_dataViewLock) { m_gui.synch_dataViewFrame=null; }
 			m_currentlyDisplayedNode.set(null);
 			System.err.println("\n");
-			m_gui.initGraphView();
-			new Thread( m_model,"ReaderThread").start();
+			AHAModel oldModel=model();
+			AHAModel newModel=new AHAModel(this, oldModel.m_inputFileName, oldModel.m_scoreFileName, oldModel.m_verbosity);
+			m_model.set(newModel);
+			m_gui.initGraphView(newModel);
+			new Thread( newModel,"ReaderThread").start();
 		}
 	}	
 	
@@ -35,18 +42,18 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	{
 		Object source=e.getSource();
 		String actionCommand=e.getActionCommand();
-		if (actionCommand.equals("dataView")) { m_gui.showDataView(m_gui); }
-		else if (actionCommand.equals("hideOSProcs")) { m_model.hideOSProcs(m_model.m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
-		else if (actionCommand.equals("showFQDN")) { m_model.useFQDNLabels(m_model.m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); updateSidebar(m_currentlyDisplayedNode.get(), false);}
+		if (actionCommand.equals("dataView")) { m_gui.showDataView(model(), m_gui); }
+		else if (actionCommand.equals("hideOSProcs")) { model().hideOSProcs(model().m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
+		else if (actionCommand.equals("showFQDN")) { model().useFQDNLabels(model().m_graph, ((javax.swing.JCheckBoxMenuItem)source).isSelected()); updateSidebar(m_currentlyDisplayedNode.get(), false);}
 		else if (actionCommand.equals("resetZoom")) { m_gui.m_graphViewPanel.getCamera().resetView(); }
 		else if (actionCommand.equals("exit")) { m_gui.dispatchEvent(new java.awt.event.WindowEvent(m_gui, java.awt.event.WindowEvent.WINDOW_CLOSING)); }
 		else if (actionCommand.equals("openNewFile")) { openfileOrReload(false); } 
 		else if (actionCommand.equals("refreshInfoPanel")) { updateSidebar(m_currentlyDisplayedNode.get(), false); } //update info display because a checkbox somewhere changed
-		else if (actionCommand.equals("search")) { m_gui.m_btmPnlSearchStatus.setText(m_model.handleSearch(m_gui.m_btmPnlSearch.getText())); }
+		else if (actionCommand.equals("search")) { m_gui.m_btmPnlSearchStatus.setText(model().handleSearch(m_gui.m_btmPnlSearch.getText())); }
 		else if (actionCommand.contains("protocol==") || actionCommand.contains("processpath==")) 
 		{ 
 			boolean hide=!((javax.swing.JCheckBoxMenuItem)e.getSource()).isSelected();
-			m_model.genericHideUnhideNodes( actionCommand,hide );
+			model().genericHideUnhideNodes( actionCommand,hide );
 		}
 		else if (actionCommand.contains("scoreMethod"))
 		{ 
@@ -56,13 +63,13 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 				String method=e.getActionCommand().split("-")[1];
 				scoremethod=AHAModel.ScoreMethod.getValue(method);
 			} catch (Exception ex) { ex.printStackTrace(); }
-			m_model.swapNodeStyles(scoremethod, System.currentTimeMillis());
+			model().swapNodeStyles(scoremethod, System.currentTimeMillis());
 			updateSidebar(m_currentlyDisplayedNode.get(), false); //refresh the info panel now that we're probably on a new score mode
 		}
 		else if (actionCommand.equals("useCustom"))
 		{
-			m_model.m_useCustomOverlayScoreFile=((javax.swing.JCheckBoxMenuItem)e.getSource()).isSelected();
-			m_model.exploreAndScore(m_model.m_graph);
+			model().m_useCustomOverlayScoreFile=((javax.swing.JCheckBoxMenuItem)e.getSource()).isSelected();
+			model().exploreAndScore(model().m_graph); //TODO: shouldn't this be swap node styles?
 		}
 		else { System.err.println("Unknown action command='"+e.getActionCommand()+"'"); }
 	}
@@ -106,6 +113,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 		
 		try
 		{ //update the fifth "Score Metric" table
+			//java.util.ArrayList<int[]> temp=new java.util.ArrayList<>(); //todo it looks like we can use this to construct without a lot of array size guessing and then use.toArray to produce output
 			String score=(String)node.getAttribute("ui.scoreReason");
 			String[] scores=score.split(", ");
 			int length=0;
@@ -141,6 +149,43 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 					j++;
 				}
 			}
+			
+//			String score=(String)node.getAttribute("ui.scoreReason");
+//			String[] scores=score.split(", ");
+//			int length=0;
+//			for (int i=0;i<scores.length;i++) 
+//			{ 
+//				if (scores[i].toLowerCase().endsWith("false") && m_gui.m_infoPnlShowOnlyMatchedMetrics.isSelected()) {continue;}
+//				length++;
+//			}
+//			scoreReasons=new Object[length][2];
+//			int j=0;
+//			for (int i=0;i<scores.length;i++) 
+//			{ 
+//				String[] scrTokens=scores[i].split("=");
+//				if (scrTokens!=null && scrTokens.length>=2)
+//				{
+//					if (m_gui.m_infoPnlShowOnlyMatchedMetrics.isSelected()==true && scrTokens[1].toLowerCase().contains("false")) { continue; } 
+//					scoreReasons[j][0]=scrTokens[0];
+//					scoreReasons[j][1]=scrTokens[1];
+//					if (!m_gui.m_infoPnlShowScoringSpecifics.isSelected()) 
+//					{ 
+//						String input=(String)scoreReasons[j][0];
+//						if (input!=null && input.contains("[") && input.contains("]:")) 
+//						{ 
+//							String scoreString=input.split("\\.")[0], scoreValue=input.split("\\]:")[1];
+//							boolean isNegativeScore=scoreValue.charAt(0)=='-';
+//							if (!isNegativeScore) { scoreValue="+"+scoreValue; } 
+//							String output=scoreString+" ("+scoreValue+")";
+//							if (isNegativeScore) { output="<html><font color=red>"+output+"</font></html>"; }
+//							
+//							scoreReasons[j][0]=output;
+//						}
+//					}
+//					j++;
+//				}
+//			}
+			
 		} catch (Exception e) { e.printStackTrace(); }
 
 		final Object[][][] data={infoData,intPorts,extPorts,connectionData,scoreReasons}; // create final pointer to pass to swing.infokelater. as long as this order of these object arrays is correct, everything will work :)
@@ -175,6 +220,43 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 		});
 	}
 	
+	protected void moveExternalNodes(AHAModel m)
+	{
+		try 
+		{
+			Thread.sleep(1500); 
+			m_gui.m_graphViewer.disableAutoLayout();
+			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
+			
+			java.util.Vector<Node> leftSideNodes=new java.util.Vector<>(); //moved this below the 1.5s graph stabilization threshold to see if it makes odd occasional issues with moving ext nodes better
+			for (Node n : m.m_graph) 
+			{
+				if (n.getId().contains("Ext_")) { leftSideNodes.add(n); }
+				n.setAttribute("layout.weight", 6); //switched to add attribute rather than set attribute since it seems to prevent a possible race condition.
+			}
+			int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
+			leftSideNodes.insertElementAt(m.m_graph.getNode("external"),leftSideNodes.size()/2);
+			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
+			int i=1;
+		
+			Camera cam=m_gui.m_graphViewPanel.getCamera();
+			for (Node n : leftSideNodes)
+			{ 
+				org.graphstream.ui.geom.Point3 loc=cam.transformPxToGu(60, (m_gui.m_graphViewPanel.getHeight()/numLeftNodes)*i);
+				n.setAttribute("xyz", loc.x,loc.y,loc.z);
+				i++;
+			}
+			m_gui.m_graphViewPanel.getCamera().setViewPercent(1.01d);
+			org.graphstream.ui.geom.Point3 center=m_gui.m_graphViewPanel.getCamera().getViewCenter();
+			org.graphstream.ui.geom.Point3 pixels=m_gui.m_graphViewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
+			pixels.x-=60;
+			center=m_gui.m_graphViewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
+			m_gui.m_graphViewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
+		} catch (Exception e) { e.printStackTrace(); }
+	}
+	
+	protected void updateOverlayLegendScale(int maxScore) { m_gui.updateOverlayLegendScale(maxScore); }
+	
 	//Begin graph interaction handlers
 	public synchronized void mouseWheelMoved(java.awt.event.MouseWheelEvent e) //zooms graph in and out using mouse wheel
 	{
@@ -188,7 +270,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 		if (id==null || id.equals("")) { return; } //try { m_graphViewPump.pump(); } catch (Exception e) {e.printStackTrace();}  //non blocking pump to clear anything out before we heckle the graph
 		try
 		{
-			Node node=m_model.m_graph.getNode(id);
+			Node node=model().m_graph.getNode(id);
 			if (node==null) { return; }
 
 			java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
@@ -208,7 +290,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 		if (id==null || id.equals("")) { return; }
 		try
 		{
-			Node node=m_model.m_graph.getNode(id);
+			Node node=model().m_graph.getNode(id);
 			if (node==null) { System.out.println("node is null, returning early"); return;}
 
 			java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
@@ -227,7 +309,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	public synchronized void startedHoveringOverElement(org.graphstream.ui.graphicGraph.GraphicElement element)
 	{
 		if (element==null) { return; }
-		Node node=m_model.m_graph.getNode(element.getId());
+		Node node=model().m_graph.getNode(element.getId());
 		updateSidebar(node, true);
 	}
 	

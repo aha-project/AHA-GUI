@@ -3,16 +3,9 @@ package esic;
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
 import org.graphstream.graph.*;
-import org.graphstream.ui.view.camera.Camera;
 
 public class AHAModel implements Runnable
 {
-	protected static class TableDataHolder
-	{
-		protected String[][] columnNames=null;
-		protected Object[][][] tableData=null;
-	}
-	
 	private static class ScoreItem
 	{
 		String criteria="", operation="",  humanReadableReason="";
@@ -27,17 +20,10 @@ public class AHAModel implements Runnable
 			humanReadableReason=explanation;
 		}
 	}
-	
 	private int maxScore=0, metricsTableMultiPlatformScore=0;
 	private java.util.ArrayList<ScoreItem> m_scoreTable=new java.util.ArrayList<>(32);
-	protected boolean m_debug=false, m_verbose=false, m_useCustomOverlayScoreFile=false;
-	protected String m_inputFileName="", m_scoreFileName="scorefile.csv";
-	protected Graph m_graph=null;
-	protected AHAGUI m_gui=null;
-	protected java.util.TreeMap<String,Integer> m_platformSpecificMetricsTableScores=new java.util.TreeMap<>(), m_listeningPortConnectionCount=new java.util.TreeMap<>();
-	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<>(), m_intListeningProcessMap=new java.util.TreeMap<>(), m_extListeningProcessMap=new java.util.TreeMap<>();
-	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<>(), m_miscMetrics=new java.util.TreeMap<>();
-	protected java.util.Vector<String> m_lastSearchTokens=new java.util.Vector<>();
+	private AHAController m_controller=null;
+	private java.util.Vector<String> m_lastSearchTokens=new java.util.Vector<>();
 	
 	protected static enum ScoreMethod //method to number the enums is a bit ridiculous, but oh well.
 	{
@@ -57,8 +43,12 @@ public class AHAModel implements Runnable
     }
     public int getValue() { return value; }
 	}
-  protected static final String NormalizedScore="ui.ScoreMethodInternalNormalizedScore",RAWRelativeScore="ui.ScoreMethodInternalRAWRelativeScore", ForSibling="ui.ScoreMethodInternalForSibling", CUSTOMSTYLE="ui.weAppliedCustomStyle";
-	protected String styleSheet = "graph { fill-color: black; }"+
+	protected static class TableDataHolder
+	{
+		protected String[][] columnNames=null;
+		protected Object[][][] tableData=null;
+	}
+  protected String styleSheet = "graph { fill-color: black; }"+
 			"node { size: 30px; fill-color: red; text-color: white; text-style: bold; text-size: 12; text-background-color: #222222; text-background-mode: plain; }"+
 			"node.lowVuln { fill-color: green; }"+
 			"node.medVuln { fill-color: yellow; }"+
@@ -74,14 +64,20 @@ public class AHAModel implements Runnable
 			"edge.external { fill-color: #883030; }"+
 			"edge.clickedAccent { fill-color: purple; }"+
 			"edge.emphasize { fill-color: blue; }";
+  protected static final String NormalizedScore="ui.ScoreMethodInternalNormalizedScore",RAWRelativeScore="ui.ScoreMethodInternalRAWRelativeScore", ForSibling="ui.ScoreMethodInternalForSibling", CUSTOMSTYLE="ui.weAppliedCustomStyle";
+	protected int m_verbosity=0;
+	protected boolean m_useCustomOverlayScoreFile=false;
+	protected String m_inputFileName=null, m_scoreFileName=null;
+	protected Graph m_graph=null;
+	protected java.util.TreeMap<String,Integer> m_platformSpecificMetricsTableScores=new java.util.TreeMap<>(), m_listeningPortConnectionCount=new java.util.TreeMap<>();
+	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<>(), m_intListeningProcessMap=new java.util.TreeMap<>(), m_extListeningProcessMap=new java.util.TreeMap<>();
+	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<>(), m_miscMetrics=new java.util.TreeMap<>();
 
 	public static String scrMethdAttr(ScoreMethod m) { 	return "ui.ScoreMethod"+m; }
 	
 	private void readScoreTable(String filename)
 	{
 		if (filename==null || filename.equals("")) { filename="MetricsTable.cfg"; }
-		m_scoreTable.clear();
-		m_platformSpecificMetricsTableScores.clear();
 		maxScore=0;
 		metricsTableMultiPlatformScore=0;
 		System.out.println("Reading MetricsTable file="+filename);
@@ -92,7 +88,7 @@ public class AHAModel implements Runnable
 			String line="";
 			while ((line = buff.readLine()) != null)
 			{
-				line=line.trim().trim().trim();
+				line=line.trim();
 				if (line.startsWith("//") || line.startsWith("#") || line.length()<5) { continue; }
 				String[] tokens=fixCSVLine(line);
 				if (tokens.length<5) { System.out.println("Malformed MetricsTable line:|"+line+"|"); continue;}
@@ -111,8 +107,8 @@ public class AHAModel implements Runnable
 				{
 					String[] criteria=tokens[2].split("\\|");
 					java.util.Vector<String> criteriaVec=new java.util.Vector<>();
-					for (String s : criteria) { criteriaVec.add(s.trim().trim().trim()); }
-					if (m_verbose) { System.out.println("MetricsTable read criterion: if "+tokens[1]+"="+criteriaVec.toString()+" score="+scoreDelta+" Explanation='"+humanReadibleExplanation+"'"); }
+					for (String s : criteria) { criteriaVec.add(s.trim()); }
+					if (m_verbosity>0) { System.out.println("MetricsTable read criterion: if "+tokens[1]+"="+criteriaVec.toString()+" score="+scoreDelta+" Explanation='"+humanReadibleExplanation+"'"); }
 					m_scoreTable.add(new ScoreItem(tokens[0],tokens[1],criteriaVec,scoreDelta, humanReadibleExplanation)); //TODO this should probably get cleaned up, as comments and/or anything after the first main 3 fields will consume memory even though we never use them.
 					if (scoreDelta>0 && platform.equals("multiplatform")) { metricsTableMultiPlatformScore+=scoreDelta; }
 					else if ( scoreDelta>0 && !platform.equals("optional"))
@@ -133,10 +129,10 @@ public class AHAModel implements Runnable
 			if (platformEntry.getValue()>maxPlatformScore) { maxPlatformScore=platformEntry.getValue(); }
 		}
 		System.out.println("MetricsTable: multiplatform max="+metricsTableMultiPlatformScore+" setting max possible score to: "+(maxScore=metricsTableMultiPlatformScore+maxPlatformScore));
-		m_gui.updateOverlayLegendScale(maxScore);
+		m_controller.updateOverlayLegendScale(maxScore);
 	}
 	
-	protected void exploreAndScore(Graph graph) //explores the node graph and assigns a scaryness score
+	protected void exploreAndScore(Graph graph) //explores the node graph and assigns a scaryness score //TODO: this should be able to be private, fix controller, it shouldn't be calling this.
 	{
 		long time=System.currentTimeMillis();
 		java.util.TreeMap<String, Integer> lowestScoreForUserName=new java.util.TreeMap<>();
@@ -157,7 +153,7 @@ public class AHAModel implements Runnable
 			} catch (Exception e) { e.printStackTrace(); }
 		}
 
-		if (m_verbose) { System.out.println("Worst User Scores="+lowestScoreForUserName); }
+		if (m_verbosity>0) { System.out.println("Worst User Scores="+lowestScoreForUserName); }
 		
 		for (Node node:graph) //Stage 2 of scoring, for scoring algorithms that need to make a second pass over the graph
 		{
@@ -383,11 +379,11 @@ public class AHAModel implements Runnable
 		}
 	}
 	
-	protected int generateNormalNodeScore(Node node)
+	private int generateNormalNodeScore(Node node)
 	{
 		int score=0;
 		String reason="";
-		if (m_verbose) { System.out.println("Process: "+node.getId()+" examining metrics:"); }
+		if (m_verbosity>0) { System.out.println("Process: "+node.getId()+" examining metrics:"); }
 		for (ScoreItem si : m_scoreTable) 
 		{
 			try
@@ -418,7 +414,7 @@ public class AHAModel implements Runnable
 							} catch (Exception e) { e.printStackTrace(); }
 						}
 					}   //if (numberOfTimesTrue>0) { scoreReason+=", "+si.humanReadableReason+"="+(si.scoreDelta*numberOfTimesTrue); } //TODO any need for this code snippet?
-					if (m_verbose) { System.out.println("    "+si.criteria+": input='"+attribute+"' looking for="+si.criteriaValues+" matched "+numberOfTimesTrue+" times"); }
+					if (m_verbosity>0) { System.out.println("    "+si.criteria+": input='"+attribute+"' looking for="+si.criteriaValues+" matched "+numberOfTimesTrue+" times"); }
 				}
 				String xtra="";
 				if (numberOfTimesTrue>1) { xtra=" x"+numberOfTimesTrue; }
@@ -426,13 +422,13 @@ public class AHAModel implements Runnable
 			}
 			catch (Exception e) { System.out.println(e.getMessage()); }
 		}
-		if (m_verbose) { System.out.println("    Score: " + score); }
+		if (m_verbosity>0) { System.out.println("    Score: " + score); }
 		if (score < 0) { score=0; } //System.out.println("Minimum final node score is 0. Setting to 0."); 
 		node.setAttribute(scrMethdAttr(ScoreMethod.Normal)+"Reason", "FinalScore="+score+reason);
 		return score;
 	}
 
-	public void swapNodeStyles(ScoreMethod m, long startTime)
+	protected void swapNodeStyles(ScoreMethod m, long startTime)
 	{
 		for (Node node : m_graph)
 		{
@@ -469,7 +465,7 @@ public class AHAModel implements Runnable
 						if (score > (0.50*maxScore)) { uiClass="medVuln"; }
 						if (score > (0.75*maxScore)) { uiClass="lowVuln"; }
 						node.setAttribute("ui.class", uiClass); //apply the class
-						if (m_verbose) { System.out.printf("%16s Applying Score: %3d   Vulnerability Score given: %s\n",node.getId(),score,uiClass); }
+						if (m_verbosity>0) { System.out.printf("%16s Applying Score: %3d   Vulnerability Score given: %s\n",node.getId(),score,uiClass); }
 					}
 				}
 			}
@@ -478,7 +474,7 @@ public class AHAModel implements Runnable
 		System.out.println("Graph score complete using method="+m+" with useCustomScoring="+Boolean.toString(m_useCustomOverlayScoreFile)+". Took "+(System.currentTimeMillis()-startTime)+"ms.");
 	}
 	
-	protected static String[] fixCSVLine(String s) //helper function to split, lower case, and clean lines of CSV into tokens
+	private static String[] fixCSVLine(String s) //helper function to split, lower case, and clean lines of CSV into tokens
 	{
 		String[] ret=null;
 		try
@@ -502,7 +498,7 @@ public class AHAModel implements Runnable
 	}
 	
 	@SuppressWarnings("unchecked")
-	public java.util.List<String> castObjectAsStringList(Object o)
+	private java.util.List<String> castObjectAsStringList(Object o)
 	{
 		try
 		{
@@ -515,16 +511,17 @@ public class AHAModel implements Runnable
 		return null;
 	}
 	
-	protected void readInputFile()
+	@SuppressWarnings("unchecked")
+	private static java.util.TreeMap<String,String> getTreeMapFromObj(Object o)
 	{
-		m_listeningPortConnectionCount.clear();
-		m_allListeningProcessMap.clear();
-		m_intListeningProcessMap.clear();
-		m_extListeningProcessMap.clear();
-		m_knownAliasesForLocalComputer.clear();
-		m_miscMetrics.clear();
-		m_lastSearchTokens.clear();
-		
+		try { return (java.util.TreeMap<String, String>) o; } 
+		catch (Exception e) {}
+		return null;
+	}
+
+	
+	private void readInputFile()
+	{
 		System.out.println("Reading primary input file=\""+m_inputFileName+"\"");
 		m_knownAliasesForLocalComputer.put("127.0.0.1", "127.0.0.1"); //ensure these obvious ones are inserted in case we never see them in the scan
 		m_knownAliasesForLocalComputer.put("::1", "::1"); //ensure these obvious ones are inserted in case we never see them in the scan
@@ -551,14 +548,14 @@ public class AHAModel implements Runnable
 			Node node = m_graph.getNode(fromNode);
 			if(node == null)
 			{
-				if (m_debug) { System.out.println("Found new process: Name=|"+fromNode+"|"); }
+				if (m_verbosity>4) { System.out.println("Found new process: Name=|"+fromNode+"|"); }
 				node = m_graph.addNode(fromNode);
 			}
 			if (connectionState.contains("listen") )
 			{
 				m_knownAliasesForLocalComputer.put(localAddr, localAddr);
 				m_allListeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
-				if (m_debug) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
+				if (m_verbosity>4) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
 				String portMapKey="ui.localListeningPorts";
 				if( !localAddr.equals("127.0.0.1") && !localAddr.equals("::1") && !localAddr.startsWith("192.168") && !localAddr.startsWith("10.")) //TODO we really want anything that's not listening on localhost here: localAddr.equals("0.0.0.0") || localAddr.equals("::") || 
 				{ 
@@ -584,14 +581,14 @@ public class AHAModel implements Runnable
 			{
 				String processToken=tokens.get(i);
 				if (  processToken==null || processToken.isEmpty() ) { processToken="null"; }
-				if (m_debug) { System.out.printf("   Setting attribute %s for process %s\n",reverseHdr.get(i),tokens.get(i)); }
+				if (m_verbosity>4) { System.out.printf("   Setting attribute %s for process %s\n",reverseHdr.get(i),tokens.get(i)); }
 				node.setAttribute(reverseHdr.get(i),processToken);
 			}
 			if (lineNumber<5 && hdr.get("addedon")!=null && tokens.get(hdr.get("addedon"))!=null) { m_miscMetrics.put("detectiontime", tokens.get(hdr.get("addedon"))); } //only try to set the first few read lines
 			if (lineNumber<5 && hdr.get("detectiontime")!=null && tokens.get(hdr.get("detectiontime"))!=null) { m_miscMetrics.put("detectiontime", tokens.get(hdr.get("detectiontime"))); } //only try to set the first few read lines //back compat for old scans, remove someday
 		}
 
-		if (m_debug)
+		if (m_verbosity>4)
 		{
 			System.out.println("\nAll Listeners:");
 			for (java.util.Map.Entry<String, String> entry : m_allListeningProcessMap.entrySet()) { System.out.println(entry.getKey()+"="+entry.getValue()); }
@@ -642,7 +639,7 @@ public class AHAModel implements Runnable
 					{ 
 						if (timewait && m_allListeningProcessMap.get(protoLocalPort)!=null) 
 						{ 
-							if (!fromNode.startsWith("unknown") && m_verbose) {System.out.println("Found a timewait we could correlate, but the name does not contain unknown. Would have changed from: "+fromNode+" to: "+m_allListeningProcessMap.get(protoLocalPort)+"?"); }
+							if (!fromNode.startsWith("unknown") && m_verbosity>0) {System.out.println("Found a timewait we could correlate, but the name does not contain unknown. Would have changed from: "+fromNode+" to: "+m_allListeningProcessMap.get(protoLocalPort)+"?"); }
 							else { fromNode=m_allListeningProcessMap.get(protoLocalPort); }
 						}
 						toNode="Ext_"+remoteAddr;
@@ -664,7 +661,7 @@ public class AHAModel implements Runnable
 						if (!exactSameEdgeAlreadyExists)
 						{
 							Edge e=m_graph.addEdge(connectionName,fromNode,toNode);
-							if (m_debug) { System.out.println("Adding edge from="+fromNode+" to="+toNode+" name="+connectionName); }
+							if (m_verbosity>4) { System.out.println("Adding edge from="+fromNode+" to="+toNode+" name="+connectionName); }
 							if (e==null) { System.out.println("!!WARNING: Failed to add edge (null) from="+fromNode+" to="+toNode+" name="+connectionName+" forcing creation."); e=m_graph.addEdge("Fake+"+System.nanoTime(),fromNode,toNode);}
 							if (m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); }
 							if (e!=null && isLocalOnly)
@@ -723,36 +720,9 @@ public class AHAModel implements Runnable
 		}
 	}
 	
-	public static String getCommaSepKeysFromStringMap(Object o)
+	private void readCustomScorefile()
 	{
-		java.util.TreeMap<String, String> map=getTreeMapFromObj(o);
-		StringBuilder sb=new StringBuilder("");
-		try
-		{
-			if (map!=null && !map.isEmpty())
-			{
-				java.util.Iterator<String> it=map.keySet().iterator();
-				while (it.hasNext())
-				{
-					sb.append(it.next());
-					if (it.hasNext()) { sb.append(", "); }
-				}
-				return sb.toString();
-			}
-		} catch (Exception e) { System.err.println("Error in getCommanSepKeysFromStringMap returning 'None'."); e.printStackTrace(); }
-		return "None.";
-	}
-	
-	@SuppressWarnings("unchecked")
-	public static java.util.TreeMap<String,String> getTreeMapFromObj(Object o)
-	{
-		try { return (java.util.TreeMap<String, String>) o; } 
-		catch (Exception e) {}
-		return null;
-	}
-
-	protected void readCustomScorefile()
-	{
+		if (m_scoreFileName==null) { return; }
 		System.out.println("Using CustomScoreOverlay file="+m_scoreFileName);
 		java.io.BufferedReader br = null;
 		try 
@@ -854,8 +824,8 @@ public class AHAModel implements Runnable
 		String regexp="";
 		if (criteria.contains("==")) { regexp="=="; }
 		if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false; }
-		String[] args=criteria.trim().trim().split(regexp);
-		if (args.length < 2) { System.err.println("Hide: Unable to parse tokens:|"+criteria.trim().trim()+"|"); return 0; }
+		String[] args=criteria.trim().split(regexp);
+		if (args.length < 2) { System.err.println("Hide: Unable to parse tokens:|"+criteria.trim()+"|"); return 0; }
 		try
 		{
 			String attribute=args[0].toLowerCase();
@@ -881,12 +851,12 @@ public class AHAModel implements Runnable
 					{
 						if (node.getAttribute("ui.hide")==null) { hidden++; } //if it's not already hidden, count that we're going to hide it
 						node.setAttribute( "ui.hide" );
-						if (m_verbose) { System.out.println("Hide node="+node.getId()); }
+						if (m_verbosity>0) { System.out.println("Hide node="+node.getId()); }
 					}
 					else
 					{
 						node.removeAttribute( "ui.hide" );
-						if (m_verbose) { System.out.println("Unhide node="+node.getId()); }
+						if (m_verbosity>0) { System.out.println("Unhide node="+node.getId()); }
 					}
 					
 					java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
@@ -910,8 +880,8 @@ public class AHAModel implements Runnable
 		int emphasized=0;
 		if (criteria.contains("==")) { regexp="=="; }
 		if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false;}
-		String[] args=criteria.trim().trim().split(regexp);
-		if (args.length < 2) { System.err.println("Emphasize: Unable to parse tokens:|"+criteria.trim().trim()+"|"); return 0; }
+		String[] args=criteria.trim().split(regexp);
+		if (args.length < 2) { System.err.println("Emphasize: Unable to parse tokens:|"+criteria.trim()+"|"); return 0; }
 		try
 		{
 			String attribute=args[0].toLowerCase();
@@ -937,12 +907,12 @@ public class AHAModel implements Runnable
 					if (nodeWillEmphasize)
 					{
 						if (!nodeClass.contains("emphasize, ")) { nodeClass="emphasize, "+nodeClass; emphasized++;}
-						if (m_verbose) { System.out.println("Emphasize node="+node.getId()); }
+						if (m_verbosity>0) { System.out.println("Emphasize node="+node.getId()); }
 					}
 					else
 					{
 						nodeClass=nodeClass.replaceAll("emphasize, ", ""); 
-						if (m_verbose) { System.out.println("unEmphasize node="+node.getId()); }
+						if (m_verbosity>0) { System.out.println("unEmphasize node="+node.getId()); }
 					}
 					node.setAttribute("ui.class", nodeClass);
 					
@@ -983,7 +953,7 @@ public class AHAModel implements Runnable
 		for (String token : tokens)
 		{
 			if (token==null || token.equals("")) { continue; }
-			token=token.trim().trim();
+			token=token.trim();
 			m_lastSearchTokens.add(token);
 			System.out.println("token=|"+token+"|");
 			if (token.startsWith("~")) { hid+=genericHideUnhideNodes(token.substring(1), true); }
@@ -994,7 +964,7 @@ public class AHAModel implements Runnable
 		return " Status: Hidden="+hid+" Highlighted="+emph+" ";
 	}
 	
-	protected static String capitalizeFirstLetter(String s)
+	private static String capitalizeFirstLetter(String s)
 	{
 		s = s.toLowerCase();
 		return Character.toString(s.charAt(0)).toUpperCase()+s.substring(1);
@@ -1069,12 +1039,12 @@ public class AHAModel implements Runnable
 					sourceKey="ui.extListeningPorts";
 				}
 			} // end updating data for internal/external ports
-			
 		}
 	}
 	
 	public void run()
 	{
+		long time=System.currentTimeMillis(), time2=0;
 		try
 		{
 			java.io.File testInputFile=getFileAtPath(m_inputFileName);
@@ -1091,37 +1061,6 @@ public class AHAModel implements Runnable
 			exploreAndScore(m_graph);
 			computeUIInformation();
 			
-			Thread.sleep(1500); 
-			m_gui.m_graphViewer.disableAutoLayout();
-			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
-			
-			java.util.Vector<Node> leftSideNodes=new java.util.Vector<>(); //moved this below the 1.5s graph stabilization threshold to see if it makes odd occasional issues with moving ext nodes better
-			for (Node n : m_graph) 
-			{
-				if (n.getId().contains("Ext_")) { leftSideNodes.add(n); }
-				n.setAttribute("layout.weight", 6); //switched to add attribute rather than set attribute since it seems to prevent a possible race condition.
-			}
-			int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
-			leftSideNodes.insertElementAt(m_graph.getNode("external"),leftSideNodes.size()/2);
-			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
-			int i=1;
-			try //FIX TODO FIXME 
-			{
-				Camera cam=m_gui.m_graphViewPanel.getCamera();
-				for (Node n : leftSideNodes)
-				{ 
-					org.graphstream.ui.geom.Point3 loc=cam.transformPxToGu(60, (m_gui.m_graphViewPanel.getHeight()/numLeftNodes)*i);
-					n.setAttribute("xyz", loc.x,loc.y,loc.z);
-					i++;
-				}
-				m_gui.m_graphViewPanel.getCamera().setViewPercent(1.01d);
-				org.graphstream.ui.geom.Point3 center=m_gui.m_graphViewPanel.getCamera().getViewCenter();
-				org.graphstream.ui.geom.Point3 pixels=m_gui.m_graphViewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
-				pixels.x-=60;
-				center=m_gui.m_graphViewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
-				m_gui.m_graphViewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
-			} catch (Exception e) { e.printStackTrace(); }
-			
 			java.io.File fname=new java.io.File(m_inputFileName);
 			String inputFileName=fname.getName(), outputPath="";//get the file name only sans the path
 			if (inputFileName.toLowerCase().endsWith(".csv"))
@@ -1134,17 +1073,21 @@ public class AHAModel implements Runnable
 			System.out.println("Saving report to path=\""+outputPath+"\"");
 			synchronized(synch_report) { synch_report=new TableDataHolder(); }
 			writeReport(generateReport(),"AHA-GUI-Report.csv");
+			
+			time2=System.currentTimeMillis();
+			m_controller.moveExternalNodes(this);
 		} catch(Exception e) { e.printStackTrace(); } 
+		System.err.println("AHAModel: input files read, task complete: elapsed time="+(time2-time)+"ms"); //TODO remove the magic number when there are no longer 1700ms of sleeps above
 	}
 	
-	public static Object strAsInt(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
+	protected static Object strAsInt(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
 	{ 
 		try { if (s!=null ) { return Integer.valueOf(s); } }
 		catch (NumberFormatException nfe) {} //we really don't care about this, we'll just return the original object
 		catch (Exception e) { System.out.println("s="+s);e.printStackTrace(); } //something else weird happened, let's print about it
 		return s;
 	}
-	public static Object strAsDouble(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
+	private static Object strAsDouble(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
 	{ 
 		try { if (s!=null ) { return Double.valueOf(s); } }
 		catch (NumberFormatException nfe) {} //we really don't care about this, we'll just return the original object
@@ -1274,7 +1217,7 @@ public class AHAModel implements Runnable
 		}
 	}
 	
-	public static java.io.File getFileAtPath(String fileName)
+	protected static java.io.File getFileAtPath(String fileName)
 	{
 		try { return new java.io.File(fileName); }
 		catch (Exception e) { return null; }
@@ -1308,7 +1251,6 @@ public class AHAModel implements Runnable
 	protected static boolean readCSVFileIntoArrayList(String inputFileName, java.util.TreeMap<String, String> metadata, java.util.TreeMap<String,Integer> headerTokens, java.util.ArrayList<java.util.ArrayList<String>> inputLines)
 	{
 		if (inputFileName.equals("")) { inputFileName="BinaryAnalysis.csv"; } //try the default filename here if all else fails
-		int lineNumber=0;
 		try ( java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(inputFileName),"UTF8")); )
 		{
 			System.out.printf("Reading inputFile=%s\n", inputFileName);
@@ -1321,8 +1263,6 @@ public class AHAModel implements Runnable
 			for (int i=0;i<header.length;i++) 
 			{ 
 				String headerToken=header[i];
-				if (headerToken.contains("processname") && !headerToken.equals("processname") && headerToken.length()=="processname".length() ) { System.out.println("Had to fix up 'processname' headertoken due to ByteOrderMark issues.");headerToken="processname"; }
-				if (headerToken.contains("processname") && !headerToken.equals("processname") && Math.abs(headerToken.length()-"processname".length())<5) { System.out.println("Had to fix up 'processname' headertoken due to ByteOrderMark issues. hdrlen="+headerToken.length()+" ptlen="+"processname".length()); headerToken="processname"; }
 				headerTokens.put(headerToken, Integer.valueOf(i)); 
 			}
 			String requiredTokens=metadata.get("RequiredHeaderTokens"); //leave the others between process name and the sums as this might point to a malformed file
@@ -1333,38 +1273,34 @@ public class AHAModel implements Runnable
 				for (String s:required) { if (s.length() > 2 && headerTokens.get(s)==null) { System.out.println("Input file: required column header field=\""+s+"\" was not detected, this will not go well."); } }
 			}
 
+			int lineNumber=1;
 			while ((line = br.readLine()) != null) //this is the first loop, in this loop we're loading all the vertexes and their meta data, so we can then later connect the vertices
 			{
+				lineNumber++;
 				try
 				{
-					String[] tokens = fixCSVLine(line); 
-					if (tokens.length<minTokens) 
-					{ 
-						if ( line.trim().trim().length() > 0 ) // more than likely this means something converted the line endings and we've and we've got crlf\nclrfloletc, so only print and increment if there's a real issue.
-						{
-							System.err.println("First Stage Read: Skipping line #"+lineNumber+" because it is malformed."); 
-							lineNumber++;
-						}
+					String[] tokens = fixCSVLine(line);
+					if (tokens.length<minTokens)
+					{
+						if ( line.trim().length() > 0 ) { System.err.println("ReadCSVFile: Skipping line #"+lineNumber+" because it is malformed."); } // more than likely this means something converted the line endings and we've and we've got crlf\nclrfloletc
 						continue;
 					}
-					lineNumber++;
 					java.util.ArrayList<String> saveTokens=new java.util.ArrayList<>();
 					saveTokens.addAll(java.util.Arrays.asList(tokens));
 					inputLines.add(saveTokens); //save these for when we write out the new results file
 				}
-				catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); }
+				catch (Exception e) { System.out.print("ReadCSVLine: Error:: input line "+lineNumber+":"); e.printStackTrace(); }
 			}
 		} 
-		catch (Exception e) { System.out.print("start: first readthrough: input line "+lineNumber+":"); e.printStackTrace(); } 
+		catch (Exception e) { System.out.print("ReadCSVLine: Error:"); e.printStackTrace(); } 
 		return true;
 	}
 	
-	public AHAModel(String inputFileName, boolean useOverlayScoreFile, String scoreFileName, boolean debug, boolean verbose)
+	public AHAModel(AHAController controller, String inputFileName, String scoreFileName, int verbosity)
 	{
 		m_inputFileName=inputFileName;
-		m_useCustomOverlayScoreFile=useOverlayScoreFile;
 		m_scoreFileName=scoreFileName;
-		m_debug=debug;
-		m_verbose=verbose;
+		m_verbosity=verbosity;
+		m_controller=controller;
 	}
 }
