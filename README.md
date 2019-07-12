@@ -22,9 +22,9 @@ Note: if you're just looking to run AHA-GUI builds are periodically posted under
 1. the `build` directory will contain the resulting built project
 1. (if you'd like to clean after making changes and before rebuilding you can run `ant clean`)
 
-# NOTE:
+## NOTE:
 This project uses GraphStream. GraphStream Java `.jar`s are located within this repo for ease of securely building. For more info about GraphStream refer to [the GraphStream project page](http://graphstream-project.org/), additional GraphStream copyright and license(s)ing information are included both in the repo and the release builds. Since the graphstream site does not have HTTPS enabled right now, this is the easiest way to ensure people can get the deps quickly, easily, and safely.
 
-# Screeenshots:
+## Screeenshots:
 Beta Screenshot:
 ![Alt text](resources/AHA-GUI-Screenshot.png?raw=true "AHA-GUI Screenshot")
