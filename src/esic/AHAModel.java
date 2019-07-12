@@ -686,7 +686,7 @@ public class AHAModel implements Runnable
 								if (timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate, external, tw"); }
 							} // BEGIN RelativeScore CODE //
 							Node toNode_node = m_graph.getNode(toNode);
-							if ( toNode.startsWith("Ext_") || node.toString().startsWith("Ext_") )
+							if ( toNode.startsWith("Ext_") || node.toString().startsWith("Ext_") ) //TODO, this should use uiclass
 							{
 								java.util.List<String> parents=castObjectAsStringList(node.getAttribute("parents"));
 								if (parents== null) { parents = new java.util.ArrayList<>(); }
@@ -1082,7 +1082,7 @@ public class AHAModel implements Runnable
 	
 	protected static Object strAsInt(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
 	{ 
-		try { if (s!=null ) { return Integer.valueOf(s); } }
+		try { if (s!=null && !s.equals("") ) { return Integer.valueOf(s); } }
 		catch (NumberFormatException nfe) {} //we really don't care about this, we'll just return the original object
 		catch (Exception e) { System.out.println("s="+s);e.printStackTrace(); } //something else weird happened, let's print about it
 		return s;
@@ -1291,9 +1291,10 @@ public class AHAModel implements Runnable
 				}
 				catch (Exception e) { System.out.print("ReadCSVLine: Error:: input line "+lineNumber+":"); e.printStackTrace(); }
 			}
+			return true;
 		} 
 		catch (Exception e) { System.out.print("ReadCSVLine: Error:"); e.printStackTrace(); } 
-		return true;
+		return false;
 	}
 	
 	public AHAModel(AHAController controller, String inputFileName, String scoreFileName, int verbosity)

@@ -66,6 +66,13 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			model().swapNodeStyles(scoremethod, System.currentTimeMillis());
 			updateSidebar(m_currentlyDisplayedNode.get(), false); //refresh the info panel now that we're probably on a new score mode
 		}
+		else if (actionCommand.equals("updateFileFromRemoteDB")) 
+		{ 
+			final AHAController controller=this;
+			new Thread(){
+				public void run() { FileUpdater.updateCSVFileWithRemoteVulnDBData(model().m_inputFileName, "credentials.txt", m_gui, controller, model().m_verbosity); }
+			}.start(); 
+		}
 		else if (actionCommand.equals("useCustom"))
 		{
 			model().m_useCustomOverlayScoreFile=((javax.swing.JCheckBoxMenuItem)e.getSource()).isSelected();
@@ -87,7 +94,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 				java.util.ArrayList<String> connectedNodes=new java.util.ArrayList<>();
 				for (Edge e : node )
 				{
-					String nodeName=(String)e.getOpposite(node).getAttribute("ui.label");
+					String nodeName=(String)e.getOpposite(node).getId();
 					if (!connectedNodes.contains(nodeName)) { connectedNodes.add(nodeName); } //deduplicate
 				}
 				if (connectedNodes.size()>0)
@@ -96,15 +103,20 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 					int i=0;
 					for (String nodeName : connectedNodes)
 					{
-						int idx=nodeName.lastIndexOf('_');
-						String pidNum="";
-						if (idx > 0 )
+						String pidNum="", uiClass="";
+						try { uiClass=(String)model().m_graph.getNode(nodeName).getAttribute("ui.class"); }
+						catch (Exception e) { System.out.println("Exception getting nodename="+nodeName); e.printStackTrace(); }
+						if (uiClass==null || !uiClass.equals("external"))
 						{
-							pidNum=nodeName.substring(idx+1); //do this first before nodeName is consumed...
-							nodeName=nodeName.substring(0, idx);
+							int idx=nodeName.lastIndexOf('_');
+							if (idx > 0 )
+							{
+								pidNum=nodeName.substring(idx+1).trim(); //do this first before nodeName is consumed...
+								nodeName=nodeName.substring(0, idx);
+							}
 						}
 						connectionData[i][0]=nodeName;
-						if (pidNum.length()>0) { connectionData[i][1]=AHAModel.strAsInt(pidNum); }
+						connectionData[i][1]=AHAModel.strAsInt(pidNum);
 						i++;
 					}
 				}
@@ -113,7 +125,6 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 		
 		try
 		{ //update the fifth "Score Metric" table
-			//java.util.ArrayList<int[]> temp=new java.util.ArrayList<>(); //todo it looks like we can use this to construct without a lot of array size guessing and then use.toArray to produce output
 			String score=(String)node.getAttribute("ui.scoreReason");
 			String[] scores=score.split(", ");
 			int length=0;
@@ -141,50 +152,17 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 							boolean isNegativeScore=scoreValue.charAt(0)=='-';
 							if (!isNegativeScore) { scoreValue="+"+scoreValue; } 
 							String output=scoreString+" ("+scoreValue+")";
-							if (isNegativeScore) { output="<html><font color=red>"+output+"</font></html>"; }
-							
+							if (isNegativeScore) //make scoreMetris that take points off show up in red
+							{ 
+								output="<html><font color=red>"+output+"</font></html>";
+								scoreReasons[j][1]="<html><font color=red>"+scrTokens[1]+"</font></html>";
+							}
 							scoreReasons[j][0]=output;
 						}
 					}
 					j++;
 				}
 			}
-			
-//			String score=(String)node.getAttribute("ui.scoreReason");
-//			String[] scores=score.split(", ");
-//			int length=0;
-//			for (int i=0;i<scores.length;i++) 
-//			{ 
-//				if (scores[i].toLowerCase().endsWith("false") && m_gui.m_infoPnlShowOnlyMatchedMetrics.isSelected()) {continue;}
-//				length++;
-//			}
-//			scoreReasons=new Object[length][2];
-//			int j=0;
-//			for (int i=0;i<scores.length;i++) 
-//			{ 
-//				String[] scrTokens=scores[i].split("=");
-//				if (scrTokens!=null && scrTokens.length>=2)
-//				{
-//					if (m_gui.m_infoPnlShowOnlyMatchedMetrics.isSelected()==true && scrTokens[1].toLowerCase().contains("false")) { continue; } 
-//					scoreReasons[j][0]=scrTokens[0];
-//					scoreReasons[j][1]=scrTokens[1];
-//					if (!m_gui.m_infoPnlShowScoringSpecifics.isSelected()) 
-//					{ 
-//						String input=(String)scoreReasons[j][0];
-//						if (input!=null && input.contains("[") && input.contains("]:")) 
-//						{ 
-//							String scoreString=input.split("\\.")[0], scoreValue=input.split("\\]:")[1];
-//							boolean isNegativeScore=scoreValue.charAt(0)=='-';
-//							if (!isNegativeScore) { scoreValue="+"+scoreValue; } 
-//							String output=scoreString+" ("+scoreValue+")";
-//							if (isNegativeScore) { output="<html><font color=red>"+output+"</font></html>"; }
-//							
-//							scoreReasons[j][0]=output;
-//						}
-//					}
-//					j++;
-//				}
-//			}
 			
 		} catch (Exception e) { e.printStackTrace(); }
 

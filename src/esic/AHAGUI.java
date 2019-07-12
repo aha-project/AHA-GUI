@@ -83,6 +83,8 @@ public class AHAGUI extends JFrame
 			AHAGUIHelpers.createMenuItem(new JMenuItem("Open..."), m_controller, "openNewFile", "Open a new file", fileMenu,KeyStroke.getKeyStroke(KeyEvent.VK_O, m_menuShortcutKey), null);
 			AHAGUIHelpers.createMenuItem(new JMenuItem("Open Data View"), m_controller, "dataView", "Shows the list of listening processes to aid in creation of firewall rules.", fileMenu,KeyStroke.getKeyStroke(KeyEvent.VK_D, m_menuShortcutKey), null);
 			fileMenu.addSeparator();
+			AHAGUIHelpers.createMenuItem(new JMenuItem("Update File..."), m_controller, "updateFileFromRemoteDB", "Update the currently loaded file with information from remote databases such as aDolus.", fileMenu, KeyStroke.getKeyStroke(KeyEvent.VK_U, m_menuShortcutKey), null);
+			fileMenu.addSeparator();
 			AHAGUIHelpers.createMenuItem(new JMenuItem("Exit"), m_controller, "exit", "Exit AHA-GUI", fileMenu, null, null);
 
 			// -- begin view menu --
@@ -388,8 +390,8 @@ public class AHAGUI extends JFrame
 		System.out.println("OS: Arch="+System.getProperty("os.arch")+" Name="+System.getProperty("os.name")+" Vers="+System.getProperty("os.version"));
 		System.out.println("AHA-GUI Version: "+AHAGUI.class.getPackage().getImplementationVersion()+" starting up.");
 		
-		boolean useMultiLineGraph=true, applyTheme=true, force100percentScale=true;
-		String scoreFileName=null, inputFileName="", useAppleTopOfScreenMenubarIfApplicable="true";
+		boolean useMultiLineGraph=true, applyTheme=true, force100percentScale=true, updateFile=false;
+		String scoreFileName=null, inputFileName="", useAppleTopOfScreenMenubarIfApplicable="true", credentialsFileName="credentials.txt";
 		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
 		int verbosity=0;
 		for (String s : args)
@@ -406,6 +408,8 @@ public class AHAGUI extends JFrame
 				if (argTokens[0].equalsIgnoreCase("--forceJMenu")) { useAppleTopOfScreenMenubarIfApplicable="false"; } //draw single lines between nodes
 				if (argTokens[0].equalsIgnoreCase("--notheme")) { applyTheme=false; } //draw single lines between nodes
 				if (argTokens[0].equalsIgnoreCase("--noforcescale")) { force100percentScale=false; } //draw single lines between nodes
+				if (argTokens[0].equalsIgnoreCase("--updateFile")) { updateFile=true; } //print more debugs while running
+				if (argTokens[0].equalsIgnoreCase("credsFile")) { credentialsFileName=argTokens[1]; } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
 				if (argTokens[0].equalsIgnoreCase("scorefile")) { scoreFileName=argTokens[1]; } //path to custom score file, and enable since...that makes sense in this case
 				if (argTokens[0].equalsIgnoreCase("inputFile")) { inputFileName=argTokens[1]; } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
 				if (argTokens[0].toLowerCase().contains("help")||argTokens[0].equals("?")) 
@@ -420,8 +424,10 @@ public class AHAGUI extends JFrame
 							"--forceJMenu : on macs, force use of normal JMenu rather than using the traditional macOS menubar at the top of the screen\n"+
 							"--notheme : attempt to minimize theming information set on gui components so that the OS theme will be used. Unsupported / components may be oddly sized.\n"+
 							"--noforcescale : ignore the app attempting to force the scale down to 100% to avoid several existing graphstream bugs. \n"+
+							"--updateFile : update a given inputFile with information about attacksurface/threats from internet sources (presently aDolus)\n"+
 							"scorefile=scorefile.csv : use the scorefile specified after the equals sign\n"+
-							"inputFile=inputFile.csv : use the inputFile specified after the equals sign\n"
+							"inputFile=inputFile.csv : use the inputFile specified after the equals sign\n"+
+							"credsFile=inputFile.csv : use the credsFile for the credentials to update the input file (used with --updateFile) specified after the equals sign\n"
 					); return;
 				}
 			} catch (Exception e) { e.printStackTrace(); }
@@ -430,6 +436,8 @@ public class AHAGUI extends JFrame
 		if (force100percentScale) { System.setProperty("sun.java2d.uiScale", "100%"); } //sad little hack to work around current issues on HiDPI machines 
 		if (applyTheme) { AHAGUIHelpers.applyTheme(uiFont); }
 		
+		if (updateFile) { FileUpdater.updateCSVFileWithRemoteVulnDBData(inputFileName, credentialsFileName, null, null, verbosity); }
+		else
 		{
 			AHAController ctrl=new AHAController(inputFileName, scoreFileName, verbosity, useMultiLineGraph);
 			ctrl.start();
