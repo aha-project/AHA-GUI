@@ -32,13 +32,16 @@ public class AHAGUI extends JFrame
 	private java.util.Vector<JMenuItem> defaultTrue=new java.util.Vector<>(), defaultFalse=new java.util.Vector<>();
 	
 	protected static java.awt.Dimension s_preferredTotalSize=new java.awt.Dimension(1400, 800); //store the preferred size so if they open a new file we keep that size
-
+	
+	@SuppressWarnings("deprecation") //we have to use the old'n'busted version here for java8 compatibility
+	private static int getMenuShortcutKeyMask() { return java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask(); }
+	
 	public AHAGUI(AHAModel model, AHAController controller, boolean useMultiLineGraph)
 	{
 		m_controller=controller;
 		m_multilineGraph=useMultiLineGraph;
 		long time=System.currentTimeMillis();
-		m_menuShortcutKey=java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+		m_menuShortcutKey=getMenuShortcutKeyMask();
 		setBackground(java.awt.Color.BLACK); //do this first to reduce a bit of flicker on load/reload of the frame
 		System.err.println("Starting GUI Construction.");
 		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
