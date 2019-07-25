@@ -1,12 +1,8 @@
 package esic;
-
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
-import javax.swing.*;
-
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
-import org.graphstream.graph.*;
+import java.awt.event.KeyEvent;
+import javax.swing.*;
 
 public class AHAGUI extends JFrame
 {
@@ -15,7 +11,7 @@ public class AHAGUI extends JFrame
 	protected org.graphstream.ui.view.ViewerPipe m_graphViewPump=null;
 	private JSplitPane m_mainContentSplitPane=null;
 	
-	private AHAController m_controller=null; //TODO unprotect.
+	private AHAController m_controller=null;
 	protected JLabel m_btmPnlSearchStatus=new JLabel("");
 	protected JCheckBoxMenuItem m_infoPnlUpdateOnMouseover=new JCheckBoxMenuItem("Update on MouseOver",false), m_infoPnlShowOnlyMatchedMetrics=new JCheckBoxMenuItem("Show Only Matched Metrics",true), m_infoPnlShowScoringSpecifics=new JCheckBoxMenuItem("Show Score Metric Specifics",false);
 	protected JTextField m_btmPnlSearch=new JTextField("Search...");
@@ -27,7 +23,7 @@ public class AHAGUI extends JFrame
 	private final String[][] m_infoPnlColumnTooltips={{"Info"},{"Port that is able to be connected to from other processes internally.", "Protocol in use."},{"Port that is able to be connected to from other external hosts/processes.", "Protocol in use."},{"Names of processes connected to this one", "Process Identifier"}, {"The scoring metric checked against.", "Result of the checked metric."}};
 	protected final JTable[] m_infoPnlTables= new JTable[m_infoPnlColumnHeaders.length]; //if you need more tables just add another column header set above
 	private final JLabel[] m_overlayLabels= new JLabel[4]; 
-	private final java.util.concurrent.atomic.AtomicReference<Thread> m_graphRefreshThread=new java.util.concurrent.atomic.AtomicReference<>(null); //TODO move back to private when done
+	private final java.util.concurrent.atomic.AtomicReference<Thread> m_graphRefreshThread=new java.util.concurrent.atomic.AtomicReference<>(null);
 	private int m_preferredInfoPnlWidth=270;
 	private java.util.Vector<JMenuItem> defaultTrue=new java.util.Vector<>(), defaultFalse=new java.util.Vector<>();
 	
@@ -92,7 +88,6 @@ public class AHAGUI extends JFrame
 
 			// -- begin view menu --
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Hide Windows Operating System Processes"), m_controller, "hideOSProcs", "Hides the usual Windows™ operating system processes, while interesting these processes can get in the way of other analysis.", viewMenu, null, defaultFalse);
-			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show External Node"), m_controller, "processpath==external", "Shows the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to.",viewMenu, null, defaultTrue);
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Use DNS Names"), m_controller, "showFQDN", "Show the DNS names of external nodes rather than IPs.", viewMenu, null, defaultFalse);
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Use Custom ScoreFile"), m_controller, "useCustom", "If a custom score file was loaded, this option will apply those custom directives to the graph view.", viewMenu, null, defaultFalse);
 
@@ -102,10 +97,12 @@ public class AHAGUI extends JFrame
 			AHAGUIHelpers.createMenuItem(m_infoPnlUpdateOnMouseover, m_controller, "refreshInfoPanel", "Enable change of the inspector above on hovering over nodes in addition to clicking.", viewMenu, null, defaultFalse);
 			
 			viewMenu.addSeparator();
-			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Connectionless Nodes", true), m_controller, "protocol==none", "Show / Hide nodes with no protocol in the graph.", viewMenu,null, defaultTrue);
-			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Pipe", true), m_controller, "protocol==pipe", "Show / Hide Pipe protocol nodes in the graph.", viewMenu, null, defaultTrue);
-			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show TCP", true), m_controller, "protocol==tcp", "Show / Hide TCP protocol nodes in the graph.", viewMenu, null, defaultTrue);
-			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show UDP", true), m_controller, "protocol==udp", "Show / Hide UDP protocol nodes in the graph.", viewMenu, null, defaultTrue);
+			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Virtual External Node"), m_controller, "aha.graphlayer==aha.virtextnode", "Shows the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to.",viewMenu, null, defaultTrue);
+			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Real External Nodes"), m_controller, "aha.graphlayer==aha.realextnode", "Shows the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to.",viewMenu, null, defaultTrue);
+			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Connectionless Nodes", true), m_controller, "aha.graphlayer==proto.none", "Show / Hide nodes with no protocol in the graph.", viewMenu,null, defaultTrue);
+			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Pipe", true), m_controller, "aha.graphlayer==proto.pipe", "Show / Hide Pipe protocol nodes in the graph.", viewMenu, null, defaultTrue);
+			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show TCP", true), m_controller, "aha.graphlayer==proto.tcp", "Show / Hide TCP protocol nodes in the graph.", viewMenu, null, defaultTrue);
+			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show UDP", true), m_controller, "aha.graphlayer==proto.udp", "Show / Hide UDP protocol nodes in the graph.", viewMenu, null, defaultTrue);
 			
 			viewMenu.addSeparator();
 			ButtonGroup buttonGroup=new ButtonGroup();
@@ -171,7 +168,7 @@ public class AHAGUI extends JFrame
 		add(m_mainContentSplitPane, java.awt.BorderLayout.CENTER);
 		add(bottomPanel, java.awt.BorderLayout.SOUTH);
 
-		getRootPane().setBorder(BorderFactory.createMatteBorder(0, 2, 2, 2, java.awt.Color.DARK_GRAY));//new border.LineBorder(java.awt.Color.DARK_GRAY,2)); //TODO: tried this to clean up the weird dashed appearance of the right gray border on macOS, but to no avail. figure it out later.
+		getRootPane().setBorder(BorderFactory.createMatteBorder(0, 2, 2, 2, java.awt.Color.DARK_GRAY));
 		setVisible(true);
 		AHAGUIHelpers.tryCancelSplashScreen();
 		System.err.println("Finished Laying out GUI. Elapsed time="+(System.currentTimeMillis()-time)+"ms");
@@ -186,17 +183,17 @@ public class AHAGUI extends JFrame
 		stopGraphRefreshThread();
 		org.graphstream.ui.view.Viewer oldGraphViewer=m_graphViewer;
 		
-		if (m_multilineGraph) { model.m_graph = new org.graphstream.graph.implementations.MultiGraph("MultiGraph", false, true, 256, 2048); }
-		else { model.m_graph = new org.graphstream.graph.implementations.SingleGraph("SingleGraph", false, true, 256, 2048); }
+		if (m_multilineGraph) { model.m_graph.graph = new org.graphstream.graph.implementations.MultiGraph("MultiGraph", false, true, 256, 2048); }
+		else { model.m_graph.graph = new org.graphstream.graph.implementations.SingleGraph("SingleGraph", false, true, 256, 2048); }
 
-		model.m_graph.setAttribute("ui.stylesheet", model.styleSheet);
-		model.m_graph.setAttribute("layout.gravity", 0.000001); 
-		model.m_graph.setAttribute("layout.quality", 4);
-		model.m_graph.setAttribute("layout.stabilization-limit", 0.95);
-		model.m_graph.setAttribute("ui.antialias", true); //enable anti aliasing (looks way better this way)
-		model.m_graph.setAutoCreate(true);
-		model.m_graph.setStrict(false);
-		m_graphViewer = new org.graphstream.ui.swing_viewer.SwingViewer(model.m_graph, org.graphstream.ui.view.Viewer.ThreadingModel.GRAPH_IN_ANOTHER_THREAD);
+		model.m_graph.graph.setAttribute("ui.stylesheet", model.styleSheet);
+		model.m_graph.graph.setAttribute("layout.gravity", 0.000001); 
+		model.m_graph.graph.setAttribute("layout.quality", 4);
+		model.m_graph.graph.setAttribute("layout.stabilization-limit", 0.95);
+		model.m_graph.graph.setAttribute("ui.antialias", true); //enable anti aliasing (looks way better this way)
+		model.m_graph.graph.setAutoCreate(true);
+		model.m_graph.graph.setStrict(true);
+		m_graphViewer = new org.graphstream.ui.swing_viewer.SwingViewer(model.m_graph.graph, org.graphstream.ui.view.Viewer.ThreadingModel.GRAPH_IN_ANOTHER_THREAD);
 		m_graphViewPanel=(org.graphstream.ui.swing_viewer.ViewPanel)m_graphViewer.addDefaultView(false);
 		if (m_mainContentSplitPane!=null) 
 		{
@@ -224,7 +221,7 @@ public class AHAGUI extends JFrame
 						int pumpErrs=0;
 						m_graphViewPump=m_graphViewer.newViewerPipe();
 						m_graphViewPump.addViewerListener(m_controller);
-						m_graphViewPump.addSink(model.m_graph);
+						m_graphViewPump.addSink(model.m_graph.graph);
 						while (!Thread.interrupted())
 						{
 							try { m_graphViewPump.blockingPump(); }
@@ -307,7 +304,7 @@ public class AHAGUI extends JFrame
 	
 	protected Object synch_dataViewLock=new Object();
 	protected JFrame synch_dataViewFrame=null;
-	protected void showDataView(AHAModel model, AHAGUI parent) //shows the window that lists the listening sockets //TODO: make static?
+	protected void showDataView(AHAModel model, AHAGUI parent) //shows the window that lists the listening sockets 
 	{
 		synchronized (synch_dataViewLock)
 		{
@@ -315,8 +312,7 @@ public class AHAGUI extends JFrame
 			{
 				synch_dataViewFrame=new JFrame("Data View")
 				{
-					{ 
-						//adding a menubar is the easiest way to make it so we can dismiss the frame via the keyboard. TODO: eventually we should probably add more keyboard features to the data view
+					{ //adding a menubar is the easiest way to make it so we can dismiss the frame via the keyboard. eventually we should probably add more keyboard features to the data view
 						final JMenuBar menuBar = new JMenuBar();
 						JMenu fileMenu=new JMenu(" File ");
 						menuBar.add(fileMenu);
@@ -324,7 +320,7 @@ public class AHAGUI extends JFrame
 						JFrame self=this;
 						java.awt.event.ActionListener al=new java.awt.event.ActionListener() 
 						{
-							public void actionPerformed(ActionEvent e) { self.setVisible(false); } //TODO: in the case that we end up with more keyboard accelerators, we'll need to improve this function
+							public void actionPerformed(java.awt.event.ActionEvent e) { self.setVisible(false); } //in the case that we end up with more keyboard accelerators, we'll need to improve this function
 						};
 						AHAGUIHelpers.createMenuItem(new JMenuItem("Close Window"), al, "close", "Close the Data View Window", fileMenu,KeyStroke.getKeyStroke(KeyEvent.VK_W, m_menuShortcutKey), null);
 						
@@ -339,7 +335,7 @@ public class AHAGUI extends JFrame
 						{ // Find data for, create table, etc for the "Graph Data" view
 							AHAModel.TableDataHolder t=model.generateReport();
 							String[][] columTooltips= {{"Global data from the scan which took place.", "The result for this metric."},{"The name of the process.","Process ID of the process.", "User under which the process is running.", "The number of connections this process has.", "The number of ports this process has opened that external hosts/processes could connect to.", "Whether or not this process is codesigned. Code signing is recomended and allows executalbes to be authenticated as genuine.", "Address Space Layout Randomization is a recomended security feature which helps to reduce succeptability to malicious attacks.", "Data Execution Prevention is a recomended security feature which ensures that areas of memory which are writable (and could have code stored to by an attacker) are not executable.", "Control Flow Guard is a recomended security feature which helps prevent attackers from subverting normal code execution, reducing ease of attack.", "HiVA is an improved ASLR with additional etropy to further complicate any possible attacks.", "This is the score granted to the process by the 'Normal' scoring methodology which uses the MetricsTable.cfg to determine the score.","This is a beta scoring method.","This is a beta scoring method."}};
-							tabBar.add("Vulnerability Metrics", AHAGUIHelpers.createTablesInScrollPane(t.columnNames, columTooltips, t.tableData, new JTable[t.tableData.length], new int[]{180,40,200,86,80,50,44,44,44,44,44,44,60}) ); //TODO //FIXME
+							tabBar.add("Vulnerability Metrics", AHAGUIHelpers.createTablesInScrollPane(t.columnNames, columTooltips, t.tableData, new JTable[t.tableData.length], new int[]{180,40,200,86,80,50,44,44,44,44,44,44,60}) ); 
 						}
 						{ // Find data for, create table, etc for the "Listening Processes" tab
 							JTable[] fwTables=new JTable[2];
@@ -354,12 +350,27 @@ public class AHAGUI extends JFrame
 									String key=entry.getKey(), value=entry.getValue();
 									String[] keyTokens=key.split("_"), valueTokens=value.split("_");
 									Object strArrVal[]=new Object[6];
-									Node n=model.m_graph.getNode(value); //grab the node from the graph so we can use it for additional metrics
-									String addr="";
-									try
+									AHAGraph.AHANode n=model.m_graph.getNode(value); //grab the node from the graph so we can use it for additional metrics 
+									String addr=null;
+									java.util.Vector<AHAModel.ConnectionEntry> connections=n.getConnectionEntryTable("allConnections");
+									
+									for (AHAModel.ConnectionEntry e : connections)
 									{
-										addr=(String)n.getAttribute("localaddress");
-									} catch (Exception e) { e.printStackTrace(); }
+										try
+										{
+											if (e.protocol!=null && e.protocol.equals(keyTokens[0].toLowerCase()) && e.localPort!=null && e.localPort.equals(keyTokens[1].toLowerCase())) 
+											{ 
+												addr=e.localAddr; 
+												if (addr!=null) {  break; } //System.out.println("addr="+addr);
+												System.err.println("FOUND, but addr was null anyway!?!?!?");
+											}
+										} catch (Exception ex) { ex.printStackTrace(); }
+									}
+									if (addr==null)
+									{
+										addr="";
+										System.err.printf("Failed to find addr for proto=%s localport=%s\n",keyTokens[0], keyTokens[1]);
+									}
 									strArrVal[0]=valueTokens[0]; // process name
 									strArrVal[1]=AHAModel.strAsInt(valueTokens[1]); //PID
 									strArrVal[2]=keyTokens[0].toUpperCase(); //Protocol
@@ -376,7 +387,7 @@ public class AHAGUI extends JFrame
 								dataset=model.m_extListeningProcessMap;
 							}
 							String[][] columTooltips= {{"Processes which have open ports that can only be connected to by processes on this host.", "Process ID of the process.", "The protocol of this listening port, such as TCP or UDP.", "The port number.", "The number of connections to this open port."},{"Processes which have open ports that can be connected to by remote hosts/processes.", "Process ID of the process.", "The protocol of this listening port, such as TCP or UDP.", "The port number.", "The number of connections to this open port."}};
-							tabBar.add("Listening Processes", AHAGUIHelpers.createTablesInScrollPane(columnHeaders,columTooltips, tableData, fwTables, new int[]{200,50,50,50})); //TODO: FIXME:
+							tabBar.add("Listening Processes", AHAGUIHelpers.createTablesInScrollPane(columnHeaders,columTooltips, tableData, fwTables, new int[]{200,50,50,50})); 
 						}
 					}
 				};
@@ -407,11 +418,11 @@ public class AHAGUI extends JFrame
 				if (argTokens[0].equalsIgnoreCase("--verbose")) { verbosity=1; } //print more debugs while running
 				if (argTokens[0].equalsIgnoreCase("--single")) { useMultiLineGraph=false; } //draw single lines between nodes
 				if (argTokens[0].equalsIgnoreCase("--bigfont")) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); } //use 18pt font instead of default
-				
 				if (argTokens[0].equalsIgnoreCase("--forceJMenu")) { useAppleTopOfScreenMenubarIfApplicable="false"; } //draw single lines between nodes
 				if (argTokens[0].equalsIgnoreCase("--notheme")) { applyTheme=false; } //draw single lines between nodes
 				if (argTokens[0].equalsIgnoreCase("--noforcescale")) { force100percentScale=false; } //draw single lines between nodes
 				if (argTokens[0].equalsIgnoreCase("--updateFile")) { updateFile=true; } //print more debugs while running
+				if (argTokens[0].equalsIgnoreCase("verbosity")) { verbosity=Integer.parseInt(argTokens[1]); } //print more debugs while running
 				if (argTokens[0].equalsIgnoreCase("credsFile")) { credentialsFileName=argTokens[1]; } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
 				if (argTokens[0].equalsIgnoreCase("scorefile")) { scoreFileName=argTokens[1]; } //path to custom score file, and enable since...that makes sense in this case
 				if (argTokens[0].equalsIgnoreCase("inputFile")) { inputFileName=argTokens[1]; } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
@@ -428,6 +439,7 @@ public class AHAGUI extends JFrame
 							"--notheme : attempt to minimize theming information set on gui components so that the OS theme will be used. Unsupported / components may be oddly sized.\n"+
 							"--noforcescale : ignore the app attempting to force the scale down to 100% to avoid several existing graphstream bugs. \n"+
 							"--updateFile : update a given inputFile with information about attacksurface/threats from internet sources (presently aDolus)\n"+
+							"verboisty=[number] : use the specified positive numeric integer as the debug level\n"+
 							"scorefile=scorefile.csv : use the scorefile specified after the equals sign\n"+
 							"inputFile=inputFile.csv : use the inputFile specified after the equals sign\n"+
 							"credsFile=inputFile.csv : use the credsFile for the credentials to update the input file (used with --updateFile) specified after the equals sign\n"
@@ -435,7 +447,7 @@ public class AHAGUI extends JFrame
 				}
 			} catch (Exception e) { e.printStackTrace(); }
 		}
-		System.setProperty("apple.laf.useScreenMenuBar", useAppleTopOfScreenMenubarIfApplicable);
+		System.setProperty("apple.laf.useScreenMenuBar", useAppleTopOfScreenMenubarIfApplicable); //FYI OpenJDK8 on macOS does not seem to do the correct MenuBar thing regardless
 		if (force100percentScale) { System.setProperty("sun.java2d.uiScale", "100%"); } //sad little hack to work around current issues on HiDPI machines 
 		if (applyTheme) { AHAGUIHelpers.applyTheme(uiFont); }
 		

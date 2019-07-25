@@ -1,7 +1,5 @@
 package esic;
 
-import org.graphstream.ui.graphicGraph.GraphicElement;
-
 /*
  * This class is built upon a modified version of a mouse adapter class which only exists in the git master for graph stream
  * so is back ported here, and then modified to meet our needs. Original CeCILL-C / LGPL license applies to this class only. 
@@ -69,7 +67,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 				y1 = y2;
 				y2 = t;
 			}
-			mouseButtonRelease(e, view.allGraphicElementsIn(CHECK_ELEMENTS, x1, y1, x2, y2)); //view.allNodesOrSpritesIn(x1, y1, x2, y2) //TODO FIX
+			mouseButtonRelease(e, view.allGraphicElementsIn(CHECK_ELEMENTS, x1, y1, x2, y2));
 		}
 	}
 
@@ -77,7 +75,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 	{ 
 		float x2 = e.getX()*scaleFactor, y2 = e.getY()*scaleFactor;
 		if (x1==x2 && y1==y2) { return; }
-		if (curElement != null) { elementMoving(curElement, e); } //TODO: this function occasionally seems to make _wild_ jumps on the graph rather than moving it a little bit. Not sure how it determines acceleration/etc, but often single pixel moves will throw things off the graph edge
+		if (curElement != null) { elementMoving(curElement, e); }
 		else 
 		{
 			//System.out.println("strt------------------------------------");
@@ -100,7 +98,7 @@ public class AHAGUIMouseAdapter extends org.graphstream.ui.swing_viewer.util.Def
 		}
 	}
 	
-	protected void elementMoving(GraphicElement element, java.awt.event.MouseEvent e) {
+	protected void elementMoving(org.graphstream.ui.graphicGraph.GraphicElement element, java.awt.event.MouseEvent e) {
 		view.moveElementAtPx(element, e.getX()*scaleFactor, e.getY()*scaleFactor);
 	}
 

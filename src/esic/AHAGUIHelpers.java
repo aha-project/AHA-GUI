@@ -1,5 +1,4 @@
 package esic;
-
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
 import javax.swing.UIManager;
@@ -33,7 +32,6 @@ public class AHAGUIHelpers
 		UIManager.put("CheckBox.focus", backgroundColor);
 		UIManager.put("CheckBox.font", uiFont);
 		UIManager.put("CheckBox.gradient", java.util.Arrays.asList( new Object[] {Float.valueOf(0f),Float.valueOf(0f), java.awt.Color.LIGHT_GRAY, java.awt.Color.LIGHT_GRAY, java.awt.Color.GRAY.brighter() }));
-		//UIManager.put("CheckBox.icon", new AHACheckBoxIcon(13,13)); //disabled because it does odd things on openjdk/linux. TODO: fixable? if not, delete related artifacts
 		
 		UIManager.put("CheckBoxMenuItem.foreground", foregroundColor);
 		UIManager.put("CheckBoxMenuItem.acceleratorForeground", foregroundColor);
@@ -167,7 +165,7 @@ public class AHAGUIHelpers
 	}
 
 	public static class AHASortIcon implements javax.swing.Icon
-	{ //TODO maybe clean this up a little so it can be variably sized...but on the other hand, it looks good exactly with these numbers.
+	{ //maybe clean this up a little so it can be variably sized...but on the other hand, it looks good exactly with these numbers.
 		boolean thingToDraw;
 		public AHASortIcon(boolean icon) { thingToDraw=icon; }
 		public void paintIcon(java.awt.Component c, java.awt.Graphics g, int x, int y)
@@ -197,40 +195,6 @@ public class AHAGUIHelpers
 		return item;
 	}
 	
-//	public static class AHACheckBoxIcon implements javax.swing.Icon
-//	{ //TODO maybe clean this up a little so it can be variably sized...but on the other hand, it looks good exactly with these numbers.
-//		private int width, height;
-//		public java.awt.Color foreground=java.awt.Color.GREEN, background=java.awt.Color.DARK_GRAY, highlight=java.awt.Color.GRAY;
-//		public java.awt.Font font=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.BOLD,12);
-//		public java.awt.Stroke highlightStroke=new java.awt.BasicStroke(2);
-//		public AHACheckBoxIcon(int w, int h) { width=w; height=h; }
-//		public void paintIcon(Component c, java.awt.Graphics g, int x, int y)
-//		{
-//			java.awt.Graphics2D g2 = (java.awt.Graphics2D)g;
-//			boolean selected=false, rollover=false;
-//			try 
-//			{ 
-//				javax.swing.AbstractButton aButton=(javax.swing.AbstractButton)c;
-//				javax.swing.ButtonModel bModel=aButton.getModel(); 
-//				selected=bModel.isSelected();
-//				rollover=bModel.isRollover();
-//			} catch (Exception e) {}
-//			g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-//			g2.setColor(background);
-//			g2.setFont(font);
-//			g2.fillRect(x, y, width, height); 
-//			if (selected) { g2.setColor(foreground); g2.drawString("√", x+3, y+height-1); }
-//			if (rollover)
-//			{ 
-//				g2.setColor(highlight);
-//				g2.setStroke(highlightStroke);
-//				g2.drawPolygon(new int[]{x,x+width,x+width,x}, new int[]{y,y,y+height,y+height}, 4);
-//			}
-//		}
-//		public int getIconWidth() { return width; }
-//		public int getIconHeight() { return height; }
-//	}
-
 	public static String styleToolTipText(String s) //format all tool tip texts by making them HTML (so we can apply text effects, and more importantly line breaks)
 	{
 		if (s.length()>60)
@@ -257,7 +221,6 @@ public class AHAGUIHelpers
 		}
 		return "<html><p style='font-style:bold;color:black;background:white;'>"+s+"</p></html>";
 	}
-	
 	
 	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][] columnTooltips, Object[][][] initialData, javax.swing.JTable[] tableRefs, int[] columnWidths)
 	{

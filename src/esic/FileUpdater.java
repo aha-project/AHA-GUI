@@ -1,4 +1,5 @@
 package esic;
+//Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
 public class FileUpdater
 {

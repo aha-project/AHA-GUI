@@ -1,8 +1,7 @@
 package esic;
-
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
-import org.graphstream.graph.*;
+import esic.AHAGraph.AHANode;
 
 public class AHAModel implements Runnable
 {
@@ -25,29 +24,34 @@ public class AHAModel implements Runnable
 	private AHAController m_controller=null;
 	private java.util.Vector<String> m_lastSearchTokens=new java.util.Vector<>();
 	
-	protected static enum ScoreMethod //method to number the enums is a bit ridiculous, but oh well.
+	protected static enum ScoreMethod //method to number the enumerations is a bit ridiculous, but oh well.
 	{
 		Normal(0),WorstCommonProcBETA(1),RelativeScoreBETA(2);
 		private int value;
     private static java.util.HashMap<Integer,ScoreMethod> map = new java.util.HashMap<>();
     private ScoreMethod(int value) { this.value = value; }
-    static 
-    {
-    	for (ScoreMethod pageType : ScoreMethod.values()) { map.put(pageType.value, pageType); }
-    }
+    static { for (ScoreMethod pageType : ScoreMethod.values()) { map.put(pageType.value, pageType); } }
     public static ScoreMethod valueOf(int scoreMethod) { return (ScoreMethod) map.get(scoreMethod); }
-    public static ScoreMethod getValue(String scoreMethod) 
+    public static ScoreMethod getValue(String scoreMethod)
     {
     	try { return (ScoreMethod) map.get(Integer.parseInt(scoreMethod)); }
     	catch (Exception e) { e.printStackTrace(); return Normal; }
     }
     public int getValue() { return value; }
 	}
+	
 	protected static class TableDataHolder
 	{
 		protected String[][] columnNames=null;
 		protected Object[][][] tableData=null;
 	}
+	
+	protected static class ConnectionEntry
+	{
+		public String localAddr="", localPort="", remoteAddr="", remotePort="", remoteHostName="", protocol="", state="";
+		public String toString() { return String.format("local=%s:%s remote=%s:%s dns=%s proto=%s state=%s",localAddr, localPort, remoteAddr, remotePort, remoteHostName, protocol, state ); }
+	}
+	
   protected String styleSheet = "graph { fill-color: black; }"+
 			"node { size: 30px; fill-color: red; text-color: white; text-style: bold; text-size: 12; text-background-color: #222222; text-background-mode: plain; }"+
 			"node.lowVuln { fill-color: green; }"+
@@ -64,16 +68,17 @@ public class AHAModel implements Runnable
 			"edge.external { fill-color: #883030; }"+
 			"edge.clickedAccent { fill-color: purple; }"+
 			"edge.emphasize { fill-color: blue; }";
-  protected static final String NormalizedScore="ui.ScoreMethodInternalNormalizedScore",RAWRelativeScore="ui.ScoreMethodInternalRAWRelativeScore", ForSibling="ui.ScoreMethodInternalForSibling", CUSTOMSTYLE="ui.weAppliedCustomStyle";
+  protected static final String NormalizedScore="aha.ScoreMethodInternalNormalizedScore",RAWRelativeScore="aha.ScoreMethodInternalRAWRelativeScore", ForSibling="aha.ScoreMethodInternalForSibling", CUSTOMSTYLE="aha.weAppliedCustomStyle";
 	protected int m_verbosity=0;
 	protected boolean m_useCustomOverlayScoreFile=false;
 	protected String m_inputFileName=null, m_scoreFileName=null;
-	protected Graph m_graph=null;
+	protected AHAGraph m_graph=new AHAGraph();
 	protected java.util.TreeMap<String,Integer> m_platformSpecificMetricsTableScores=new java.util.TreeMap<>(), m_listeningPortConnectionCount=new java.util.TreeMap<>();
 	protected java.util.TreeMap<String,String> m_allListeningProcessMap=new java.util.TreeMap<>(), m_intListeningProcessMap=new java.util.TreeMap<>(), m_extListeningProcessMap=new java.util.TreeMap<>();
 	protected java.util.TreeMap<String,String> m_knownAliasesForLocalComputer=new java.util.TreeMap<>(), m_miscMetrics=new java.util.TreeMap<>();
-
-	public static String scrMethdAttr(ScoreMethod m) { 	return "ui.ScoreMethod"+m; }
+	private java.util.concurrent.atomic.AtomicReference<ScoreMethod> m_currentlyPresentedScoreMethod=new java.util.concurrent.atomic.AtomicReference<>(ScoreMethod.Normal);
+	
+	public static String scrMethdAttr(ScoreMethod m) { 	return "aha.ScoreMethod"+m; }
 	
 	private void readScoreTable(String filename)
 	{
@@ -109,7 +114,7 @@ public class AHAModel implements Runnable
 					java.util.Vector<String> criteriaVec=new java.util.Vector<>();
 					for (String s : criteria) { criteriaVec.add(s.trim()); }
 					if (m_verbosity>0) { System.out.println("MetricsTable read criterion: if "+tokens[1]+"="+criteriaVec.toString()+" score="+scoreDelta+" Explanation='"+humanReadibleExplanation+"'"); }
-					m_scoreTable.add(new ScoreItem(tokens[0],tokens[1],criteriaVec,scoreDelta, humanReadibleExplanation)); //TODO this should probably get cleaned up, as comments and/or anything after the first main 3 fields will consume memory even though we never use them.
+					m_scoreTable.add(new ScoreItem(tokens[0],tokens[1],criteriaVec,scoreDelta, humanReadibleExplanation)); 
 					if (scoreDelta>0 && platform.equals("multiplatform")) { metricsTableMultiPlatformScore+=scoreDelta; }
 					else if ( scoreDelta>0 && !platform.equals("optional"))
 					{
@@ -132,18 +137,18 @@ public class AHAModel implements Runnable
 		m_controller.updateOverlayLegendScale(maxScore);
 	}
 	
-	protected void exploreAndScore(Graph graph) //explores the node graph and assigns a scaryness score //TODO: this should be able to be private, fix controller, it shouldn't be calling this.
+	private void exploreAndScore(AHAGraph graph) //explores the node graph and assigns a score about how scary it is
 	{
 		long time=System.currentTimeMillis();
 		java.util.TreeMap<String, Integer> lowestScoreForUserName=new java.util.TreeMap<>();
-		for (Node node : graph) //Stage 1 of scoring, either the entirety of a scoring algorithm, such as "Normal", or the first pass for multi stage algs
+		for (AHANode node : graph) //Stage 1 of scoring, either the entirety of a scoring algorithm, such as "Normal", or the first pass for multi stage algs
 		{
 			try
 			{
 				int score=generateNormalNodeScore(node);
 				node.setAttribute(scrMethdAttr(ScoreMethod.Normal), Integer.toString(score)); //if we didn't have a custom score from another file, use our computed score
 				//Begin WorstUserProc stage1 scoring
-				String nodeUserName=(String)node.getAttribute("username");
+				String nodeUserName=node.getAttribute("username");
 				if ( nodeUserName!=null )
 				{
 					Integer lowScore=lowestScoreForUserName.remove(nodeUserName);
@@ -155,231 +160,231 @@ public class AHAModel implements Runnable
 
 		if (m_verbosity>0) { System.out.println("Worst User Scores="+lowestScoreForUserName); }
 		
-		for (Node node:graph) //Stage 2 of scoring, for scoring algorithms that need to make a second pass over the graph
+		for (AHANode node:graph) //Stage 2 of scoring, for scoring algorithms that need to make a second pass over the graph
 		{
 			try
 			{ //Begin WorstUserProc stage2 scoring
-				String nodeUserName=(String)node.getAttribute("username");
+				String nodeUserName=node.getAttribute("username");
 				if (nodeUserName!=null)
 				{
 					Integer lowScore=lowestScoreForUserName.get(node.getAttribute("username"));
 					if (lowScore==null) { System.err.println("no low score found, this should not happen"); continue; }
 					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA), lowScore.toString());
 					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA)+"Reason", "WPScore="+lowScore);
-				} 
-				else 
-				{ 
+				}
+				else
+				{
 					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA), "0");
 					node.setAttribute(scrMethdAttr(ScoreMethod.WorstCommonProcBETA)+"Reason", "WPScore=0");
-				} 
+				}
 			} catch (Exception e) { e.printStackTrace(); } //End WorstUserProc stage2 scoring
 		}
 		computeRelativeScores(graph);
 		swapNodeStyles(ScoreMethod.Normal, time); //since we just finished doing the scores, swap to the 'Normal' score style when we're done.
 	}
 
-	private void computeRelativeScores(Graph graph) //RelativeScore CODE //TODO: this code requires enums in scoreMethod that break the combo box display as well as possibly throwing NFEs
+	private void computeRelativeScores(AHAGraph graph) //RelativeScore CODE 
 	{ 
-		for (Node node:graph)
+		try
 		{
-			if (node.getAttribute("parents") != null)
+			for (AHANode node:graph)
 			{
-				java.util.List<String> nodeParents= castObjectAsStringList(node.getAttribute("parents"));
-				java.util.List<String> nodeParentsDistinct = nodeParents.stream().distinct().collect(java.util.stream.Collectors.toList());
-				node.setAttribute("parents", nodeParentsDistinct);
-			}
-			if (node.getAttribute("sibling") != null)
-			{
-				java.util.List<String> nodeSiblings= castObjectAsStringList(node.getAttribute("sibling"));
-				java.util.List<String> nodeSiblingsDistinct = nodeSiblings.stream().distinct().collect(java.util.stream.Collectors.toList());
-				node.setAttribute("sibling", nodeSiblingsDistinct);
-			}
-		}
-		double maxscore=100, minscore=0;
-		double maxNorm=maxscore+5, minNorm=minscore-5;     
-		for (Node node:graph)
-		{   
-			if (node.getAttribute(scrMethdAttr(ScoreMethod.Normal))!=null)
-			{
-				double nodeScore   = Double.valueOf((String)node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
-				double attacksurface =  1 - ((nodeScore-minNorm)/(maxNorm-minNorm));
-				node.setAttribute(NormalizedScore, ((Double)attacksurface).toString());
-				node.setAttribute(RAWRelativeScore, ((Double)0.0).toString());
-				node.setAttribute(ForSibling, ((Double)0.0).toString());
-			}
-			node.setAttribute("finishScoring",((int)0));
-			node.setAttribute("readyforsibling",((int)0));
-		}
-		int allDone=0;
-		while (allDone == 0)
-		{
-			for (Node node:graph)
-			{
-				if ((node.getAttribute("parents") == null) && (node.getAttribute("sibling") == null))
+				if (node.getAttribute("parents") != null)
 				{
-					node.setAttribute("finishScoring",((int)1));
-					node.setAttribute("readyforsibling",((int)1));
-					double normalized = Double.valueOf((String)node.getAttribute(NormalizedScore));
-					node.setAttribute(RAWRelativeScore, ((Double)normalized).toString());
-					node.setAttribute(ForSibling, ((Double)0.0).toString());
+					java.util.List<String> nodeParents=node.getStringList("parents");
+					java.util.List<String> nodeParentsDistinct=nodeParents.stream().distinct().collect(java.util.stream.Collectors.toList());
+					node.putStringList("parents", nodeParentsDistinct);
 				}
-				if ((node.getAttribute("parents") == null) && (node.getAttribute("sibling") != null))
+				if (node.getAttribute("sibling") != null)
 				{
-					if ((int)node.getAttribute("readyforsibling") == 0)
+					java.util.List<String> nodeSiblings=node.getStringList("sibling");
+					java.util.List<String> nodeSiblingsDistinct=nodeSiblings.stream().distinct().collect(java.util.stream.Collectors.toList());
+					node.putStringList("sibling", nodeSiblingsDistinct);
+				}
+			}
+			double maxscore=maxScore, minscore=0;
+			double maxNorm=maxscore+5, minNorm=minscore-5;
+			for (AHANode node:graph)
+			{
+				if (node.getAttribute(scrMethdAttr(ScoreMethod.Normal))!=null)
+				{
+					double nodeScore=Double.valueOf(node.getAttribute(scrMethdAttr(ScoreMethod.Normal)));
+					double attacksurface= 1-((nodeScore-minNorm)/(maxNorm-minNorm));
+					node.setAttribute(NormalizedScore, Double.toString(attacksurface));
+					node.setAttribute(RAWRelativeScore, "0.0");
+					node.setAttribute(ForSibling, "0.0");
+				}
+				node.setAttribute("finishScoring","false");
+				node.setAttribute("readyforsibling","false");
+			}
+			boolean allDone=false;
+			while (allDone==false)
+			{
+				for (AHANode node:graph)
+				{
+					if ((node.getAttribute("parents") == null) && (node.getAttribute("sibling") == null))
 					{
-						double normalized = Double.valueOf((String)node.getAttribute(NormalizedScore));
-						node.setAttribute(RAWRelativeScore, ((Double)normalized).toString());
-						node.setAttribute("readyforsibling",((int)1));
+						node.setAttribute("finishScoring","true");
+						node.setAttribute("readyforsibling","true");
+						node.setAttribute(RAWRelativeScore, node.getAttribute(NormalizedScore));
+						node.setAttribute(ForSibling, "0.0");
 					}
-					if ((int)node.getAttribute("finishScoring") == 0)
+					if ((node.getAttribute("parents") == null) && (node.getAttribute("sibling") != null))
 					{
-						java.util.List<String> nodeSiblings=castObjectAsStringList(node.getAttribute("sibling"));
-						int test =1; // check all the parents of the node have complete scoring process
-						for (int i = 0; i < nodeSiblings.size() ; i++) 
-						{ 
-							Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
-							if ((int) tempSibling.getAttribute("readyforsibling") == 0)
-							{
-								test = 0;
-								break;
-							}
-						} 
-						if (test == 1)
+						if (node.getAttribute("readyforsibling").equals("true"))
 						{
-							double sum = 0;
-							for (int i = 0; i < nodeSiblings.size() ; i++) 
-							{ 
-								Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
-								double nScore= Double.valueOf((String)node.getAttribute(NormalizedScore));
-								double pScore = Double.valueOf((String)tempSibling.getAttribute(ForSibling));
-								sum = sum + (nScore * pScore);
-							} 
-							node.setAttribute(RAWRelativeScore, ((Double)sum).toString());
-							node.setAttribute("finishScoring",((int)1));
+							node.setAttribute(RAWRelativeScore, node.getAttribute(NormalizedScore));
+							node.setAttribute("readyforsibling","true");
 						}
-					}  
-				}
-				if ((node.getAttribute("parents") != null) && (node.getAttribute("sibling") == null))
-				{
-					if ((int)node.getAttribute("readyforsibling") == 0) { node.setAttribute("readyforsibling",((int)1)); }
-					if ((int)node.getAttribute("finishScoring") == 0)
-					{
-						java.util.List<String> nodeparents=castObjectAsStringList(node.getAttribute("parents"));
-						int test =1; // check all the parents of the node have complete scoring process
-						for (int i = 0; i < nodeparents.size() ; i++) 
-						{ 
-							Node tempParent = graph.getNode(nodeparents.get(i)) ;
-							if ((int) tempParent.getAttribute("finishScoring") == 0)
-							{
-								test = 0;
-								break;
-							}
-						} 
-						if (test == 1)
+						if (node.getAttribute("finishScoring").equals("true"))
 						{
-							double sum=0, nScore=Double.valueOf((String)node.getAttribute(NormalizedScore));
-							for (int i = 0; i < nodeparents.size() ; i++) 
-							{ 
-								Node tempParent = graph.getNode(nodeparents.get(i)) ;
-								double pScore = Double.valueOf((String)tempParent.getAttribute(RAWRelativeScore));
-								sum = sum + (nScore * pScore);
-							} 
-							node.setAttribute(RAWRelativeScore, ((Double)(sum)).toString());
-							node.setAttribute("finishScoring",((int)1));
-						}
-					}  
-				}
-				if ((node.getAttribute("parents") != null) && (node.getAttribute("sibling") != null))
-				{
-					if ((int)node.getAttribute("readyforsibling") == 0)
-					{
-						java.util.List<String> nodeparents=castObjectAsStringList(node.getAttribute("parents"));
-						int test =1; // check all the parents of the node have complete scoring process
-						for (int i = 0; i < nodeparents.size() ; i++) 
-						{ 
-							Node tempParent = graph.getNode(nodeparents.get(i)) ;
-							if ((int) tempParent.getAttribute("finishScoring") == 0)
+							java.util.List<String> nodeSiblings=node.getStringList("sibling");
+							boolean test=true; // check all the parents of the node have complete scoring process
+							for (int i=0; i<nodeSiblings.size(); i++)
 							{
-								test = 0;
-								break;
+								AHANode tempSibling = graph.getNode(nodeSiblings.get(i));
+								if (tempSibling.getAttribute("readyforsibling").equals("false"))
+								{
+									test=false;
+									break;
+								}
 							}
-						} 
-						if (test == 1)
-						{
-							double sum = 0;
-							double nScore= Double.valueOf((String)node.getAttribute(NormalizedScore));
-							for (int i = 0; i < nodeparents.size() ; i++) 
-							{ 
-								Node tempParent = graph.getNode(nodeparents.get(i)) ;
-								double pScore = Double.valueOf((String)tempParent.getAttribute(RAWRelativeScore));
-								sum = sum + (nScore * pScore);
-							} 
-							node.setAttribute(ForSibling, ((Double)(sum)).toString());
-							node.setAttribute("readyforsibling",((int)1));
+							if (test == true)
+							{
+								double sum=0;
+								for (int i=0; i<nodeSiblings.size(); i++)
+								{
+									AHANode tempSibling=graph.getNode(nodeSiblings.get(i));
+									double nScore=Double.valueOf(node.getAttribute(NormalizedScore));
+									double pScore=Double.valueOf(tempSibling.getAttribute(ForSibling));
+									sum=sum+(nScore*pScore);
+								}
+								node.setAttribute(RAWRelativeScore, Double.toString(sum));
+								node.setAttribute("finishScoring","true");
+							}
 						}
 					}
-					if (((int)node.getAttribute("finishScoring") == 0) && ((int) node.getAttribute("readyforsibling") == 1))
+					if ((node.getAttribute("parents") != null) && (node.getAttribute("sibling") == null))
 					{
-						java.util.List<String> nodeSiblings=castObjectAsStringList(node.getAttribute("sibling"));
-						int test =1; // check all the parents of the node have complete scoring process
-						for (int i = 0; i < nodeSiblings.size() ; i++) 
-						{ 
-							Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
-							if ((int) tempSibling.getAttribute("readyforsibling") == 0)
-							{
-								test = 0;
-								break;
-							}
-						} 
-						if (test == 1)
+						if (node.getAttribute("readyforsibling").equals("false")) { node.setAttribute("readyforsibling","true"); }
+						if (node.getAttribute("finishScoring").equals("false"))
 						{
-							double sum = 0;
-							double nScore= Double.valueOf((String)node.getAttribute(NormalizedScore));
-							double SScore= Double.valueOf((String)node.getAttribute(ForSibling));
-							for (int i = 0; i < nodeSiblings.size() ; i++) 
-							{ 
-								Node tempSibling = graph.getNode(nodeSiblings.get(i)) ;
-								double pScore = Double.valueOf((String)tempSibling.getAttribute(ForSibling));
-								sum = sum + (nScore * pScore);
-							} 
-							node.setAttribute(RAWRelativeScore, ((Double)(sum+SScore)).toString());
-							node.setAttribute("finishScoring",((int)1));
+							java.util.List<String> nodeparents=node.getStringList("parents");
+							boolean test=true; // check all the parents of the node have complete scoring process
+							for (int i = 0; i < nodeparents.size() ; i++)
+							{
+								AHANode tempParent = graph.getNode(nodeparents.get(i));
+								if (tempParent.getAttribute("finishScoring").equals("false"))
+								{
+									test=false;
+									break;
+								}
+							}
+							if (test == true)
+							{
+								double sum=0, nScore=Double.valueOf(node.getAttribute(NormalizedScore));
+								for (int i=0; i<nodeparents.size(); i++)
+								{
+									AHANode tempParent=graph.getNode(nodeparents.get(i));
+									double pScore=Double.valueOf(tempParent.getAttribute(RAWRelativeScore));
+									sum=sum+(nScore*pScore);
+								}
+								node.setAttribute(RAWRelativeScore, Double.toString(sum));
+								node.setAttribute("finishScoring","true");
+							}
+						}
+					}
+					if ((node.getAttribute("parents") != null) && (node.getAttribute("sibling") != null))
+					{
+						if (node.getAttribute("readyforsibling").equals("false"))
+						{
+							java.util.List<String> nodeparents=node.getStringList("parents");
+							boolean test=true; // check all the parents of the node have complete scoring process
+							for (int i=0; i<nodeparents.size(); i++)
+							{
+								AHANode tempParent = graph.getNode(nodeparents.get(i));
+								if (tempParent.getAttribute("finishScoring").equals("false"))
+								{
+									test=false;
+									break;
+								}
+							}
+							if (test == true)
+							{
+								double sum=0;
+								double nScore= Double.valueOf(node.getAttribute(NormalizedScore));
+								for (int i=0; i<nodeparents.size(); i++)
+								{
+									AHANode tempParent = graph.getNode(nodeparents.get(i));
+									double pScore = Double.valueOf(tempParent.getAttribute(RAWRelativeScore));
+									sum=sum+(nScore*pScore);
+								}
+								node.setAttribute(ForSibling, Double.toString(sum));
+								node.setAttribute("readyforsibling","true");
+							}
+						}
+						if ((node.getAttribute("finishScoring").equals("false")) && (node.getAttribute("readyforsibling").equals("true")))
+						{
+							java.util.List<String> nodeSiblings=node.getStringList("sibling");
+							boolean test=true; // check all the parents of the node have complete scoring process
+							for (int i=0; i<nodeSiblings.size(); i++)
+							{
+								AHANode tempSibling = graph.getNode(nodeSiblings.get(i));
+								if (tempSibling.getAttribute("readyforsibling").equals("false"))
+								{
+									test=false;
+									break;
+								}
+							}
+							if (test == true)
+							{
+								double sum=0;
+								double nScore=Double.valueOf(node.getAttribute(NormalizedScore));
+								double SScore=Double.valueOf(node.getAttribute(ForSibling));
+								for (int i=0; i<nodeSiblings.size(); i++)
+								{
+									AHANode tempSibling=graph.getNode(nodeSiblings.get(i));
+									double pScore=Double.valueOf(tempSibling.getAttribute(ForSibling));
+									sum=sum+(nScore*pScore);
+								}
+								node.setAttribute(RAWRelativeScore, Double.toString(sum+SScore));
+								node.setAttribute("finishScoring","true");
+							}
 						}
 					}
 				}
-			}
-			allDone=1;
-			for (Node node:graph)
-			{
-				if ((int)node.getAttribute("finishScoring") == 0)
+				allDone=true;
+				for (AHANode node:graph)
 				{
-					allDone=0;
-					break;
+					if (node.getAttribute("finishScoring").equals("false"))
+					{
+						allDone=false;
+						break;
+					}
 				}
 			}
+			double minRelative=Double.valueOf(graph.getNode("external").getAttribute(RAWRelativeScore)); //TODO: should both of these lines be the same? it was getNode(1)...which didn't make sense to me...
+			double maxRelative=Double.valueOf(graph.getNode("external").getAttribute(RAWRelativeScore));
+			for (AHANode node:graph)
+			{
+				double relativeScore = Double.valueOf(node.getAttribute(RAWRelativeScore));
+				if (relativeScore > maxRelative) { maxRelative=relativeScore; }
+				if (relativeScore < minRelative) { minRelative=relativeScore; }
+			}
+			int newRangeMin=0, newRangeMax=100;
+			for (AHANode node:graph)
+			{
+				double relativeScore = Double.valueOf(node.getAttribute(RAWRelativeScore));
+				double newRelativeScore= newRangeMin +((newRangeMax-newRangeMin)/(maxRelative-minRelative))*(relativeScore - minRelative);
+				double newReversedRelativeScore= newRangeMax - newRelativeScore + newRangeMin;
+				node.setAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), Long.toString(Math.round(newReversedRelativeScore)));
+				node.setAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)+"Reason", "RelativeScore="+Long.toString(Math.round(newReversedRelativeScore))+"");
+			}
 		}
-		double minRelative = Double.valueOf((String)graph.getNode(1).getAttribute(RAWRelativeScore)); //TODO: should both of these lines be the same?
-		double maxRelative = Double.valueOf((String)graph.getNode(1).getAttribute(RAWRelativeScore));
-		for (Node node:graph)
-		{
-			double relativeScore = Double.valueOf((String)node.getAttribute(RAWRelativeScore));
-			if (relativeScore > maxRelative) { maxRelative = relativeScore ; }
-			if (relativeScore < minRelative) { minRelative = relativeScore ; }
-		}
-
-		int newRangeMin = 0;
-		int newRangeMax = 100;
-		for (Node node:graph)
-		{
-			double relativeScore = Double.valueOf((String)node.getAttribute(RAWRelativeScore));
-			double newRelativeScore= newRangeMin +((newRangeMax-newRangeMin)/(maxRelative-minRelative))*(relativeScore - minRelative);
-			double newReversedRelativeScore= newRangeMax - newRelativeScore + newRangeMin ;
-			node.setAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA), Long.toString(Math.round(newReversedRelativeScore))); //).toString()
-			node.setAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA)+"Reason", "RelativeScore="+Long.toString(Math.round(newReversedRelativeScore))+"");
-		}
+		catch (Exception e) { e.printStackTrace(); }
 	}
 	
-	private int generateNormalNodeScore(Node node)
+	private int generateNormalNodeScore(AHANode node)
 	{
 		int score=0;
 		String reason="";
@@ -413,7 +418,7 @@ public class AHAModel implements Runnable
 								}
 							} catch (Exception e) { e.printStackTrace(); }
 						}
-					}   //if (numberOfTimesTrue>0) { scoreReason+=", "+si.humanReadableReason+"="+(si.scoreDelta*numberOfTimesTrue); } //TODO any need for this code snippet?
+					} 
 					if (m_verbosity>0) { System.out.println("    "+si.criteria+": input='"+attribute+"' looking for="+si.criteriaValues+" matched "+numberOfTimesTrue+" times"); }
 				}
 				String xtra="";
@@ -429,13 +434,15 @@ public class AHAModel implements Runnable
 	}
 
 	protected void swapNodeStyles(ScoreMethod m, long startTime)
-	{
-		for (Node node : m_graph)
+	{ 
+		if (m==null) { m=m_currentlyPresentedScoreMethod.get(); }
+		else { m_currentlyPresentedScoreMethod.set(m); }
+		for (AHANode node : m_graph)
 		{
 			try
 			{
-				String currentClass=(String)node.getAttribute("ui.class"), customStyle=(String)node.getAttribute(CUSTOMSTYLE);
-				String sScore=(String)node.getAttribute(scrMethdAttr(m)), sScoreReason=(String)node.getAttribute(scrMethdAttr(m)+"Reason"); 
+				String currentClass=node.getAttribute("ui.class"), customStyle=node.getAttribute(CUSTOMSTYLE);
+				String sScore=node.getAttribute(scrMethdAttr(m)), sScoreReason=node.getAttribute(scrMethdAttr(m)+"Reason"); 
 				Integer intScore=null;
 				try { intScore=Integer.parseInt(sScore); }
 				catch (Exception e) { System.err.printf("Failed to parse score for node=%s failed to parse='%s'\n",node.getId(), sScore); } 
@@ -443,23 +450,23 @@ public class AHAModel implements Runnable
 				{
 					if (currentClass!=null && currentClass.equalsIgnoreCase("external"))
 					{ 
-						node.setAttribute("ui.score", "0");
-						node.setAttribute("ui.scoreReason", "External Node=N/A");
+						node.setAttribute("aha.score", "0");
+						node.setAttribute("aha.scoreReason", "External Node=N/A");
 					}
 					else if (m_useCustomOverlayScoreFile==true && customStyle!=null && customStyle.equalsIgnoreCase("yes"))
 					{
-						String score=(String)node.getAttribute(CUSTOMSTYLE+".score");
-						String style=(String)node.getAttribute(CUSTOMSTYLE+".style");
+						String score=node.getAttribute(CUSTOMSTYLE+".score");
+						String style=node.getAttribute(CUSTOMSTYLE+".style");
 						node.removeAttribute("ui.class");
 						node.setAttribute("ui.style", style);
-						node.setAttribute("ui.score", score);
-						node.setAttribute("ui.scoreReason", "Custom Scorefile Overlay=N/A");
+						node.setAttribute("aha.score", score);
+						node.setAttribute("aha.scoreReason", "Custom Scorefile Overlay=N/A");
 					}
 					else if (intScore!=null)
 					{ 
 						int score=intScore.intValue();
-						node.setAttribute("ui.score", score);
-						if (sScoreReason!=null) { node.setAttribute("ui.scoreReason", sScoreReason); } 
+						node.setAttribute("aha.score", intScore.toString());
+						if (sScoreReason!=null) { node.setAttribute("aha.scoreReason", sScoreReason); } 
 						String uiClass="severeVuln";
 						if (score > (0.25*maxScore)) { uiClass="highVuln"; }
 						if (score > (0.50*maxScore)) { uiClass="medVuln"; }
@@ -497,29 +504,6 @@ public class AHAModel implements Runnable
 		dataset.put(key, value); //System.out.println("Bumping ref for key="+key+" to new value="+value);
 	}
 	
-	@SuppressWarnings("unchecked")
-	private java.util.List<String> castObjectAsStringList(Object o)
-	{
-		try
-		{
-			if (o instanceof java.util.List)
-			{
-				java.util.List<?> temp=(java.util.List<?>)o;
-				if (temp.get(0) instanceof String) { return (java.util.List<String>) temp; }
-			}
-		} catch (Exception e) { System.err.println("Failed to cast to List<String>"); e.printStackTrace(); }
-		return null;
-	}
-	
-	@SuppressWarnings("unchecked")
-	private static java.util.TreeMap<String,String> getTreeMapFromObj(Object o)
-	{
-		try { return (java.util.TreeMap<String, String>) o; } 
-		catch (Exception e) {}
-		return null;
-	}
-
-	
 	private void readInputFile()
 	{
 		System.out.println("Reading primary input file=\""+m_inputFileName+"\"");
@@ -532,23 +516,30 @@ public class AHAModel implements Runnable
 		metadata.put("RequiredHeaderTokens", "processname,pid,protocol,state,localport,localaddress,remoteaddress,remoteport,remotehostname");
 		if (!readCSVFileIntoArrayList(m_inputFileName, metadata, hdr, inputLines)) { System.out.println("Failed to read input file, bailing."); return; }
 		for (String s:hdr.keySet()) { reverseHdr.put(hdr.get(s), s); } 
-
+		java.util.Vector<String> nodeAttributeExclusions=new java.util.Vector<>();
+		java.util.Collections.addAll(nodeAttributeExclusions, new String[]{"localaddress","localport","remoteaddress","remoteport","state","protocol"}); //TODO blacklist proto when the new system for show/hide nodes is in place
+		
+		AHANode ext=m_graph.addNode("external");
+		ext.setAttribute("ui.class", "external"); //Add a node for "external"
+		ext.setAttribute("aha.externalNode","aha.externalNode");
+		ext.getStringMap("aha.graphlayer").put("aha.virtextnode", "aha.virtextnode");
+		
 		int lineNumber=0;
 		for (java.util.ArrayList<String> tokens : inputLines)
 		{
 			lineNumber++;
-			//fixups for well known file issues (will persist for all of readInputFile since we modify the input tokens)
+			//fix-ups for well known file issues (will persist for all of readInputFile since we modify the input tokens)
 			if (tokens.get(hdr.get("protocol")).contains("6")) { tokens.set(hdr.get("protocol"),tokens.get(hdr.get("protocol")).replaceAll("6", "")); } //if we have tcp6/udp6, remove the '6'
 			if (tokens.get(hdr.get("protocol")).equals("udp")) { tokens.set(hdr.get("state"),"listening"); } //fix up in the case that a line is protocol==UDP and state==""
 			if (hdr.get("remotehostname")==null) { tokens.set(hdr.get("remotehostname"),""); } //some versions of the linux scanner forgot to populate this column
 			
-			String fromNode=tokens.get(hdr.get("processname"))+"_"+tokens.get(hdr.get("pid")), protoLocalPort=tokens.get(hdr.get("protocol"))+"_"+tokens.get(hdr.get("localport"));
+			String fromNode=tokens.get(hdr.get("processname"))+"_"+tokens.get(hdr.get("pid")), protoLocalPort=tokens.get(hdr.get("protocol"))+"_"+tokens.get(hdr.get("localport")), proto=tokens.get(hdr.get("protocol"));
 			String connectionState=tokens.get(hdr.get("state")), localAddr=tokens.get(hdr.get("localaddress")).trim();
 
-			Node node = m_graph.getNode(fromNode);
+			AHANode node = m_graph.getNode(fromNode);
 			if(node == null)
 			{
-				if (m_verbosity>4) { System.out.println("Found new process: Name=|"+fromNode+"|"); }
+				if (m_verbosity>3) { System.out.println("Found new process: Name=|"+fromNode+"|"); }
 				node = m_graph.addNode(fromNode);
 			}
 			if (connectionState.contains("listen") )
@@ -556,33 +547,53 @@ public class AHAModel implements Runnable
 				m_knownAliasesForLocalComputer.put(localAddr, localAddr);
 				m_allListeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
 				if (m_verbosity>4) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
-				String portMapKey="ui.localListeningPorts";
-				if( !localAddr.equals("127.0.0.1") && !localAddr.equals("::1") && !localAddr.startsWith("192.168") && !localAddr.startsWith("10.")) //TODO we really want anything that's not listening on localhost here: localAddr.equals("0.0.0.0") || localAddr.equals("::") || 
+				String portMapKey="aha.localListeningPorts";
+				if( !localAddr.equals("127.0.0.1") && !localAddr.equals("::1") && !localAddr.startsWith("192.168") && !localAddr.startsWith("10.")) //TODO we really want anything that's not listening on localHost here: localAddr.equals("0.0.0.0") || localAddr.equals("::") || 
 				{ 
-					Edge e=m_graph.addEdge(node+"_external",node.toString(),"external");
-					e.setAttribute("ui.class", "external");
-					node.setAttribute("ui.hasExternalConnection", "yes");
-					portMapKey="ui.extListeningPorts"; //since this is external, change the key we read/write when we store this new info
+					try
+					{
+						org.graphstream.graph.Edge e=m_graph.addEdge(node.getId()+"_external",node.getId(),"external");
+						e.setAttribute("ui.class", "external");
+						node.setAttribute("aha.hasExternalConnection", "yes");
+					} catch (Exception e) {} //TODO: make a better check for a node having multiple externally accessible ports...
+					
+					portMapKey="aha.extListeningPorts"; //since this is external, change the key we read/write when we store this new info
 					m_extListeningProcessMap.put(protoLocalPort,fromNode);
 					// BEGIN RelativeScore CODE //
-					java.util.List<String> parents=castObjectAsStringList(node.getAttribute("parents"));
+					java.util.List<String> parents=node.getStringList("parents");
 					if (parents == null) { parents = new java.util.ArrayList<>(); }
 					parents.add("external");
-					node.setAttribute("parents", parents);
+					node.putStringList("parents", parents);
 					// END RelativeScore CODE //
 				}
 				else { m_intListeningProcessMap.put(protoLocalPort,fromNode); }
-				java.util.TreeMap<String,String> listeningPorts=getTreeMapFromObj(node.getAttribute(portMapKey));
+				java.util.TreeMap<String,String> listeningPorts=node.getStringMap(portMapKey);
 				if (listeningPorts==null ) { listeningPorts=new java.util.TreeMap<>(); }
 				listeningPorts.put(protoLocalPort, protoLocalPort);
-				node.setAttribute(portMapKey, listeningPorts);
+				node.putStringMap(portMapKey, listeningPorts);
 			}
 			for (int i=0;i<tokens.size() && i<hdr.size();i++)
 			{
 				String processToken=tokens.get(i);
-				if (  processToken==null || processToken.isEmpty() ) { processToken="null"; }
-				if (m_verbosity>4) { System.out.printf("   Setting attribute %s for process %s\n",reverseHdr.get(i),tokens.get(i)); }
+				if ( reverseHdr.get(i)==null ) { System.err.println("No hdr token found in lookup for i, continuing"); continue; }
+				if ( processToken==null || processToken.isEmpty() ) { processToken="null"; }
+				if ( nodeAttributeExclusions.contains(reverseHdr.get(i)) ) { continue; }
+				if ( m_verbosity>4 ) { System.out.printf("   Setting process attribute=%s value=%s\n",reverseHdr.get(i),processToken); }
 				node.setAttribute(reverseHdr.get(i),processToken);
+			}
+			if (proto!=null) { node.getStringMap("aha.graphlayer").put("proto."+proto, "proto."+proto); } //we want a deduplicated set of all the protocols this node is connected on
+			if (proto!=null && !proto.equals("none")) //don't need to add a connection entry for nodes that are protocol==none
+			{
+				ConnectionEntry conEntry=new ConnectionEntry();
+				conEntry.localAddr=tokens.get(hdr.get("localaddress"));
+				conEntry.localPort=tokens.get(hdr.get("localport"));
+				conEntry.remoteAddr=tokens.get(hdr.get("remoteaddress"));
+				conEntry.remotePort=tokens.get(hdr.get("remoteport"));
+				conEntry.remoteHostName=tokens.get(hdr.get("remotehostname")); 
+				conEntry.state=tokens.get(hdr.get("state"));
+				conEntry.protocol=tokens.get(hdr.get("protocol"));
+				node.getConnectionEntryTable("allConnections").add(conEntry);
+				if (m_verbosity>3) { System.err.println("     +"+fromNode+" "+conEntry.toString()); }
 			}
 			if (lineNumber<5 && hdr.get("addedon")!=null && tokens.get(hdr.get("addedon"))!=null) { m_miscMetrics.put("detectiontime", tokens.get(hdr.get("addedon"))); } //only try to set the first few read lines
 			if (lineNumber<5 && hdr.get("detectiontime")!=null && tokens.get(hdr.get("detectiontime"))!=null) { m_miscMetrics.put("detectiontime", tokens.get(hdr.get("detectiontime"))); } //only try to set the first few read lines //back compat for old scans, remove someday
@@ -610,14 +621,14 @@ public class AHAModel implements Runnable
 				String protoLocalPort=proto+"_"+localPort, protoRemotePort=proto+"_"+remotePort;
 				String remoteAddr=tokens.get(hdr.get("remoteaddress")).trim(), localAddr=tokens.get(hdr.get("localaddress")), connectionState=tokens.get(hdr.get("state")), remoteHostname=tokens.get(hdr.get("remotehostname"));
 
-				Node node = m_graph.getNode(fromNode);
+				AHANode node = m_graph.getNode(fromNode);
 				if(node == null)
 				{
 					System.out.println("WARNING: Second scan found new process: Name=|"+fromNode+"|, on line "+lineNumber+" ignoring."); 
 					continue;
 				}
 				boolean duplicateEdge=false, timewait=false, exactSameEdgeAlreadyExists=false, isLocalOnly=false;
-				Node tempNode=null;
+				AHANode tempNode=null;
 				String connectionName=null,reverseConnectionName=null;
 				if ( !connectionState.contains("listen") && !connectionState.equalsIgnoreCase("") ) //empty string is listening state for a bound udp socket on windows apparently
 				{
@@ -648,19 +659,27 @@ public class AHAModel implements Runnable
 						if (remoteHostname.equals("")) { remoteHostname=remoteAddr; } //cover the case that there is no FQDN
 					}
 
+					if (m_graph.getNode(toNode)==null) 
+					{ 
+						if (toNode.equals("UnknownToNodeError")) { System.err.println("Unknown error creating node, bailing."); continue;}
+						System.err.println("WARNING: toNode="+toNode+" DID NOT EXIST, CREATING."); 
+						AHANode extNode=m_graph.addNode(toNode); 
+						extNode.getStringMap("aha.graphlayer").put("aha.realextnode", "aha.realextnode");
+						extNode.setAttribute("ui.class", "external");
+						extNode.setAttribute("aha.externalNode","aha.externalNode");
+						extNode.setAttribute("aha.realextnode","aha.realextnode");
+					}
 					if (connectionName!=null) { tempNode=m_graph.getNode(fromNode); } //some of the cases above wont actually result in a sane node setup, so only grab a node if we have connection name
 					if (tempNode!=null)
 					{
-						java.util.Iterator<Edge> it=tempNode.iterator(); //TODO rewrite in gs2.0 parlance
-						while (it.hasNext())
+						for (org.graphstream.graph.Edge e : tempNode)
 						{
-							Edge e=it.next();
-							if (e.getOpposite(tempNode).getId().equals(toNode)) { duplicateEdge=true; }
+							if (e.getOpposite(tempNode.graphNode).getId().equals(toNode)) { duplicateEdge=true; }
 							if (e.getId().equals(connectionName) || e.getId().equals(reverseConnectionName) ) { exactSameEdgeAlreadyExists=true; System.out.println("Exact same edge already exists!"); }
 						}
 						if (!exactSameEdgeAlreadyExists)
 						{
-							Edge e=m_graph.addEdge(connectionName,fromNode,toNode);
+							org.graphstream.graph.Edge e=m_graph.addEdge(connectionName,fromNode,toNode);
 							if (m_verbosity>4) { System.out.println("Adding edge from="+fromNode+" to="+toNode+" name="+connectionName); }
 							if (e==null) { System.out.println("!!WARNING: Failed to add edge (null) from="+fromNode+" to="+toNode+" name="+connectionName+" forcing creation."); e=m_graph.addEdge("Fake+"+System.nanoTime(),fromNode,toNode);}
 							if (m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); }
@@ -675,6 +694,7 @@ public class AHAModel implements Runnable
 							}
 							else if(e!=null)
 							{
+								if ( m_graph.getNode(toNode)==null ) { System.out.println("tonode for actual node "+toNode+" is null!"); }
 								m_graph.getNode(toNode).setAttribute("ui.class", "external");
 								m_graph.getNode(toNode).setAttribute("hostname", remoteHostname);
 								m_graph.getNode(toNode).setAttribute("IP", remoteAddr);
@@ -685,33 +705,33 @@ public class AHAModel implements Runnable
 								if (timewait && !duplicateEdge) { e.setAttribute("ui.class", "external, tw"); } 
 								if (timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate, external, tw"); }
 							} // BEGIN RelativeScore CODE //
-							Node toNode_node = m_graph.getNode(toNode);
-							if ( toNode.startsWith("Ext_") || node.toString().startsWith("Ext_") ) //TODO, this should use uiclass
+							AHANode toNode_node = m_graph.getNode(toNode);
+							if ( toNode.startsWith("Ext_") || node.getId().startsWith("Ext_") ) //TODO, this should probably use ui.class rather than string matching?
 							{
-								java.util.List<String> parents=castObjectAsStringList(node.getAttribute("parents"));
+								java.util.List<String> parents=node.getStringList("parents");
 								if (parents== null) { parents = new java.util.ArrayList<>(); }
 								if (toNode.startsWith("Ext_"))
 								{
 									parents.add(toNode);
-									node.setAttribute("parents", parents);
+									node.putStringList("parents", parents);
 								}
 								else
 								{
-									parents.add(node.toString());
-									toNode_node.setAttribute("parents", parents);
+									parents.add(node.getId());
+									toNode_node.putStringList("parents", parents);
 								}
 							}
 							else
 							{
-								java.util.List<String> siblings=castObjectAsStringList(node.getAttribute("sibling"));
+								java.util.List<String> siblings=node.getStringList("sibling");
 								if (siblings == null) { siblings=new java.util.ArrayList<>(); }
 								siblings.add(toNode);
-								node.setAttribute("sibling", siblings);
+								node.putStringList("sibling", siblings);
 
-								siblings=castObjectAsStringList(toNode_node.getAttribute("sibling"));
+								siblings=toNode_node.getStringList("sibling");
 								if (siblings == null) { siblings = new java.util.ArrayList<>(); }
-								siblings.add(node.toString());
-								toNode_node.setAttribute("sibling", siblings);
+								siblings.add(node.getId());
+								toNode_node.putStringList("sibling", siblings);
 							} // END RelativeScore CODE //
 						}
 					}
@@ -739,11 +759,11 @@ public class AHAModel implements Runnable
 					String score=tokens[1].split("=")[1];
 
 					lineNumber++; //we will now be on line 1.
-					for (Node node:m_graph)
+					for (AHANode node:m_graph)
 					{
 						try
 						{
-							String processPath=(String)node.getAttribute("processpath");
+							String processPath=node.getAttribute("processpath");
 							if (processPath!=null && processPath.equalsIgnoreCase(nodePathName))
 							{
 								if(directive.equals("node") && nodePathName!=null)
@@ -756,12 +776,9 @@ public class AHAModel implements Runnable
 								else if (directive.equals("edge") && nodePathName!=null)
 								{
 									String toName=tokens[4];
-									java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
-									while (it.hasNext())
+									for (org.graphstream.graph.Edge e : node)
 									{
-										Edge e=it.next();
-										Node toNode=e.getOpposite(node);
-										String toNodeProcessPath=(String)toNode.getAttribute("processpath");
+										String toNodeProcessPath=m_graph.getNode(e.getOpposite(node.graphNode).getId()).getAttribute("processpath");
 										if ( toNodeProcessPath.equalsIgnoreCase(toName) )
 										{
 											e.setAttribute(CUSTOMSTYLE,"yes");
@@ -794,14 +811,13 @@ public class AHAModel implements Runnable
 		}
 	}
 	
-	protected void useFQDNLabels(Graph g, boolean useFQDN) 
+	protected void useFQDNLabels(boolean useFQDN) 
 	{
-		for (Node n : m_graph) { n.setAttribute("ui.label", capitalizeFirstLetter(n.getId())); } //add labels
 		if (useFQDN) 
 		{  
-			for (Node n : m_graph) 
+			for (AHANode n : m_graph) 
 			{ 
-				String temp=(String)n.getAttribute("ui.class");
+				String temp=n.getAttribute("ui.class");
 				if (temp!=null && temp.equals("external"))
 				{
 					if (!n.getId().equals("external")) { n.setAttribute("ui.label", capitalizeFirstLetter("Ext_"+n.getAttribute("hostname"))); }
@@ -810,13 +826,15 @@ public class AHAModel implements Runnable
 		} 
 	}
 	
-	protected void hideOSProcs(Graph g, boolean hide) 
+	protected void hideOSProcs(boolean hide) 
 	{
 		String[] osProcs={"c:\\windows\\system32\\services.exe","c:\\windows\\system32\\svchost.exe","c:\\windows\\system32\\wininit.exe","c:\\windows\\system32\\lsass.exe","null","system",};
 		for (String s : osProcs) { genericHideUnhideNodes( "processpath=="+s,hide ); }
 	}
-	protected void hideFalseExternalNode(Graph g, boolean hide)  { genericHideUnhideNodes( "processpath==external",hide ); }
+	protected void hideFalseExternalNode(boolean hide)  { genericHideUnhideNodes( "processpath==external",hide ); }
 	
+	
+	private java.util.TreeMap<String,String> hiddenGraphLayers=new java.util.TreeMap<>();
 	protected int genericHideUnhideNodes( String criteria, boolean hide )
 	{
 		boolean notInverseSearch=true;
@@ -829,80 +847,103 @@ public class AHAModel implements Runnable
 		try
 		{
 			String attribute=args[0].toLowerCase();
+			
 			String seeking="";
 			if (args.length >1 && args[1]!=null) { seeking=args[1].toLowerCase(); }//important to do every loop since seeking may be modified if it is inverted
-			for (Node node:m_graph) //System.out.println("attr='"+attribute+"' seeking='"+seeking+"'");
+			
+			if (attribute.equals("aha.graphlayer"))
 			{
-				String attrValue=(String)node.getAttribute(attribute);
-				if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
-				{
-					if (notInverseSearch==false) { seeking="!"+seeking; }
-					java.util.TreeMap<String, String> hideReasons=getTreeMapFromObj(node.getAttribute("ui.hideReasons"));
-					if (hideReasons==null)
-					{
-						hideReasons=new java.util.TreeMap<>();
-						node.setAttribute("ui.hideReasons", hideReasons);
-					}
-					if (hide) { hideReasons.put(seeking, seeking); }
-					else { hideReasons.remove(seeking); }
-					
-					boolean nodeWillHide=!hideReasons.isEmpty();
-					if (nodeWillHide)
-					{
-						if (node.getAttribute("ui.hide")==null) { hidden++; } //if it's not already hidden, count that we're going to hide it
-						node.setAttribute( "ui.hide" );
-						if (m_verbosity>0) { System.out.println("Hide node="+node.getId()); }
-					}
-					else
-					{
-						node.removeAttribute( "ui.hide" );
-						if (m_verbosity>0) { System.out.println("Unhide node="+node.getId()); }
-					}
-					
-					java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
-					while (it.hasNext())
-					{
-						Edge e=it.next();
-						if (nodeWillHide) { e.setAttribute( "ui.hide" ); }
-						else { if (e.getOpposite(node).getAttribute("ui.hide")==null ) { e.removeAttribute( "ui.hide" ); } }
-					}
-				}
+				if (hide) { hiddenGraphLayers.put(seeking, seeking); }
+				else { hiddenGraphLayers.remove(seeking); }
 			}
+			if (m_verbosity > 1) { System.err.println("layers '"+hiddenGraphLayers.toString()+"' should be hidden"); }
+			
+			for (AHANode node:m_graph) //System.out.println("attr='"+attribute+"' seeking='"+seeking+"'");
+			{
+				try
+				{
+					java.util.TreeMap<String, String> hideReasons=node.getStringMap("aha.hideReasons");
+					String attrValue=node.getAttribute(attribute);
+				
+					if (attribute.equals("aha.graphlayer"))
+					{
+						int numberOfUnmatchedLayers=0;
+						java.util.TreeMap<String,String> nodeLayers=node.getStringMap("aha.graphlayer");
+						if (nodeLayers==null || nodeLayers.size()==0) { System.err.println("FIX: Only sadness detected for node='"+node.getId()+"'"); continue; }
+						for (String key : nodeLayers.keySet())
+						{
+							if (hiddenGraphLayers.get(key)==null) { numberOfUnmatchedLayers++; }
+						}
+						if (numberOfUnmatchedLayers > 0) { hideReasons.remove("aha.graphlayer"); }
+						else { hideReasons.put("aha.graphlayer","aha.graphlayer"); }
+						//todo don't forget to get/modify hideReasons
+					}
+					else if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
+					{
+						if (notInverseSearch==false) { seeking="!"+seeking; }
+						if (hide) { hideReasons.put(seeking, seeking); }
+						else { hideReasons.remove(seeking); }
+					}
+					else { hideReasons=null; }
+					if (hideReasons!=null)
+					{
+						boolean nodeWillHide=!hideReasons.isEmpty();
+						if (nodeWillHide)
+						{
+							if (node.getAttribute("ui.hide")==null) { hidden++; } //if it's not already hidden, count that we're going to hide it
+							node.setAttribute("ui.hide","");
+							if (m_verbosity>2) { System.out.println("Hide node="+node.getId()); }
+						}
+						else
+						{
+							node.removeAttribute("ui.hide");
+							if (m_verbosity>2) { System.out.println("Unhide node="+node.getId()); }
+						}
+						for (org.graphstream.graph.Edge e : node)
+						{
+							if (nodeWillHide) { e.setAttribute( "ui.hide" ); }
+							else { if (e.getOpposite(node.graphNode).getAttribute("ui.hide")==null ) { e.removeAttribute( "ui.hide" ); } }
+						}
+					}
+				} catch(Exception e) { e.printStackTrace(); }
+			} 
 		}
 		catch (Exception e) { e.printStackTrace(); }
 		return hidden;
 	}
 	
-	protected int genericEmphasizeNodes( String criteria, boolean emphasize ) //TODO add some trycatchery
+	protected int genericEmphasizeNodes( String criteria, boolean emphasize ) 
 	{
-		boolean notInverseSearch=true;
-		String regexp="";
 		int emphasized=0;
-		if (criteria.contains("==")) { regexp="=="; }
-		if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false;}
-		String[] args=criteria.trim().split(regexp);
-		if (args.length < 2) { System.err.println("Emphasize: Unable to parse tokens:|"+criteria.trim()+"|"); return 0; }
 		try
 		{
+			boolean notInverseSearch=true;
+			String regexp="";
+			String[] args=criteria.trim().split(regexp);
+			if (args.length < 2) { System.err.println("Emphasize: Unable to parse tokens:|"+criteria.trim()+"|"); return 0; }
+			
+			if (criteria.contains("==")) { regexp="=="; }
+			if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false;}
+			
 			String attribute=args[0].toLowerCase();
-			for (Node node:m_graph)
+			for (AHANode node:m_graph)
 			{
 				String seeking=args[1].toLowerCase(); //important to do every loop since seeking may be modified if it is inverted
-				String attrValue=(String)node.getAttribute(attribute);
+				String attrValue=node.getAttribute(attribute);
 				if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
 				{
 					if (notInverseSearch==false) { seeking="!"+seeking; } 
-					java.util.TreeMap<String, String> emphasizeReasons=getTreeMapFromObj(node.getAttribute("ui.emphasizeReasons"));
+					java.util.TreeMap<String, String> emphasizeReasons=node.getStringMap("aha.emphasizeReasons");
 					if (emphasizeReasons==null)
 					{
 						emphasizeReasons=new java.util.TreeMap<>();
-						node.setAttribute("ui.emphasizeReasons", emphasizeReasons);
+						node.putStringMap("aha.emphasizeReasons", emphasizeReasons);
 					}
 					if (emphasize) { emphasizeReasons.put(seeking, seeking); }
 					else { emphasizeReasons.remove(seeking); }
 					
 					boolean nodeWillEmphasize=!emphasizeReasons.isEmpty();
-					String nodeClass=(String)node.getAttribute("ui.class");
+					String nodeClass=node.getAttribute("ui.class");
 					if (nodeClass==null) { nodeClass=""; }
 					if (nodeWillEmphasize)
 					{
@@ -916,10 +957,8 @@ public class AHAModel implements Runnable
 					}
 					node.setAttribute("ui.class", nodeClass);
 					
-					java.util.Iterator<Edge> it=node.iterator(); //TODO rewrite in gs2.0 parlance
-					while (it.hasNext())
+					for (org.graphstream.graph.Edge e : node)
 					{
-						Edge e=it.next();
 						String edgeClass=(String)e.getAttribute("ui.class");
 						if (edgeClass==null) { edgeClass=""; }
 						if (nodeWillEmphasize) 
@@ -939,8 +978,7 @@ public class AHAModel implements Runnable
 	protected String handleSearch (String searchText)
 	{
 		if (searchText==null ) { return ""; }
-		//undo what we did last time //TODO: maybe we can optimize and only undo what's changed since last time someday
-		for (String s : m_lastSearchTokens)
+		for (String s : m_lastSearchTokens) //undo what we did last time... maybe we can optimize and only undo what's changed since last time someday
 		{
 			if (s.startsWith("~")) { genericHideUnhideNodes(s.substring(1), false); }
 			else { genericEmphasizeNodes(s, false); } //undo the whatever else
@@ -964,7 +1002,7 @@ public class AHAModel implements Runnable
 		return " Status: Hidden="+hid+" Highlighted="+emph+" ";
 	}
 	
-	private static String capitalizeFirstLetter(String s)
+	public static String capitalizeFirstLetter(String s)
 	{
 		s = s.toLowerCase();
 		return Character.toString(s.charAt(0)).toUpperCase()+s.substring(1);
@@ -972,13 +1010,13 @@ public class AHAModel implements Runnable
 	
 	private void computeUIInformation()
 	{
-		for (Node node : m_graph)
+		for (AHANode node : m_graph)
 		{
 			try
 			{	// prepare the top part of the sidebar, general node info
 				java.util.ArrayList<String> generalNodeInfo=new java.util.ArrayList<>();
 				generalNodeInfo.add("Name: "+node.getAttribute("ui.label"));
-				String uiclass=(String)node.getAttribute("ui.class");
+				String uiclass=node.getAttribute("ui.class");
 				if (uiclass!=null && uiclass.equalsIgnoreCase("external")) 
 				{ 
 					if (node.getAttribute("IP")!=null)
@@ -1004,22 +1042,22 @@ public class AHAModel implements Runnable
 				String[] aDolusAttributes= {"aDolusScore", "aDolusKnownMalware", "aDolusCVEs", "aDolusNumCVEs", "aDolusCVEScore", "aDolusWorstCVEScore", "aDolusDataSource"};
 				for (String attrib : aDolusAttributes)
 				{
-					String value=(String)node.getAttribute(attrib.toLowerCase());
+					String value=node.getAttribute(attrib.toLowerCase());
 					if (value!=null && !value.equals("") && !value.equals("null")) { generalNodeInfo.add(attrib+": "+value); }
 				}
 				String[][] infoData=new String[generalNodeInfo.size()][1];
 				for (int i=0;i<generalNodeInfo.size();i++) { infoData[i][0]=generalNodeInfo.get(i); }
-				node.setAttribute("ui.SidebarGeneralInfo", (Object)infoData);
-			} catch (Exception e) { e.printStackTrace(); node.setAttribute("ui.SidebarGeneralInfo",(Object)(new String[][]{{"Error"}}) ); }
+				node.putSidebarAttribute("aha.SidebarGeneralInfo", infoData);
+			} catch (Exception e) { e.printStackTrace(); node.putSidebarAttribute("aha.SidebarGeneralInfo",(new String[][]{{"Error"}}) ); }
 			// end updating data for general node info
 			
 			{ //update data for the 'internal ports' and 'external ports' sections of the info panel
-				String insertionKey="ui.SidebarInternalPorts", sourceKey="ui.localListeningPorts";
+				String insertionKey="aha.SidebarInternalPorts", sourceKey="aha.localListeningPorts";
 				for (int times=0;times<2;times++)
 				{
 					try
 					{ 
-						java.util.TreeMap<String, String> portSourceData=getTreeMapFromObj(node.getAttribute(sourceKey));
+						java.util.TreeMap<String, String> portSourceData=node.getStringMap(sourceKey);
 						Object[][] portResultData={{"None",""}};
 						if (portSourceData!=null && portSourceData.size()>0)
 						{
@@ -1033,10 +1071,10 @@ public class AHAModel implements Runnable
 								i++;
 							}
 						}
-						node.setAttribute(insertionKey, (Object)portResultData);
-					} catch (Exception e) { e.printStackTrace(); node.setAttribute( insertionKey, (Object)(new String[][]{{"Error"}}) ); }
-					insertionKey="ui.SidebarExternalPorts";
-					sourceKey="ui.extListeningPorts";
+						node.putSidebarAttribute(insertionKey, portResultData);
+					} catch (Exception e) { e.printStackTrace(); node.putSidebarAttribute( insertionKey, new String[][]{{"Error"}} ); }
+					insertionKey="aha.SidebarExternalPorts";
+					sourceKey="aha.extListeningPorts";
 				}
 			} // end updating data for internal/external ports
 		}
@@ -1050,14 +1088,12 @@ public class AHAModel implements Runnable
 			java.io.File testInputFile=getFileAtPath(m_inputFileName);
 			if ( m_inputFileName==null || m_inputFileName.equals("") || testInputFile==null || !testInputFile.exists()) { System.err.println("No input file specified, bailing."); return; }
 			
-			Node ext=m_graph.addNode("external");
-			ext.setAttribute("ui.class", "external"); //Add a node for "external"
-			ext.setAttribute("processpath","external"); //add fake process path
+			if (m_graph==null) { System.err.println("SOMEHOW GRPAH IS NULL!!!"); }
 			
 			readInputFile();
 			readScoreTable(null);
 			readCustomScorefile();
-			useFQDNLabels(m_graph, false);
+			useFQDNLabels(false);
 			exploreAndScore(m_graph);
 			computeUIInformation();
 			
@@ -1077,7 +1113,7 @@ public class AHAModel implements Runnable
 			time2=System.currentTimeMillis();
 			m_controller.moveExternalNodes(this);
 		} catch(Exception e) { e.printStackTrace(); } 
-		System.err.println("AHAModel: input files read, task complete: elapsed time="+(time2-time)+"ms"); //TODO remove the magic number when there are no longer 1700ms of sleeps above
+		System.err.println("AHAModel: input files read, task complete: elapsed time="+(time2-time)+"ms");
 	}
 	
 	protected static Object strAsInt(String s) //try to box in an integer (important for making sorters in tables work) but fall back to just passing through the Object
@@ -1118,12 +1154,12 @@ public class AHAModel implements Runnable
 						int numExt=0, worstScore=100;
 						double denominatorAccumulator=0.0d;
 						String worstScoreName="";
-						for (Node n : m_graph)
+						for (AHANode n : m_graph)
 						{
-							if (n.getAttribute("username")!=null && n.getAttribute("ui.hasExternalConnection")!=null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
+							if (n.getAttribute("username")!=null && n.getAttribute("aha.hasExternalConnection")!=null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
 							{ 
 								numExt++;
-								String normalScore=(String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
+								String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
 								try
 								{
 									Integer temp=Integer.parseInt(normalScore);
@@ -1146,12 +1182,12 @@ public class AHAModel implements Runnable
 						int numInt=0, worstScore=100;
 						double denominatorAccumulator=0.0d;
 						String worstScoreName="";
-						for (Node n : m_graph)
+						for (AHANode n : m_graph)
 						{
-							if (n.getAttribute("username")!=null && n.getAttribute("ui.hasExternalConnection")==null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
+							if (n.getAttribute("username")!=null && n.getAttribute("aha.hasExternalConnection")==null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
 							{ 
 								numInt++;
-								String normalScore=(String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
+								String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
 								try
 								{
 									Integer temp=Integer.parseInt(normalScore);
@@ -1173,20 +1209,20 @@ public class AHAModel implements Runnable
 				}
 				tableNumber++;
 				{ //general node info
-					tableData[tableNumber]=new Object[m_graph.getNodeCount()][];
+					tableData[tableNumber]=new Object[m_graph.graph.getNodeCount()][];
 					int i=0;
-					for (Node n : m_graph)
+					for (AHANode n : m_graph)
 					{
 						int j=0; //tired of reordering numbers after moving columns around
 						Object[] data=new Object[columnHeaders[tableNumber].length]; //if we run out of space we forgot to make a column header anyway
-						String name=(String)n.getAttribute("processname");
-						if (name==null) { name=(String)n.getAttribute("ui.label"); }
+						String name=n.getAttribute("processname");
+						if (name==null) { name=n.getAttribute("ui.label"); }
 						data[j++]=name;
-						data[j++]=strAsInt((String)n.getAttribute("pid"));
+						data[j++]=strAsInt(n.getAttribute("pid"));
 						data[j++]=n.getAttribute("username");
-						data[j++]=Integer.valueOf((int)n.edges().count()); //cant use wrapInt here because  //TODO: deduplicate connection set?
+						data[j++]=Integer.valueOf((int)n.graphNode.edges().count()); //can't use wrapInt here because  //TODO: de-duplicate connection set?
 						String extPortString="";
-						java.util.TreeMap<String,String> extPorts=getTreeMapFromObj(n.getAttribute("ui.extListeningPorts"));
+						java.util.TreeMap<String,String> extPorts=n.getStringMap("aha.extListeningPorts");
 						if (extPorts!=null) 
 						{ 
 							for (String s : extPorts.keySet())
@@ -1202,10 +1238,10 @@ public class AHAModel implements Runnable
 						data[j++]=n.getAttribute("dep");
 						data[j++]=n.getAttribute("controlflowguard");
 						data[j++]=n.getAttribute("highentropyva");
-						data[j++]=strAsInt((String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
-						data[j++]=strAsInt((String)n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
+						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal)));
+						data[j++]=strAsInt(n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.WorstCommonProcBETA)));
 						// RelativeScore CODE //
-						data[j++]=strAsDouble((String)n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA))); //data[j++]=n.getAttribute("parents"); //data[j++]=n.getAttribute("sibling");
+						data[j++]=strAsDouble(n.getAttribute(scrMethdAttr(ScoreMethod.RelativeScoreBETA))); //data[j++]=n.getAttribute("parents"); //data[j++]=n.getAttribute("sibling");
 						// END RelativeScore CODE //
 						tableData[tableNumber][i++]=data;
 					}
@@ -1260,10 +1296,10 @@ public class AHAModel implements Runnable
 			String originalHeaderLine=br.readLine();
 			metadata.put("OriginalHeaderLine", originalHeaderLine);
 			String line = "", header[]=fixCSVLine(originalHeaderLine);
-			for (int i=0;i<header.length;i++) 
-			{ 
+			for (int i=0;i<header.length;i++)
+			{
 				String headerToken=header[i];
-				headerTokens.put(headerToken, Integer.valueOf(i)); 
+				headerTokens.put(headerToken, Integer.valueOf(i));
 			}
 			String requiredTokens=metadata.get("RequiredHeaderTokens"); //leave the others between process name and the sums as this might point to a malformed file
 			if (requiredTokens!=null)
