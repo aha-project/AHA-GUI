@@ -548,7 +548,7 @@ public class AHAModel implements Runnable
 				m_allListeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
 				if (m_verbosity>4) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
 				String portMapKey="aha.localListeningPorts";
-				if( !localAddr.equals("127.0.0.1") && !localAddr.equals("::1") && !localAddr.startsWith("192.168") && !localAddr.startsWith("10.")) //TODO we really want anything that's not listening on localHost here: localAddr.equals("0.0.0.0") || localAddr.equals("::") || 
+				if( !localAddr.equals("127.0.0.1") && !localAddr.equals("::1") && !localAddr.startsWith("192.168") && !localAddr.startsWith("10.") && !proto.equals("pipe")) //TODO "localhost" stuff should be configurable somewhere. for now all pipes are considered localhost, until we find a better way to determine int/ext. 
 				{ 
 					try
 					{
