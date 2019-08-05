@@ -661,7 +661,7 @@ public class AHAModel implements Runnable
 
 					if (m_graph.getNode(toNode)==null ) //TODO: fix this, right now some pipes will try to put their remote ends on new ext nodes
 					{ 
-						if (proto.equals("pipe")) { System.err.println("Skipping line due to bug with pipe hadling. To be fixed at a later date."); }
+						if (proto.equals("pipe")) { System.err.println("Skipping line due to bug with pipe hadling. To be fixed at a later date."); continue; }
 						if (toNode.equals("UnknownToNodeError")) { System.err.println("Unknown error creating node, bailing. FromNode="+fromNode); continue;}
 						System.err.println("WARNING: toNode="+toNode+" DID NOT EXIST, CREATING."); 
 						AHANode extNode=m_graph.addNode(toNode); 
