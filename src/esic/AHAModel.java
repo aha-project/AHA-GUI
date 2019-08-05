@@ -661,7 +661,7 @@ public class AHAModel implements Runnable
 
 					if (m_graph.getNode(toNode)==null) 
 					{ 
-						if (toNode.equals("UnknownToNodeError")) { System.err.println("Unknown error creating node, bailing."); continue;}
+						if (toNode.equals("UnknownToNodeError")) { System.err.println("Unknown error creating node, bailing. FromNode="+fromNode); continue;}
 						System.err.println("WARNING: toNode="+toNode+" DID NOT EXIST, CREATING."); 
 						AHANode extNode=m_graph.addNode(toNode); 
 						extNode.getStringMap("aha.graphlayer").put("aha.realextnode", "aha.realextnode");
@@ -679,7 +679,9 @@ public class AHAModel implements Runnable
 						}
 						if (!exactSameEdgeAlreadyExists)
 						{
-							org.graphstream.graph.Edge e=m_graph.addEdge(connectionName,fromNode,toNode);
+							org.graphstream.graph.Edge e=null;
+							try { e=m_graph.addEdge(connectionName,fromNode,toNode); }
+							catch (Exception ex) { ex.printStackTrace(); } 
 							if (m_verbosity>4) { System.out.println("Adding edge from="+fromNode+" to="+toNode+" name="+connectionName); }
 							if (e==null) { System.out.println("!!WARNING: Failed to add edge (null) from="+fromNode+" to="+toNode+" name="+connectionName+" forcing creation."); e=m_graph.addEdge("Fake+"+System.nanoTime(),fromNode,toNode);}
 							if (m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); }
