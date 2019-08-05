@@ -659,8 +659,9 @@ public class AHAModel implements Runnable
 						if (remoteHostname.equals("")) { remoteHostname=remoteAddr; } //cover the case that there is no FQDN
 					}
 
-					if (m_graph.getNode(toNode)==null) 
+					if (m_graph.getNode(toNode)==null ) //TODO: fix this, right now some pipes will try to put their remote ends on new ext nodes
 					{ 
+						if (proto.equals("pipe")) { System.err.println("Skipping line due to bug with pipe hadling. To be fixed at a later date."); }
 						if (toNode.equals("UnknownToNodeError")) { System.err.println("Unknown error creating node, bailing. FromNode="+fromNode); continue;}
 						System.err.println("WARNING: toNode="+toNode+" DID NOT EXIST, CREATING."); 
 						AHANode extNode=m_graph.addNode(toNode); 
