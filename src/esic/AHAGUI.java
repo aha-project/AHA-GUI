@@ -105,11 +105,19 @@ public class AHAGUI extends JFrame
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show UDP", true), m_controller, "aha.graphlayer==proto.udp", "Show / Hide UDP protocol nodes in the graph.", viewMenu, null, defaultTrue);
 			
 			viewMenu.addSeparator();
-			ButtonGroup buttonGroup=new ButtonGroup();
-			buttonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("Normal Score Method", true), m_controller, "scoreMethod-0", "Use the default scoring method", viewMenu, null, defaultTrue));
-			buttonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("WorstCommonProc Score Method (beta)"), m_controller, "scoreMethod-1", "Use the WorstCommonProc scoring method (beta)", viewMenu, null, null));
-			buttonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("Relative Score Method (beta)"), m_controller, "scoreMethod-2", "Use the RelativeScore scoring method (beta)", viewMenu, null, null));
+			ButtonGroup scoreButtonGroup=new ButtonGroup();
+			scoreButtonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("Normal Score Method", true), m_controller, "scoreMethod-0", "Use the default scoring method", viewMenu, null, defaultTrue));
+			scoreButtonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("WorstCommonProc Score Method (beta)"), m_controller, "scoreMethod-1", "Use the WorstCommonProc scoring method (beta)", viewMenu, null, null));
+			scoreButtonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("Relative Score Method (beta)"), m_controller, "scoreMethod-2", "Use the RelativeScore scoring method (beta)", viewMenu, null, null));
 
+			viewMenu.addSeparator();
+			ButtonGroup layoutButtonGroup=new ButtonGroup();
+			layoutButtonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("Default Autolayout"), m_controller, "layoutMethod-autolayout", "Use the default graph layout method", viewMenu, null, defaultTrue));
+			layoutButtonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("NaiveBox Autolayout"), m_controller, "layoutMethod-naiveBox", "Naive box layout, attempt to spread all nodes out on an XY grid evenly", viewMenu, null, null));
+			layoutButtonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("TestLayout1"), m_controller, "layoutMethod-test1", "Reserved menu spot to test future beta layouts", viewMenu, null, null));
+			layoutButtonGroup.add(AHAGUIHelpers.createMenuItem(new JRadioButtonMenuItem("TestLayout2"), m_controller, "layoutMethod-test2", "Reserved menu spot to test future beta layouts", viewMenu, null, null));
+
+			
 			// -- begin window menu --
 			AHAGUIHelpers.createMenuItem(new JMenuItem("Reset Zoom"), m_controller, "resetZoom", "Resets the zoom of the graph view to default.", windowMenu,KeyStroke.getKeyStroke(KeyEvent.VK_R, m_menuShortcutKey), null);
 		}
@@ -183,11 +191,11 @@ public class AHAGUI extends JFrame
 		stopGraphRefreshThread();
 		org.graphstream.ui.view.Viewer oldGraphViewer=m_graphViewer;
 		
-		if (m_multilineGraph) { model.m_graph.graph = new org.graphstream.graph.implementations.MultiGraph("MultiGraph", false, true, 256, 2048); }
-		else { model.m_graph.graph = new org.graphstream.graph.implementations.SingleGraph("SingleGraph", false, true, 256, 2048); }
+		if (m_multilineGraph) { model.m_graph.graph = new org.graphstream.graph.implementations.MultiGraph("MultiGraph", false, false, 512, 2048); }
+		else { model.m_graph.graph = new org.graphstream.graph.implementations.SingleGraph("SingleGraph", false, false, 512, 2048); }
 
 		model.m_graph.graph.setAttribute("ui.stylesheet", model.styleSheet);
-		model.m_graph.graph.setAttribute("layout.gravity", 0.000001); 
+		model.m_graph.graph.setAttribute("layout.gravity", 0.025);//0.000001); 
 		model.m_graph.graph.setAttribute("layout.quality", 4);
 		model.m_graph.graph.setAttribute("layout.stabilization-limit", 0.95);
 		model.m_graph.graph.setAttribute("ui.antialias", true); //enable anti aliasing (looks way better this way)
@@ -263,6 +271,7 @@ public class AHAGUI extends JFrame
 		for (JMenuItem i : defaultTrue) { setMenuElementTo(i,true); }
 		m_btmPnlSearch.setText("Search...");
 		m_btmPnlSearchStatus.setText("");
+		m_controller.m_layoutMode.set("autolayout");
 	}
 	
 	protected boolean openFile (AHAModel model, String baseTitle)

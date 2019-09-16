@@ -8,6 +8,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	private java.util.concurrent.atomic.AtomicReference<AHAModel> m_model=new java.util.concurrent.atomic.AtomicReference<>();
 	private AHAGUI m_gui;
 	private final java.util.concurrent.atomic.AtomicReference<AHANode> m_currentlyDisplayedNode=new java.util.concurrent.atomic.AtomicReference<>(null);
+	protected java.util.concurrent.atomic.AtomicReference<String> m_layoutMode=new java.util.concurrent.atomic.AtomicReference<>(); //set the default in AHAGUI:resetUI
 	
 	public AHAController(String inputFileName, String scoreFileName, int verbosity, boolean useMultiLineGraph)
 	{
@@ -65,6 +66,15 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			model().m_useCustomOverlayScoreFile=((javax.swing.JRadioButtonMenuItem)e.getSource()).isSelected();
 			model().swapNodeStyles(scoremethod, System.currentTimeMillis());
 			updateSidebar(m_currentlyDisplayedNode.get(), false); //refresh the info panel now that we're probably on a new score mode
+		}
+		else if (actionCommand.contains("layoutMethod-"))
+		{
+			String layoutMethod=actionCommand.replaceFirst("layoutMethod-", "");
+			m_layoutMode.set(layoutMethod);
+			new Thread()
+			{
+				public void run() { moveExternalNodes(model()); }
+			}.start();
 		}
 		else if (actionCommand.equals("updateFileFromRemoteDB"))
 		{ 
@@ -195,23 +205,54 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	
 	protected void moveExternalNodes(AHAModel m)
 	{
+		//System.out.printf("Size at time of layout: height=%d width=%d\n", m_gui.m_graphViewPanel.getHeight(), m_gui.m_graphViewPanel.getWidth());
+		long time=System.currentTimeMillis();
+		String layoutMode=m_layoutMode.get();
+		if (layoutMode.equalsIgnoreCase("naiveBox")) { naiveBoxLayout(m); }
+		else if (layoutMode.equalsIgnoreCase("test1")) { layoutTest1(m); }
+		else if (layoutMode.equalsIgnoreCase("test2")) { layoutTest2(m); }
+		else { autoLayoutAlg(m); } //default case
+		System.out.printf("Layout alg=%s took %sms\n", layoutMode, (System.currentTimeMillis()-time));
+	}
+	
+	private void layoutTest1(AHAModel m)
+	{
+		System.out.println("Layout Test 1 not implemented yet.");
+	}
+	
+	private void layoutTest2(AHAModel m)
+	{
+		System.out.println("Layout Test 2 not implemented yet.");
+	}
+	
+	private void autoLayoutAlg(AHAModel m)
+	{
 		try 
 		{
-			Thread.sleep(1500); 
-			m_gui.m_graphViewer.disableAutoLayout();
-			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
-			
-			java.util.Vector<AHANode> leftSideNodes=new java.util.Vector<>(); //moved this below the 1.5s graph stabilization threshold to see if it makes odd occasional issues with moving ext nodes better
-			for (AHANode n : m.m_graph) 
+			AHAGraph g=m.m_graph;
+			m_gui.m_graphViewPanel.getCamera().setAutoFitView(true);
+			for (AHANode n : g)
 			{
-				if (n.getAttribute("aha.realextnode")!=null) { leftSideNodes.add(n); }  //extNode.setAttribute("aha.externalNode","aha.externalNode");
-				n.graphNode.setAttribute("layout.weight", 6); //switched to add attribute rather than set attribute since it seems to prevent a possible race condition.
+				n.graphNode.removeAttribute("xyz"); //setAttribute("xyz", 0,0,0);
 			}
-			int numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
-			leftSideNodes.insertElementAt(m.m_graph.getNode("external"),leftSideNodes.size()/2);
-			Thread.sleep(100);  //add delay to see if issues with moving ext nodes goes away
+			Thread.sleep(100); 
+			m_gui.m_graphViewer.enableAutoLayout();
+			Thread.sleep(500); 
+			m_gui.m_graphViewer.disableAutoLayout();
+			Thread.sleep(100); 
+			org.graphstream.ui.geom.Point3 hi=m_gui.m_graphViewPanel.getCamera().getMetrics().hi, lo=m_gui.m_graphViewPanel.getCamera().getMetrics().lo;
+			m_gui.m_graphViewPanel.getCamera().setGraphViewport(lo.x, lo.y, hi.x, hi.y);
+			
+			java.util.ArrayList<AHANode> leftSideNodes=new java.util.ArrayList<>(1024);
+			for (AHANode n : g)
+			{
+				if (n.getAttribute("aha.realextnode")!=null) { leftSideNodes.add(n); }
+			}
+			
+			double numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
+			leftSideNodes.add(leftSideNodes.size()/2, g.getNode("external"));
+			
 			int i=1;
-		
 			org.graphstream.ui.view.camera.Camera cam=m_gui.m_graphViewPanel.getCamera();
 			for (AHANode n : leftSideNodes)
 			{ 
@@ -219,14 +260,79 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 				n.graphNode.setAttribute("xyz", loc.x,loc.y,loc.z);
 				i++;
 			}
-			m_gui.m_graphViewPanel.getCamera().setViewPercent(1.01d);
-			org.graphstream.ui.geom.Point3 center=m_gui.m_graphViewPanel.getCamera().getViewCenter();
-			org.graphstream.ui.geom.Point3 pixels=m_gui.m_graphViewPanel.getCamera().transformGuToPx(center.x, center.y, center.z);
-			pixels.x-=60;
-			center=m_gui.m_graphViewPanel.getCamera().transformPxToGu(pixels.x, pixels.y);
-			m_gui.m_graphViewPanel.getCamera().setViewCenter(center.x, center.y, center.z);
+			
+			//System.out.printf("xlo=%f xhi=%f ylo=%f yhi=%f\n", lo.x, hi.x, lo.y, hi.y);
+			m_gui.m_graphViewPanel.getCamera().setGraphViewport(lo.x, lo.y, hi.x, hi.y);
 		} catch (Exception e) { e.printStackTrace(); }
 	}
+	
+	private void naiveBoxLayout(AHAModel m)
+	{
+		try 
+		{
+			m_gui.m_graphViewer.disableAutoLayout();
+			Thread.sleep(200); 
+			double height=70, width=100;
+			m_gui.m_graphViewPanel.getCamera().setBounds(0, 0, 0, width, height, 0);
+			m_gui.m_graphViewPanel.getCamera().setGraphViewport(0, 0, width, height);
+			m_gui.m_graphViewPanel.getCamera().setAutoFitView(false);
+			
+			java.util.ArrayList<AHANode> nodes=new java.util.ArrayList<>(1024), leftSideNodes=new java.util.ArrayList<>(1024);
+			AHAGraph g=m.m_graph;
+			for (AHANode n : g)
+			{
+				//int degree=n.graphNode.getDegree();
+				//System.out.printf("Node %s has degree %d\n", n.getId() , degree);
+				if (n.getAttribute("aha.realextnode")!=null) { leftSideNodes.add(n); }
+				else if (n.getAttribute("aha.externalNode")==null) { nodes.add(n); } //we have to ignore the 'virtual external node' here too
+			}
+			
+			java.util.Collections.sort(nodes, new java.util.Comparator<AHANode>() 
+			{
+        public int compare(AHANode lhs, AHANode rhs) { return Integer.compare(rhs.graphNode.getDegree(), lhs.graphNode.getDegree()); }
+			});
+			
+			double restOfNodes=nodes.size(), side=Math.ceil(Math.sqrt(restOfNodes)), colwidth=(width/side);
+			double numLeftNodes=leftSideNodes.size()+2; //1 is for main External node, 2 is so we dont put one at the very top or bottom
+			leftSideNodes.add(leftSideNodes.size()/2, g.getNode("external"));
+			{
+				int i=1;
+				for (AHANode n : leftSideNodes)
+				{ 
+					n.graphNode.setAttribute("xyz", colwidth/2,((double)height/(numLeftNodes)*i),0);
+					//System.out.printf("Setting node=%s x=%f y=%f\n", n.getId(),colwidth/2,((double)100d/(numLeftNodes)*i));
+					i++;
+				}
+			}
+			
+			java.util.Iterator<AHANode> it=nodes.iterator();
+			//System.out.printf("side=%f colwidth=%f --------------------------------\n", side, colwidth);
+			for (int col=1; col < side; col++)
+			{
+				for (int row=0; row < side; row++)
+				{
+					if (!it.hasNext()) { break; }
+					AHANode n=it.next();
+					if (n!=null)
+					{
+						double colPos=colwidth*col+colwidth/2, rowPos=((double)height/(side)*row)+(height/2d/side);
+						if (col%2==1) { rowPos+=(height/4d/side); } // move every other row up slightly to keep labels from overlapping
+						else { rowPos-=(height/4d/side); }
+						n.graphNode.setAttribute("xyz", colPos,rowPos,0);
+						//System.out.printf("Setting node=%s x=%f y=%f\n", n.getId(),colPos,rowPos);
+					}
+				}
+			}
+			
+			m_gui.m_graphViewPanel.getCamera().setBounds(0, 0, 0, width, height, 0);
+			m_gui.m_graphViewPanel.getCamera().setGraphViewport(0, 0, width, height);
+			m_gui.m_graphViewPanel.getCamera().setViewCenter(width/2, height/2, 0);
+			
+			//org.graphstream.ui.geom.Point3 hi=m_gui.m_graphViewPanel.getCamera().getMetrics().hi, lo=m_gui.m_graphViewPanel.getCamera().getMetrics().lo;
+			//System.out.printf("xlo=%f xhi=%f ylo=%f yhi=%f\n", lo.x, hi.x, lo.y, hi.y);
+		} catch (Exception e) { e.printStackTrace(); }
+	}
+	
 	
 	protected void updateOverlayLegendScale(int maxScore) { m_gui.updateOverlayLegendScale(maxScore); }
 	

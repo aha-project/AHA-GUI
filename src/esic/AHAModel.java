@@ -688,8 +688,8 @@ public class AHAModel implements Runnable
 							if (m_allListeningProcessMap.get(protoLocalPort)!=null) { bumpIntRefCount(m_listeningPortConnectionCount,protoLocalPort,1); }
 							if (e!=null && isLocalOnly)
 							{
-								e.setAttribute("layout.weight", 10); //try to make internal edges longer
-								if (duplicateEdge) { e.setAttribute("layout.weight", 5); }
+								//e.setAttribute("layout.weight", 10); //try to make internal edges longer
+								//if (duplicateEdge) { e.setAttribute("layout.weight", 10); }
 								if (timewait && !duplicateEdge) { e.setAttribute("ui.class", "tw"); }
 								if (!timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate"); }
 								if (timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate, tw"); }
@@ -701,13 +701,14 @@ public class AHAModel implements Runnable
 								m_graph.getNode(toNode).setAttribute("ui.class", "external");
 								m_graph.getNode(toNode).setAttribute("hostname", remoteHostname);
 								m_graph.getNode(toNode).setAttribute("IP", remoteAddr);
-								e.setAttribute("layout.weight", 9); //try to make internal edges longer
-								if (duplicateEdge) { e.setAttribute("layout.weight", 4); }
+								//e.setAttribute("layout.weight", 10); //try to make internal edges longer
+								//if (duplicateEdge) { e.setAttribute("layout.weight", 10); }
 								if (!timewait && !duplicateEdge) { e.setAttribute("ui.class", "external"); }
 								if (!timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate, xternal"); }
 								if (timewait && !duplicateEdge) { e.setAttribute("ui.class", "external, tw"); } 
 								if (timewait && duplicateEdge) { e.setAttribute("ui.class", "duplicate, external, tw"); }
 							} // BEGIN RelativeScore CODE //
+							if (e!=null) { e.setAttribute("layout.weight", 10); }
 							AHANode toNode_node = m_graph.getNode(toNode);
 							if ( toNode.startsWith("Ext_") || node.getId().startsWith("Ext_") ) //TODO, this should probably use ui.class rather than string matching?
 							{

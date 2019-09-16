@@ -21,6 +21,7 @@ public class AHAGraph implements java.lang.Iterable<AHAGraph.AHANode> // wrapper
 			m_nodeID=nodeID;
 			graphNode=node;
 			setAttribute("ui.label", AHAModel.capitalizeFirstLetter(m_nodeID));
+			node.setAttribute("layout.weight", 10);
 			setAttribute("processname", AHAModel.capitalizeFirstLetter(m_nodeID)); //for testing
 			putConnectionEntryTable("allConnections", new java.util.Vector<esic.AHAModel.ConnectionEntry>()); //TODO might want to not have to do this in the future / make generic
 			putStringMap("aha.graphlayer", new java.util.TreeMap<String,String>());
