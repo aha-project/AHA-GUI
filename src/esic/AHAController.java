@@ -1,6 +1,7 @@
 package esic;
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
+import javax.swing.SwingUtilities;
 import esic.AHAGraph.AHANode;
 
 public class AHAController implements org.graphstream.ui.view.ViewerListener, java.awt.event.ActionListener, java.awt.event.MouseWheelListener, java.awt.event.WindowListener
@@ -9,6 +10,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	private AHAGUI m_gui;
 	private final java.util.concurrent.atomic.AtomicReference<AHANode> m_currentlyDisplayedNode=new java.util.concurrent.atomic.AtomicReference<>(null);
 	protected java.util.concurrent.atomic.AtomicReference<String> m_layoutMode=new java.util.concurrent.atomic.AtomicReference<>(); //set the default in AHAGUI:resetUI
+	private java.util.concurrent.ExecutorService m_backgroundExec= java.util.concurrent.Executors.newCachedThreadPool();
 	
 	public AHAController(String inputFileName, String scoreFileName, int verbosity, boolean useMultiLineGraph)
 	{
@@ -34,173 +36,185 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			AHAModel newModel=new AHAModel(this, oldModel.m_inputFileName, oldModel.m_scoreFileName, oldModel.m_verbosity);
 			m_model.set(newModel);
 			m_gui.initGraphView(newModel);
-			new Thread( newModel,"ReaderThread").start();
+			m_backgroundExec.execute(newModel);
 		}
 	}	
 	
-	public void actionPerformed(java.awt.event.ActionEvent e) //swing actions go to here
+	public void actionPerformed(java.awt.event.ActionEvent ae) //swing actions go to here
 	{
-		Object source=e.getSource();
-		String actionCommand=e.getActionCommand();
+		String actionCommand=ae.getActionCommand();
+		boolean sel=false;
+		if (ae.getSource() instanceof javax.swing.AbstractButton) { sel=((javax.swing.AbstractButton)ae.getSource()).isSelected(); }
+		final boolean selected=sel;
+		
+		//the first few actions do not require access to graph, and thus we don't bother putting them on the background thread
 		if (actionCommand.equals("dataView")) { m_gui.showDataView(model(), m_gui); }
-		else if (actionCommand.equals("hideOSProcs")) { model().hideOSProcs(((javax.swing.JCheckBoxMenuItem)source).isSelected()); }
-		else if (actionCommand.equals("showFQDN")) { model().useFQDNLabels(((javax.swing.JCheckBoxMenuItem)source).isSelected()); updateSidebar(m_currentlyDisplayedNode.get(), false);}
-		else if (actionCommand.equals("resetZoom")) { m_gui.m_graphViewPanel.getCamera().resetView(); }
 		else if (actionCommand.equals("exit")) { m_gui.dispatchEvent(new java.awt.event.WindowEvent(m_gui, java.awt.event.WindowEvent.WINDOW_CLOSING)); }
 		else if (actionCommand.equals("openNewFile")) { openfileOrReload(false); } 
-		else if (actionCommand.equals("refreshInfoPanel")) { updateSidebar(m_currentlyDisplayedNode.get(), false); } //update info display because a checkbox somewhere changed
-		else if (actionCommand.equals("search")) { m_gui.m_btmPnlSearchStatus.setText(model().handleSearch(m_gui.m_btmPnlSearch.getText())); }
-		else if (actionCommand.contains("aha.graphlayer==") || actionCommand.contains("processpath==")) 
-		{ 
-			boolean hide=!((javax.swing.JCheckBoxMenuItem)e.getSource()).isSelected();
-			model().genericHideUnhideNodes( actionCommand,hide );
-		}
-		else if (actionCommand.contains("scoreMethod") || actionCommand.equals("useCustom"))
-		{ 
-			AHAModel.ScoreMethod scoremethod=null;
-			try 
-			{
-				String method=e.getActionCommand().split("-")[1];
-				scoremethod=AHAModel.ScoreMethod.getValue(method);
-			} catch (Exception ex) {  }
-			model().m_useCustomOverlayScoreFile=((javax.swing.JRadioButtonMenuItem)e.getSource()).isSelected();
-			model().swapNodeStyles(scoremethod, System.currentTimeMillis());
-			updateSidebar(m_currentlyDisplayedNode.get(), false); //refresh the info panel now that we're probably on a new score mode
-		}
-		else if (actionCommand.contains("layoutMethod-"))
+		else if (actionCommand.equals("refreshInfoPanel")) { updateSidebar(m_currentlyDisplayedNode.get(), false); }
+		else //require access to ONLY graph and/or background thread, or use only functions that already do work on background and then update UI on foreground (e.g. updateSidebar)
 		{
-			String layoutMethod=actionCommand.replaceFirst("layoutMethod-", "");
-			m_layoutMode.set(layoutMethod);
-			new Thread()
-			{
-				public void run() { moveExternalNodes(model()); }
-			}.start();
-		}
-		else if (actionCommand.equals("updateFileFromRemoteDB"))
-		{ 
 			final AHAController controller=this;
-			new Thread(){
-				public void run() { FileUpdater.updateCSVFileWithRemoteVulnDBData(model().m_inputFileName, "credentials.txt", m_gui, controller, model().m_verbosity); }
-			}.start(); 
+			m_backgroundExec.execute(new Runnable()
+			{
+				public void run() 
+				{ 
+					if (actionCommand.equals("hideOSProcs")) { model().hideOSProcs(selected); }
+					else if (actionCommand.equals("resetZoom")) { m_gui.m_graphViewPanel.getCamera().resetView(); }
+					else if (actionCommand.contains("aha.graphlayer==") || actionCommand.contains("processpath==")) { model().genericHideUnhideNodes( actionCommand, !selected ); }
+					else if (actionCommand.equals("showFQDN")) { model().useFQDNLabels(selected); updateSidebar(m_currentlyDisplayedNode.get(), false); }
+					else if (actionCommand.contains("scoreMethod") || actionCommand.equals("useCustom"))
+					{ 
+						AHAModel.ScoreMethod scoremethod=null;
+						try { scoremethod=AHAModel.ScoreMethod.getValue(actionCommand.split("-")[1]); }
+						catch (Exception ex) { ex.printStackTrace(); }
+						model().m_useCustomOverlayScoreFile=selected;
+						model().swapNodeStyles(scoremethod, System.currentTimeMillis());
+						updateSidebar(m_currentlyDisplayedNode.get(), false); //refresh the info panel now that we're probably on a new score mode
+					}
+					else if (actionCommand.contains("layoutMethod-"))
+					{
+						String layoutMethod=actionCommand.replaceFirst("layoutMethod-", "");
+						m_layoutMode.set(layoutMethod);
+						moveExternalNodes(model()); 
+					}
+					else if (actionCommand.equals("updateFileFromRemoteDB")) { FileUpdater.updateCSVFileWithRemoteVulnDBData(model().m_inputFileName, "credentials.txt", m_gui, controller, model().m_verbosity); }
+					else if (actionCommand.equals("search")) //both uses the graph and requires an update to the GUI
+					{ 
+						final String status=model().handleSearch(m_gui.m_btmPnlSearch.getText());
+						SwingUtilities.invokeLater(new Runnable()
+						{
+							public void run() { m_gui.m_btmPnlSearchStatus.setText(status);  }
+						});
+					}
+					else { System.err.println("AHAController: ActionPerformed: Unknown action command='"+actionCommand+"'"); }
+				}
+			}); 
 		}
-		else { System.err.println("AHAController: ActionPerformed: Unknown action command='"+e.getActionCommand()+"'"); }
 	}
 	
 	protected void updateSidebar(AHANode node, boolean occuredFromMouseOver)
 	{
-		if ( node==null || (occuredFromMouseOver && !m_gui.m_infoPnlUpdateOnMouseover.isSelected()) ) { return; } //if element is null, or triggered from mosueover and we're presently supposed to ignore that, return
-		m_currentlyDisplayedNode.set(node);
-		Object[][] infoData=node.getSidebarAttributes("aha.SidebarGeneralInfo"), intPorts=node.getSidebarAttributes("aha.SidebarInternalPorts"), extPorts=node.getSidebarAttributes("aha.SidebarExternalPorts"), connectionData={{"None",""}}, scoreReasons=null;
-		
-		try
-		{ //update the fourth "Connected Process Name" table. This is updated in the controller because the user can toggle IP/FQDN view at runtime, thus the names of some nodes will change
-			if (node.graphNode.getDegree()>0)
-			{
-				java.util.ArrayList<String> connectedNodes=new java.util.ArrayList<>();
-				for (org.graphstream.graph.Edge e : node )
-				{
-					String nodeName=(String)e.getOpposite(node.graphNode).getId();
-					if (!connectedNodes.contains(nodeName)) { connectedNodes.add(nodeName); } //deduplicate
-				}
-				if (connectedNodes.size()>0)
-				{
-					connectionData=new Object[connectedNodes.size()][2];
-					int i=0;
-					for (String nodeName : connectedNodes)
-					{
-						String pidNum="", uiClass="";
-						try { uiClass=(String)model().m_graph.getNode(nodeName).getAttribute("ui.class"); }
-						catch (Exception e) { System.out.println("Exception getting nodename="+nodeName); e.printStackTrace(); }
-						if (uiClass==null || !uiClass.equals("external"))
-						{
-							int idx=nodeName.lastIndexOf('_');
-							if (idx > 0 )
-							{
-								pidNum=nodeName.substring(idx+1).trim(); //do this first before nodeName is consumed...
-								nodeName=nodeName.substring(0, idx);
-							}
-						}
-						connectionData[i][0]=nodeName;
-						connectionData[i][1]=AHAModel.strAsInt(pidNum);
-						i++;
-					}
-				}
-			}
-		} catch (Exception e) { e.printStackTrace(); connectionData=new String[][]{{"Error"}}; }
-		
-		try
-		{ //update the fifth "Score Metric" table
-			String score=(String)node.getAttribute("aha.scoreReason");
-			String[] scores=score.split(", ");
-			int length=0;
-			for (int i=0;i<scores.length;i++) 
-			{ 
-				if (scores[i].toLowerCase().endsWith("false") && m_gui.m_infoPnlShowOnlyMatchedMetrics.isSelected()) {continue;}
-				length++;
-			}
-			scoreReasons=new Object[length][2];
-			int j=0;
-			for (int i=0;i<scores.length;i++) 
-			{ 
-				String[] scrTokens=scores[i].split("=");
-				if (scrTokens!=null && scrTokens.length>=2)
-				{
-					if (m_gui.m_infoPnlShowOnlyMatchedMetrics.isSelected()==true && scrTokens[1].toLowerCase().contains("false")) { continue; } 
-					scoreReasons[j][0]=scrTokens[0];
-					scoreReasons[j][1]=scrTokens[1];
-					if (!m_gui.m_infoPnlShowScoringSpecifics.isSelected()) 
-					{ 
-						String input=(String)scoreReasons[j][0];
-						if (input!=null && input.contains("[") && input.contains("]:")) 
-						{ 
-							String scoreString=input.split("\\.")[0], scoreValue=input.split("\\]:")[1];
-							boolean isNegativeScore=scoreValue.charAt(0)=='-';
-							if (!isNegativeScore) { scoreValue="+"+scoreValue; } 
-							String output=scoreString+" ("+scoreValue+")";
-							if (isNegativeScore) //make scoreMetris that take points off show up in red
-							{ 
-								output="<html><font color=red>"+output+"</font></html>";
-								scoreReasons[j][1]="<html><font color=red>"+scrTokens[1]+"</font></html>";
-							}
-							scoreReasons[j][0]=output;
-						}
-					}
-					j++;
-				}
-			}
-			
-		} catch (Exception e) { e.printStackTrace(); }
-
-		final Object[][][] data={infoData,intPorts,extPorts,connectionData,scoreReasons}; // create final pointer to pass to swing.infokelater. as long as this order of these object arrays is correct, everything will work :)
-		javax.swing.SwingUtilities.invokeLater(new Runnable() //perform task on gui thread
+		m_backgroundExec.execute(new Runnable() 
 		{
 			public void run()
 			{
-				for (int i=0;i<data.length;i++)
-				{
-					try
+				if ( node==null || (occuredFromMouseOver && !m_gui.m_infoPnlUpdateOnMouseover.isSelected()) ) { return; } //if element is null, or triggered from mosueover and we're presently supposed to ignore that, return
+				m_currentlyDisplayedNode.set(node);
+				Object[][] infoData=node.getSidebarAttributes("aha.SidebarGeneralInfo"), intPorts=node.getSidebarAttributes("aha.SidebarInternalPorts"), extPorts=node.getSidebarAttributes("aha.SidebarExternalPorts"), connectionData={{"None",""}}, scoreReasons=null;
+				
+				try
+				{ //update the fourth "Connected Process Name" table. This is updated in the controller because the user can toggle IP/FQDN view at runtime, thus the names of some nodes will change
+					if (node.graphNode.getDegree()>0)
 					{
-						java.util.Vector<Integer> preferredWidths=new java.util.Vector<>();
-						try 
-						{ 
-							for (int j=0;j<m_gui.m_infoPnlTables[i].getColumnModel().getColumnCount();j++)
+						java.util.ArrayList<String> connectedNodes=new java.util.ArrayList<>();
+						for (org.graphstream.graph.Edge e : node )
+						{
+							String nodeName=(String)e.getOpposite(node.graphNode).getId();
+							if (!connectedNodes.contains(nodeName)) { connectedNodes.add(nodeName); } //deduplicate
+						}
+						if (connectedNodes.size()>0)
+						{
+							connectionData=new Object[connectedNodes.size()][2];
+							int i=0;
+							for (String nodeName : connectedNodes)
 							{
-								preferredWidths.add(m_gui.m_infoPnlTables[i].getColumnModel().getColumn(j).getPreferredWidth());
+								String pidNum="", uiClass="";
+								try { uiClass=(String)model().m_graph.getNode(nodeName).getAttribute("ui.class"); }
+								catch (Exception e) { System.out.println("Exception getting nodename="+nodeName); e.printStackTrace(); }
+								if (uiClass==null || !uiClass.equals("external"))
+								{
+									int idx=nodeName.lastIndexOf('_');
+									if (idx > 0 )
+									{
+										pidNum=nodeName.substring(idx+1).trim(); //do this first before nodeName is consumed...
+										nodeName=nodeName.substring(0, idx);
+									}
+								}
+								connectionData[i][0]=nodeName;
+								connectionData[i][1]=AHAModel.strAsInt(pidNum);
+								i++;
 							}
-						} catch (Exception e1) { e1.printStackTrace(); }
-						javax.swing.table.DefaultTableModel infoPanelDataModel=(javax.swing.table.DefaultTableModel)m_gui.m_infoPnlTables[i].getModel();
-						infoPanelDataModel.setDataVector(data[i], m_gui.m_infoPnlColumnHeaders[i]);
-						try 
-						{ 
-							for (int j=0;j<m_gui.m_infoPnlTables[i].getColumnModel().getColumnCount();j++)
+						}
+					}
+				} catch (Exception e) { e.printStackTrace(); connectionData=new String[][]{{"Error"}}; }
+				
+				try
+				{ //update the fifth "Score Metric" table
+					String score=(String)node.getAttribute("aha.scoreReason");
+					String[] scores=score.split(", ");
+					int length=0;
+					for (int i=0;i<scores.length;i++) 
+					{ 
+						if (scores[i].toLowerCase().endsWith("false") && m_gui.m_infoPnlShowOnlyMatchedMetrics.isSelected()) {continue;}
+						length++;
+					}
+					scoreReasons=new Object[length][2];
+					int j=0;
+					for (int i=0;i<scores.length;i++) 
+					{ 
+						String[] scrTokens=scores[i].split("=");
+						if (scrTokens!=null && scrTokens.length>=2)
+						{
+							if (m_gui.m_infoPnlShowOnlyMatchedMetrics.isSelected()==true && scrTokens[1].toLowerCase().contains("false")) { continue; } 
+							scoreReasons[j][0]=scrTokens[0];
+							scoreReasons[j][1]=scrTokens[1];
+							if (!m_gui.m_infoPnlShowScoringSpecifics.isSelected()) 
+							{ 
+								String input=(String)scoreReasons[j][0];
+								if (input!=null && input.contains("[") && input.contains("]:")) 
+								{ 
+									String scoreString=input.split("\\.")[0], scoreValue=input.split("\\]:")[1];
+									boolean isNegativeScore=scoreValue.charAt(0)=='-';
+									if (!isNegativeScore) { scoreValue="+"+scoreValue; } 
+									String output=scoreString+" ("+scoreValue+")";
+									if (isNegativeScore) //make scoreMetris that take points off show up in red
+									{ 
+										output="<html><font color=red>"+output+"</font></html>";
+										scoreReasons[j][1]="<html><font color=red>"+scrTokens[1]+"</font></html>";
+									}
+									scoreReasons[j][0]=output;
+								}
+							}
+							j++;
+						}
+					}
+					
+				} catch (Exception e) { e.printStackTrace(); }
+
+				final Object[][][] data={infoData,intPorts,extPorts,connectionData,scoreReasons}; // create final pointer to pass to swing.infokelater. as long as this order of these object arrays is correct, everything will work :)
+				javax.swing.SwingUtilities.invokeLater(new Runnable() //perform task on gui thread
+				{
+					public void run()
+					{
+						for (int i=0;i<data.length;i++)
+						{
+							try
 							{
-								m_gui.m_infoPnlTables[i].getColumnModel().getColumn(j).setPreferredWidth(preferredWidths.get(j));
-							}
-						} catch (Exception e1) { e1.printStackTrace(); }
-					} catch (Exception e) { e.printStackTrace(); }
-				}
+								java.util.Vector<Integer> preferredWidths=new java.util.Vector<>();
+								try 
+								{ 
+									for (int j=0;j<m_gui.m_infoPnlTables[i].getColumnModel().getColumnCount();j++)
+									{
+										preferredWidths.add(m_gui.m_infoPnlTables[i].getColumnModel().getColumn(j).getPreferredWidth());
+									}
+								} catch (Exception e1) { e1.printStackTrace(); }
+								javax.swing.table.DefaultTableModel infoPanelDataModel=(javax.swing.table.DefaultTableModel)m_gui.m_infoPnlTables[i].getModel();
+								infoPanelDataModel.setDataVector(data[i], m_gui.m_infoPnlColumnHeaders[i]);
+								try 
+								{ 
+									for (int j=0;j<m_gui.m_infoPnlTables[i].getColumnModel().getColumnCount();j++)
+									{
+										m_gui.m_infoPnlTables[i].getColumnModel().getColumn(j).setPreferredWidth(preferredWidths.get(j));
+									}
+								} catch (Exception e1) { e1.printStackTrace(); }
+							} catch (Exception e) { e.printStackTrace(); }
+						}
+					}
+				});
 			}
 		});
+		
 	}
 	
 	protected void moveExternalNodes(AHAModel m)
@@ -344,43 +358,34 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 		if (newZoom > 0 && newZoom < 20 ) { m_gui.m_graphViewPanel.getCamera().setViewPercent(newZoom); }
 	}
 	
-	public synchronized void buttonPushed(String id) //called when you click on a graph node/edge
-	{
-		if (id==null || id.equals("")) { return; } //try { m_graphViewPump.pump(); } catch (Exception e) {e.printStackTrace();}  //non blocking pump to clear anything out before we heckle the graph
-		try
-		{
-			AHANode node=model().m_graph.getNode(id);
-			if (node==null) { return; }
-			for (org.graphstream.graph.Edge e : node)
-			{
-				try 
-				{
-					String currentClasses=(String)e.getAttribute("ui.class");
-					if (currentClasses==null) { currentClasses=""; }
-					if (!currentClasses.contains("clickedAccent")) { e.setAttribute("ui.class", "clickedAccent, "+currentClasses); } //System.out.println("Adding classes: old uiclass was |"+currentClasses+"| is now |"+e.getAttribute("ui.class")+"|");
-				} catch (Exception ex) { ex.printStackTrace(); }
-			}
-			updateSidebar(node, false);
-		} catch (Exception e) { e.printStackTrace(); }
-	}
+	public synchronized void buttonPushed(String id) { pushOrRelease(id,true); } //called when you click on a graph node/edge
+	public synchronized void buttonReleased(String id) { pushOrRelease(id,false); }
 	
-	public synchronized void buttonReleased(String id) 
-	{ 
+	private synchronized void pushOrRelease(String id, boolean pushed)
+	{
 		if (id==null || id.equals("")) { return; }
-		try
-		{
-			AHANode node=model().m_graph.getNode(id);
-			if (node==null) { System.out.println("node is null, returning early"); return;}
-			for (org.graphstream.graph.Edge e : node)
+		final AHANode node=model().m_graph.getNode(id);
+		if (node==null) { System.out.println("node is null, returning early"); return;}
+		m_backgroundExec.execute(new Runnable() {
+			public void run()
 			{
 				try 
 				{
-					String currentClasses=(String)e.getAttribute("ui.class");
-					if (currentClasses!=null) { e.setAttribute("ui.class", currentClasses.replaceAll("clickedAccent, ", "")); } //System.out.println("Removing classes: old uiclass was |"+currentClasses+"| is now |"+e.getAttribute("ui.class")+"|");
-				} catch (Exception ex) { ex.printStackTrace(); }
+					for (org.graphstream.graph.Edge e : node)
+					{
+						try 
+						{
+							String currentClasses=(String)e.getAttribute("ui.class");
+							if (currentClasses==null) { currentClasses=""; }
+							if (pushed && !currentClasses.contains("clickedAccent")) { e.setAttribute("ui.class", "clickedAccent, "+currentClasses); } 
+							if (!pushed) { e.setAttribute("ui.class", currentClasses.replaceAll("clickedAccent, ", "")); } 
+						} catch (Exception ex) { ex.printStackTrace(); }
+					}
+					updateSidebar(node, false);
+				} catch (Exception e) { e.printStackTrace(); }
 			}
-		} catch (Exception e2) { e2.printStackTrace(); }
-	} //graph mouse function
+		});
+	}
 	
 	public synchronized void startedHoveringOverElement(org.graphstream.ui.graphicGraph.GraphicElement element)
 	{

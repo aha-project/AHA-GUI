@@ -817,17 +817,15 @@ public class AHAModel implements Runnable
 	
 	protected void useFQDNLabels(boolean useFQDN) 
 	{
-		if (useFQDN) 
-		{  
-			for (AHANode n : m_graph) 
-			{ 
-				String temp=n.getAttribute("ui.class");
-				if (temp!=null && temp.equals("external"))
-				{
-					if (!n.getId().equals("external")) { n.setAttribute("ui.label", capitalizeFirstLetter("Ext_"+n.getAttribute("hostname"))); }
-				}
+		for (AHANode n : m_graph) 
+		{ 
+			String temp=n.getAttribute("ui.class");
+			if (temp!=null && temp.equals("external"))
+			{
+				if (useFQDN && !n.getId().equals("external")) { n.setAttribute("ui.label", capitalizeFirstLetter("Ext_"+n.getAttribute("hostname"))); }
+				if (!useFQDN && !n.getId().equals("external")) { n.setAttribute("ui.label", capitalizeFirstLetter(n.getId())); }
 			}
-		} 
+		}
 	}
 	
 	protected void hideOSProcs(boolean hide) 
