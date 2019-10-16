@@ -68,6 +68,10 @@ public class AHAGraph implements java.lang.Iterable<AHAGraph.AHANode> // wrapper
 		return newNode;
 	}
 	public AHANode getNode (String key) { return m_nodes.get(key.toLowerCase()); }
-	public org.graphstream.graph.Edge addEdge (String key, String from, String to) { return graph.addEdge(key.toLowerCase(), from.toLowerCase(), to.toLowerCase()); }
+	public org.graphstream.graph.Edge addEdge (String key, String from, String to) 
+	{ 
+		try { return graph.addEdge(key.toLowerCase(), from.toLowerCase(), to.toLowerCase());}
+		catch (Exception e) {return null;} 
+	}
 	public java.util.Iterator<AHANode> iterator() { return m_nodes.values().iterator(); } //also enables 'for (node n : graph)' syntax
 }

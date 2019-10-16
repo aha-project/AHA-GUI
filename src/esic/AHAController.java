@@ -1,6 +1,9 @@
 package esic;
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Properties;
 import javax.swing.SwingUtilities;
 import esic.AHAGraph.AHANode;
 
@@ -12,10 +15,10 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	protected java.util.concurrent.atomic.AtomicReference<String> m_layoutMode=new java.util.concurrent.atomic.AtomicReference<>(); //set the default in AHAGUI:resetUI
 	private java.util.concurrent.ExecutorService m_backgroundExec= java.util.concurrent.Executors.newCachedThreadPool();
 	
-	public AHAController(String inputFileName, String scoreFileName, int verbosity, boolean useMultiLineGraph)
+	public AHAController(String inputFileName, String scoreFileName, int verbosity, boolean useMultiLineGraph, Properties props)
 	{
 		m_model.set(new AHAModel(this, inputFileName, scoreFileName, verbosity));
-		m_gui=new AHAGUI(m_model.get(), this, useMultiLineGraph);
+		m_gui=new AHAGUI(m_model.get(), this, useMultiLineGraph, props);
 	}
 	
 	public void start() { model().run(); }
@@ -24,7 +27,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	protected void openfileOrReload(boolean reload)
 	{
 		String title="AHA-GUI";
-		try { title=AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]; } catch (Exception ex) {ex.printStackTrace();}
+		try { title=AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]; } catch (Exception ex) {ex.printStackTrace(); }
 		boolean ret=reload;
 		if (!reload) { ret=m_gui.openFile(model(), title); }
 		if (ret==true)
@@ -33,6 +36,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			m_currentlyDisplayedNode.set(null);
 			System.err.println("\n");
 			AHAModel oldModel=model();
+			m_gui.setTitle(title+" "+oldModel.m_inputFileName);
 			AHAModel newModel=new AHAModel(this, oldModel.m_inputFileName, oldModel.m_scoreFileName, oldModel.m_verbosity);
 			m_model.set(newModel);
 			m_gui.initGraphView(newModel);
@@ -49,6 +53,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 		
 		//the first few actions do not require access to graph, and thus we don't bother putting them on the background thread
 		if (actionCommand.equals("dataView")) { m_gui.showDataView(model(), m_gui); }
+		else if (actionCommand.equals("showPrefsPane")) { m_gui.showPrefsPane(m_gui); } 
 		else if (actionCommand.equals("exit")) { m_gui.dispatchEvent(new java.awt.event.WindowEvent(m_gui, java.awt.event.WindowEvent.WINDOW_CLOSING)); }
 		else if (actionCommand.equals("openNewFile")) { openfileOrReload(false); } 
 		else if (actionCommand.equals("refreshInfoPanel")) { updateSidebar(m_currentlyDisplayedNode.get(), false); }
@@ -57,7 +62,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			final AHAController controller=this;
 			m_backgroundExec.execute(new Runnable()
 			{
-				public void run() 
+				public void run()
 				{ 
 					if (actionCommand.equals("hideOSProcs")) { model().hideOSProcs(selected); }
 					else if (actionCommand.equals("resetZoom")) { m_gui.m_graphViewPanel.getCamera().resetView(); }
@@ -86,6 +91,61 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 						{
 							public void run() { m_gui.m_btmPnlSearchStatus.setText(status);  }
 						});
+					}
+					else if (actionCommand.equals("runAHAScraper"))
+					{
+						try
+						{ //TODO: this will probably fail gloriously if they have not done the exec powershell bypass thing.
+							String dirName="AHA-Scraper-Win", taskString="powershell.exe -ExecutionPolicy Bypass -File ./AHA-Scraper.ps1";
+							java.io.File workingDir=new java.io.File(dirName), scriptFile=new java.io.File(dirName+"/AHA-Scraper.ps1");
+							if ( !workingDir.exists() || !scriptFile.exists() )
+							{
+								String message="AHA-Scraper could not be located.\nPlease place it within the AHA-GUI directory in a directory called 'AHA-Scraper-Win'";
+								if (!System.getProperty("java.vendor").toLowerCase().contains("window")) { message="Direct run of the scaper is currently only supported on Windows™"; }
+								javax.swing.JOptionPane.showMessageDialog(m_gui, message, "Scraper Error", javax.swing.JOptionPane.WARNING_MESSAGE);
+								return;
+							}
+							System.out.printf("Attempting to run AHA task '%s'\n", taskString);
+							final Process process=new ProcessBuilder(taskString.split(" ")).redirectErrorStream(true).directory(workingDir).start();
+							
+							long startTime=System.currentTimeMillis();
+							int progress=0;
+							javax.swing.ProgressMonitor pm=null;
+							AHAGUIHelpers.tryCancelSplashScreen();
+							try 
+							{ 
+								String message="Running AHA-Scraper:                                                                "; //the giant blank string helps us guarantee a reasonable minimum size
+								pm=new javax.swing.ProgressMonitor(m_gui,message,"Preparing to start updating file...",progress++,100); 
+								pm.setMillisToDecideToPopup(1);
+								pm.setMillisToPopup(1);
+							} catch (Exception e) {} //in case we're running headlessly
+							
+							java.io.BufferedReader reader=new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()));
+							while (process.isAlive() && (System.currentTimeMillis()-startTime < 100000) ) //limit max runtime to 100s
+							{
+								String output=reader.readLine();
+								if (output==null) { break; }
+								if (output.toLowerCase().contains("complete, elapsed time")) { break; }
+								if (progress > 90) { progress--; }
+								AHAGUIHelpers.tryUpdateProgress(pm,progress++,100,output);
+								if (output.length()>0) { System.out.println(output.trim()); }
+							}
+							try { process.destroyForcibly(); } //older OSes/powershells may not exit when the script is done. 
+							catch (Exception e) { e.printStackTrace(); }
+							AHAGUIHelpers.tryUpdateProgress(pm,100,100,"Done.");
+							java.io.File f=new java.io.File(dirName+"/BinaryAnalysis.csv");
+							if (f.exists())
+							{
+								java.util.Date date = new java.util.Date();
+								String today= new java.text.SimpleDateFormat("yyyy-MM-dd-hhmm").format(date);
+								System.out.println("calculated date as '"+today+"'");
+								String newFileName="BinaryAnalysis"+today+".csv";
+								Files.copy(Paths.get(dirName+"/BinaryAnalysis.csv"), Paths.get(newFileName), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+								model().m_inputFileName=newFileName;
+								openfileOrReload(true);
+							}
+						}
+						catch (Exception e) { e.printStackTrace(); }
 					}
 					else { System.err.println("AHAController: ActionPerformed: Unknown action command='"+actionCommand+"'"); }
 				}

@@ -1,10 +1,13 @@
 package esic;
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
-import javax.swing.UIManager;
+import java.awt.GridBagConstraints;
+import javax.swing.*;
 
 public class AHAGUIHelpers
 {
+	public static enum DirectionToIncrement { INC_NONE, INC_X, INC_Y, INC_BOTH }
+	
 	public static void applyTheme(java.awt.Font uiFont) //Apply theme for JCheckbox, JComboBox, JLabel,  JSrollPane, JTabbedPane, JTable
 	{ // Need to figure out what key something is named? The stuff below will search and then exit for keys containing the string
 		System.err.println("Applying theme.");
@@ -325,6 +328,51 @@ public class AHAGUIHelpers
 	protected static void tryCancelSplashScreen()
 	{
 		try { java.awt.SplashScreen.getSplashScreen().close(); } catch(Exception e) {}
+	}
+	
+	public static JLabel addLabel(java.awt.Container parent, String text, int horizontalAlignment, GridBagConstraints gc, DirectionToIncrement d)
+	{
+		JLabel j=new JLabel(text);
+		j.setHorizontalAlignment(horizontalAlignment);
+		if (parent!=null) { parent.add(j,gc); }
+		incConstraint(d,gc);
+		return j;
+	}
+
+	public static JTextField addTextfield(java.awt.Container parent, String text, GridBagConstraints gc, DirectionToIncrement d)
+	{
+		JTextField j=new JTextField(text);
+		j.setEditable(true);
+		if (parent!=null) { parent.add(j,gc); }
+		incConstraint(d,gc);
+		return j;
+	}
+
+	public static JButton addButton(java.awt.Container parent, java.awt.event.ActionListener al, String name, String action, GridBagConstraints gc, DirectionToIncrement d)
+	{
+		JButton b=new JButton(name);
+		b.setActionCommand(action.trim());
+		b.addActionListener(al);
+		if (parent!=null) { parent.add(b, gc); }
+		incConstraint(d,gc);
+		return b;
+	}
+	
+	public static JCheckBox addCheckbox(java.awt.Container parent, java.awt.event.ActionListener al, String name, String action, int horizontalAlignment, GridBagConstraints gc, DirectionToIncrement d)
+	{
+		JCheckBox c=new JCheckBox(name);
+		c.setActionCommand(action.trim());
+		c.addActionListener(al);
+		c.setHorizontalAlignment(horizontalAlignment);
+		if (parent!=null) { parent.add(c, gc); }
+		incConstraint(d,gc);
+		return c;
+	}
+	
+	public static void incConstraint(DirectionToIncrement d, GridBagConstraints gc)
+	{
+		if (d==DirectionToIncrement.INC_Y || d==DirectionToIncrement.INC_BOTH) { gc.gridy++; }
+		if (d==DirectionToIncrement.INC_X || d==DirectionToIncrement.INC_BOTH) { gc.gridx++; }
 	}
 	
 }
