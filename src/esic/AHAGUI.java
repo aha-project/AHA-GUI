@@ -34,7 +34,7 @@ public class AHAGUI extends JFrame
 	private java.util.Vector<JMenuItem> defaultTrue=new java.util.Vector<>(), defaultFalse=new java.util.Vector<>();
 	private Properties m_props;
 	
-	protected static java.awt.Dimension s_preferredTotalSize=new java.awt.Dimension(1400, 800); //store the preferred size so if they open a new file we keep that size
+	protected static java.awt.Dimension s_preferredTotalSize=new java.awt.Dimension(1920, 1200); //TODO: make this a pref
 	public final static String s_settingsFileName="AHAGUI.settings";
 	
 	@SuppressWarnings("deprecation") //we have to use the old'n'busted version here for java8 compatibility
@@ -53,8 +53,12 @@ public class AHAGUI extends JFrame
 		addWindowListener(m_controller);
 
 		pack(); //populate all the info about the insets
+		java.awt.Dimension screenSize = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
+		if (screenSize.width < s_preferredTotalSize.width) { s_preferredTotalSize.width=screenSize.width; System.out.println("Screen size limits width. Changing width to "+screenSize.width); }
+		if (screenSize.height-40 < s_preferredTotalSize.height) { s_preferredTotalSize.height=screenSize.height-40; System.out.println("Screen size limits height. Changing height to "+(screenSize.height-40));}
 		setSize(s_preferredTotalSize);
 		setPreferredSize(s_preferredTotalSize);
+		setMinimumSize(new java.awt.Dimension(800,600));
 		String title="AHA-GUI";
 		try { title=AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]; } catch (Exception e) {}
 		setTitle(title); //This should result in something like "AHA-GUI v0.5.6b1" being displayed
