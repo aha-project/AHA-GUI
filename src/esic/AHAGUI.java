@@ -103,7 +103,6 @@ public class AHAGUI extends JFrame
 			AHAGUIHelpers.createMenuItem(new JMenuItem("Exit"), m_controller, "exit", "Exit AHA-GUI", fileMenu, null, null);
 
 			// -- begin view menu --
-			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Hide Windows Operating System Processes"), m_controller, "hideOSProcs", "Hides the usual Windows™ operating system processes, while interesting these processes can get in the way of other analysis.", viewMenu, null, defaultFalse);
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Use DNS Names"), m_controller, "showFQDN", "Show the DNS names of external nodes rather than IPs.", viewMenu, null, defaultFalse);
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Use Custom ScoreFile"), m_controller, "useCustom", "If a custom score file was loaded, this option will apply those custom directives to the graph view.", viewMenu, null, defaultFalse);
 
@@ -116,6 +115,7 @@ public class AHAGUI extends JFrame
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Virtual External Node"), m_controller, "aha.graphlayer==aha.virtextnode", "Shows the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to.",viewMenu, null, defaultTrue);
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Real External Nodes"), m_controller, "aha.graphlayer==aha.realextnode", "Shows the main 'External' node from the graph that all nodes which listen on externally accessible addresses connect to.",viewMenu, null, defaultTrue);
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Connectionless Nodes", true), m_controller, "aha.graphlayer==proto.none", "Show / Hide nodes with no protocol in the graph.", viewMenu,null, defaultTrue);
+			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Operating System Processes"), m_controller, "hideOSProcs", "Hides the usual Windows™ operating system processes, while interesting these processes can get in the way of other analysis.", viewMenu, null, defaultTrue);
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show Pipe", true), m_controller, "aha.graphlayer==proto.pipe", "Show / Hide Pipe protocol nodes in the graph.", viewMenu, null, defaultTrue);
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show TCP", true), m_controller, "aha.graphlayer==proto.tcp", "Show / Hide TCP protocol nodes in the graph.", viewMenu, null, defaultTrue);
 			AHAGUIHelpers.createMenuItem(new JCheckBoxMenuItem("Show UDP", true), m_controller, "aha.graphlayer==proto.udp", "Show / Hide UDP protocol nodes in the graph.", viewMenu, null, defaultTrue);

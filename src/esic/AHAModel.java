@@ -828,10 +828,10 @@ public class AHAModel implements Runnable
 		}
 	}
 	
-	protected void hideOSProcs(boolean hide) 
+	protected void showOSProcs(boolean show) 
 	{
 		String[] osProcs={"c:\\windows\\system32\\services.exe","c:\\windows\\system32\\svchost.exe","c:\\windows\\system32\\wininit.exe","c:\\windows\\system32\\lsass.exe","null","system",};
-		for (String s : osProcs) { genericHideUnhideNodes( "processpath=="+s,hide ); }
+		for (String s : osProcs) { genericHideUnhideNodes( "processpath=="+s,!show ); }
 	}
 	protected void hideFalseExternalNode(boolean hide)  { genericHideUnhideNodes( "processpath==external",hide ); }
 	
@@ -845,12 +845,12 @@ public class AHAModel implements Runnable
 		if (criteria.contains("==")) { regexp="=="; }
 		if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false; }
 		String[] args=criteria.trim().split(regexp);
-		if (args.length < 2) { System.err.println("Hide: Unable to parse tokens:|"+criteria.trim()+"|"); return 0; }
+		//if (args.length < 2) { args }//{ System.err.println("Hide: Unable to parse tokens:|"+criteria.trim()+"|"); return 0; }
 		try
 		{
 			String attribute=args[0].toLowerCase();
 			
-			String seeking="";
+			String seeking=""; //defult is that we're looking for empty string
 			if (args.length >1 && args[1]!=null) { seeking=args[1].toLowerCase(); }//important to do every loop since seeking may be modified if it is inverted
 			
 			if (attribute.equals("aha.graphlayer"))
@@ -860,8 +860,9 @@ public class AHAModel implements Runnable
 			}
 			if (m_verbosity > 1) { System.err.println("layers '"+hiddenGraphLayers.toString()+"' should be hidden"); }
 			
-			for (AHANode node:m_graph) //System.out.println("attr='"+attribute+"' seeking='"+seeking+"'");
-			{
+			for (AHANode node:m_graph) 
+			{ 
+				if (m_verbosity > 1) { System.out.println("attr='"+attribute+"' seeking='"+seeking+"' potentialMatch='"+node.getAttribute(attribute)+"'"); }
 				try
 				{
 					java.util.TreeMap<String, String> hideReasons=node.getStringMap("aha.hideReasons");
@@ -883,9 +884,15 @@ public class AHAModel implements Runnable
 					else if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
 					{
 						if (notInverseSearch==false) { seeking="!"+seeking; }
-						if (hide) { hideReasons.put(seeking, seeking); }
+						if (hide) { hideReasons.put(seeking, seeking); } //TODO seems like critieria would be better here
 						else { hideReasons.remove(seeking); }
 					}
+//					else if (attrValue!=null && seeking!=null && seeking.contains("*") && notInverseSearch==attrValue.matches(seeking)) //attempt to find regexp if we see a star
+//					{
+//						if (notInverseSearch==false) { seeking="!"+seeking; }
+//						if (hide) { hideReasons.put(attribute+seeking, attribute+seeking); }
+//						else { hideReasons.remove(attribute+seeking); }
+//					}
 					else { hideReasons=null; }
 					if (hideReasons!=null)
 					{
@@ -921,28 +928,32 @@ public class AHAModel implements Runnable
 		{
 			boolean notInverseSearch=true;
 			String regexp="";
+			if (criteria.contains("==")) { regexp="=="; }
+			if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false; }
 			String[] args=criteria.trim().split(regexp);
 			if (args.length < 2) { System.err.println("Emphasize: Unable to parse tokens:|"+criteria.trim()+"|"); return 0; }
 			
 			if (criteria.contains("==")) { regexp="=="; }
 			if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false;}
 			
-			String attribute=args[0].toLowerCase();
+			final String attribute=args[0].toLowerCase(), seeking=args[1].toLowerCase();
+			if (m_verbosity > 0) { System.err.printf("EmphasizeNode called with attr='%s' seekingMatch='%s' emphasize=%s\n", attribute, seeking, Boolean.toString(emphasize)); }
 			for (AHANode node:m_graph)
 			{
-				String seeking=args[1].toLowerCase(); //important to do every loop since seeking may be modified if it is inverted
 				String attrValue=node.getAttribute(attribute);
+				
 				if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
 				{
-					if (notInverseSearch==false) { seeking="!"+seeking; } 
+					String actuallySeeking=seeking;
+					if (notInverseSearch==false) { actuallySeeking="!"+actuallySeeking; } 
 					java.util.TreeMap<String, String> emphasizeReasons=node.getStringMap("aha.emphasizeReasons");
 					if (emphasizeReasons==null)
 					{
 						emphasizeReasons=new java.util.TreeMap<>();
 						node.putStringMap("aha.emphasizeReasons", emphasizeReasons);
 					}
-					if (emphasize) { emphasizeReasons.put(seeking, seeking); }
-					else { emphasizeReasons.remove(seeking); }
+					if (emphasize) { emphasizeReasons.put(actuallySeeking, actuallySeeking); }
+					else { emphasizeReasons.remove(actuallySeeking); }
 					
 					boolean nodeWillEmphasize=!emphasizeReasons.isEmpty();
 					String nodeClass=node.getAttribute("ui.class");
