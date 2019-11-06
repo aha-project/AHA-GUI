@@ -64,8 +64,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			{
 				public void run()
 				{ 
-					if (actionCommand.equals("hideOSProcs")) { model().showOSProcs(selected); } //hideNullPathProcs
-					//else if (actionCommand.equals("hideNullPathProcs")) { model().hideOSProcs(selected); } 
+					if (actionCommand.equals("showOSProcs")) { model().showOSProcs(selected); } //hideNullPathProcs
 					else if (actionCommand.equals("resetZoom")) { m_gui.m_graphViewPanel.getCamera().resetView(); }
 					else if (actionCommand.contains("aha.graphlayer==") || actionCommand.contains("processpath==")) { model().genericHideUnhideNodes( actionCommand, !selected ); }
 					else if (actionCommand.equals("showFQDN")) { model().useFQDNLabels(selected); updateSidebar(m_currentlyDisplayedNode.get(), false); }

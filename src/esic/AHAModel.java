@@ -833,8 +833,6 @@ public class AHAModel implements Runnable
 		String[] osProcs={"c:\\windows\\system32\\services.exe","c:\\windows\\system32\\svchost.exe","c:\\windows\\system32\\wininit.exe","c:\\windows\\system32\\lsass.exe","null","system",};
 		for (String s : osProcs) { genericHideUnhideNodes( "processpath=="+s,!show ); }
 	}
-	protected void hideFalseExternalNode(boolean hide)  { genericHideUnhideNodes( "processpath==external",hide ); }
-	
 	
 	private java.util.TreeMap<String,String> hiddenGraphLayers=new java.util.TreeMap<>();
 	protected int genericHideUnhideNodes( String criteria, boolean hide )
@@ -845,12 +843,12 @@ public class AHAModel implements Runnable
 		if (criteria.contains("==")) { regexp="=="; }
 		if (criteria.contains("!=")) { regexp="!="; notInverseSearch=false; }
 		String[] args=criteria.trim().split(regexp);
-		//if (args.length < 2) { args }//{ System.err.println("Hide: Unable to parse tokens:|"+criteria.trim()+"|"); return 0; }
+		if (args.length < 2) { System.err.println("Hide: Unable to parse tokens:|"+criteria.trim()+"|"); return 0; }
 		try
 		{
 			String attribute=args[0].toLowerCase();
 			
-			String seeking=""; //defult is that we're looking for empty string
+			String seeking=""; 
 			if (args.length >1 && args[1]!=null) { seeking=args[1].toLowerCase(); }//important to do every loop since seeking may be modified if it is inverted
 			
 			if (attribute.equals("aha.graphlayer"))
