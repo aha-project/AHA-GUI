@@ -24,7 +24,7 @@ public class AHAGUIHelpers
 		java.awt.Color backgroundColor=java.awt.Color.BLACK, foregroundColor=java.awt.Color.GREEN, accentColor=java.awt.Color.DARK_GRAY.darker().darker(), lightAccent=java.awt.Color.DARK_GRAY;//, dbugcolor=java.awt.Color.ORANGE;
 		UIManager.put("Button.background", accentColor.brighter().brighter());
 		UIManager.put("Button.darkShadow", backgroundColor);
-		UIManager.put("Button.focus", accentColor.brighter().brighter()); //remove selection reticle
+		UIManager.put("Button.focus", lightAccent.brighter().brighter()); //remove selection reticle
 		UIManager.put("Button.font",uiFont);
 		UIManager.put("Button.foreground", foregroundColor);
 		UIManager.put("Button.select", java.awt.Color.GRAY.darker());
@@ -32,7 +32,7 @@ public class AHAGUIHelpers
 		UIManager.put("Button.border", new javax.swing.border.CompoundBorder(javax.swing.BorderFactory.createLineBorder(java.awt.Color.GRAY),b ));
 		UIManager.put("CheckBox.foreground", foregroundColor);
 		UIManager.put("CheckBox.background", backgroundColor);
-		UIManager.put("CheckBox.focus", backgroundColor);
+		UIManager.put("CheckBox.focus", lightAccent.brighter().brighter());
 		UIManager.put("CheckBox.font", uiFont);
 		UIManager.put("CheckBox.gradient", java.util.Arrays.asList( new Object[] {Float.valueOf(0f),Float.valueOf(0f), java.awt.Color.LIGHT_GRAY, java.awt.Color.LIGHT_GRAY, java.awt.Color.GRAY.brighter() }));
 		
@@ -43,7 +43,7 @@ public class AHAGUIHelpers
 		UIManager.put("CheckBoxMenuItem.selectionForeground", backgroundColor);
 		UIManager.put("CheckBoxMenuItem.gradient", null);
 		UIManager.put("CheckBoxMenuItem.border", javax.swing.BorderFactory.createEmptyBorder());
-		UIManager.put("ComboBox.background", accentColor.brighter().brighter());
+		UIManager.put("ComboBox.background", lightAccent);
 		UIManager.put("ComboBox.font", uiFont); 
 		UIManager.put("ComboBox.foreground", foregroundColor);
 		UIManager.put("ComboBox.selectionForeground", foregroundColor);
@@ -111,9 +111,9 @@ public class AHAGUIHelpers
 		
 		UIManager.put("ScrollBar.track", backgroundColor);
 		UIManager.put("ScrollBar.thumbDarkShadow", backgroundColor);
-		UIManager.put("ScrollBar.thumb", accentColor.brighter().brighter().brighter());
-		UIManager.put("ScrollBar.thumbHighlight", accentColor.brighter().brighter().brighter());
-		UIManager.put("ScrollBar.thumbShadow", accentColor.brighter().brighter().brighter());
+		UIManager.put("ScrollBar.thumb", lightAccent.brighter());
+		UIManager.put("ScrollBar.thumbHighlight", lightAccent.brighter());
+		UIManager.put("ScrollBar.thumbShadow", lightAccent.brighter());
 		UIManager.put("ScrollBarUI", javax.swing.plaf.basic.BasicScrollBarUI.class.getName() );
 		UIManager.put("ScrollBar.width", 8);
 		UIManager.put("ScrollPane.foreground", foregroundColor);
@@ -128,10 +128,10 @@ public class AHAGUIHelpers
 		UIManager.put("TabbedPane.background", backgroundColor);
 		UIManager.put("TabbedPane.light", backgroundColor);
 		UIManager.put("TabbedPane.borderHightlightColor", backgroundColor);
-		UIManager.put("TabbedPane.selected", accentColor.brighter().brighter().brighter());
-		UIManager.put("TabbedPane.focus",accentColor.brighter().brighter().brighter());
-		UIManager.put("TabbedPane.selectHighlight",accentColor.brighter().brighter().brighter());
-		UIManager.put("TabbedPane.darkShadow", accentColor.brighter().brighter().brighter()); //removes difficult to see blue glow around inactive tab edge
+		UIManager.put("TabbedPane.selected", lightAccent.brighter());
+		UIManager.put("TabbedPane.focus", lightAccent.brighter());
+		UIManager.put("TabbedPane.selectHighlight", lightAccent.brighter());
+		UIManager.put("TabbedPane.darkShadow", lightAccent.brighter()); //removes difficult to see blue glow around inactive tab edge
 		UIManager.put("TabbedPane.contentBorderInsets", new java.awt.Insets(0,0,0,0));
 		UIManager.put("TabbedPane.tabsOverlapBorder", true); 
 		UIManager.put("TableUI", javax.swing.plaf.basic.BasicTableUI.class.getName() );
@@ -156,7 +156,7 @@ public class AHAGUIHelpers
 		UIManager.put("TextField.foreground", foregroundColor);
 		UIManager.put("TextField.caretForeground", foregroundColor);
 		UIManager.put("TextField.background", backgroundColor);
-		UIManager.put("TextField.focus", backgroundColor);
+		UIManager.put("TextField.focus", lightAccent);
 		UIManager.put("TextField.font", uiFont);
 		UIManager.put("TextField.border", new javax.swing.border.LineBorder(lightAccent,1));
 		UIManager.put("ToolTip.foreground", java.awt.Color.BLACK);

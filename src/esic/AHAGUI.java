@@ -499,6 +499,8 @@ public class AHAGUI extends JFrame
 				AHAGUIHelpers.addLabel(this, "Default file locations:", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				AHAGUIHelpers.addLabel(this, " ", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				
+				
+				gc.insets=new java.awt.Insets(1, 1, 1, 1); // need insets from here on
 				gc.gridwidth=1;
 				gc.gridx=0;
 				AHAGUIHelpers.addLabel(this, "Default Input Filename ", JLabel.RIGHT, gc, AHAGUIHelpers.DirectionToIncrement.INC_X);
@@ -507,7 +509,6 @@ public class AHAGUI extends JFrame
 				JTextField inputFile=AHAGUIHelpers.addTextfield(this, m_props.getProperty("inputfile",""), gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				gc.weightx=1;
 				inputFile.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				gc.gridx=0;
 				
 				gc.gridwidth=1;
 				gc.gridx=0;
@@ -517,7 +518,6 @@ public class AHAGUI extends JFrame
 				JTextField credsFile=AHAGUIHelpers.addTextfield(this, m_props.getProperty("credsfile",""), gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				gc.weightx=1;
 				credsFile.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				gc.gridx=0;
 				
 				gc.gridwidth=1;
 				gc.gridx=0;
@@ -527,7 +527,6 @@ public class AHAGUI extends JFrame
 				JTextField scoreFile=AHAGUIHelpers.addTextfield(this, m_props.getProperty("scorefile",""), gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				gc.weightx=1;
 				scoreFile.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				gc.gridx=0;
 				
 				gc.gridwidth=3;
 				gc.gridx=0;
@@ -535,12 +534,12 @@ public class AHAGUI extends JFrame
 				gc.fill=GridBagConstraints.BOTH;
 				AHAGUIHelpers.addLabel(this, "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				
+				gc.insets=new java.awt.Insets(4, 4, 4, 4);
 				gc.weighty=0;
 				gc.gridwidth=3;
 				gc.fill=GridBagConstraints.HORIZONTAL;
-				
-				
 				AHAGUIHelpers.addLabel(this, "Saved preferences are applied at next application launch.", JLabel.CENTER, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				gc.insets=new java.awt.Insets(4, 20, 8, 20);
 				JButton save=AHAGUIHelpers.addButton(this, null, "Save", "save", gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				save.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
 				
@@ -556,15 +555,12 @@ public class AHAGUI extends JFrame
           	m_props.setProperty("notheme", Boolean.toString(notheme.isSelected()).toLowerCase());
           	m_props.setProperty("noforcescale", Boolean.toString(noforcescale.isSelected()).toLowerCase());
           	
-          	
           	if (inputFile.getText()!=null && !inputFile.getText().equals("")) { m_props.setProperty("inputfile", inputFile.getText()); }
           	if (credsFile.getText()!=null && !credsFile.getText().equals("")) { m_props.setProperty("credsfile", credsFile.getText()); }
           	if (scoreFile.getText()!=null && !scoreFile.getText().equals("")) { m_props.setProperty("scorefile", scoreFile.getText()); }
           	
-          	try
-          	{
-          		m_props.store(new java.io.FileOutputStream(new File(s_settingsFileName)), "update settings ");
-          	} catch (Exception e) { e.printStackTrace(); }
+          	try { m_props.store(new java.io.FileOutputStream(new File(s_settingsFileName)), "update settings "); } 
+          	catch (Exception e) { e.printStackTrace(); }
           	dispose();
           }
 				});
