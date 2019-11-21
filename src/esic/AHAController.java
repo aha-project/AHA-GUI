@@ -14,11 +14,13 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	private final java.util.concurrent.atomic.AtomicReference<AHANode> m_currentlyDisplayedNode=new java.util.concurrent.atomic.AtomicReference<>(null);
 	protected java.util.concurrent.atomic.AtomicReference<String> m_layoutMode=new java.util.concurrent.atomic.AtomicReference<>(); //set the default in AHAGUI:resetUI
 	private java.util.concurrent.ExecutorService m_backgroundExec= java.util.concurrent.Executors.newCachedThreadPool();
+	protected AHASettings m_settings=null;
 	
-	public AHAController(String inputFileName, String scoreFileName, int verbosity, boolean useMultiLineGraph, Properties props)
+	public AHAController(String inputFileName, String scoreFileName, int verbosity, boolean useMultiLineGraph, AHASettings settings)
 	{
+		m_settings=settings;
 		m_model.set(new AHAModel(this, inputFileName, scoreFileName, verbosity));
-		m_gui=new AHAGUI(m_model.get(), this, useMultiLineGraph, props);
+		m_gui=new AHAGUI(m_model.get(), this, useMultiLineGraph);
 	}
 	
 	public void start() { model().run(); }
@@ -53,7 +55,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 		
 		//the first few actions do not require access to graph, and thus we don't bother putting them on the background thread
 		if (actionCommand.equals("dataView")) { m_gui.showDataView(model(), m_gui); }
-		else if (actionCommand.equals("showPrefsPane")) { m_gui.showPrefsPane(m_gui); } 
+		else if (actionCommand.equals("showPrefsPane")) { m_settings.showPrefsPane(m_gui); } 
 		else if (actionCommand.equals("exit")) { m_gui.dispatchEvent(new java.awt.event.WindowEvent(m_gui, java.awt.event.WindowEvent.WINDOW_CLOSING)); }
 		else if (actionCommand.equals("openNewFile")) { openfileOrReload(false); } 
 		else if (actionCommand.equals("refreshInfoPanel")) { updateSidebar(m_currentlyDisplayedNode.get(), false); }
@@ -464,4 +466,94 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	public void windowDeactivated(java.awt.event.WindowEvent e) {}
 	public void windowClosing(java.awt.event.WindowEvent e) { }
 	public void windowClosed(java.awt.event.WindowEvent e) { System.err.println("Window closed, exiting."); System.exit(0); } //lets us start a new window and open a new file
+	
+	
+	
+	
+	
+	
+	public static void main(String args[])
+	{ 
+		System.setProperty("sun.java2d.opengl","true"); //hopefully improve linux java perf //TODO if this works probably throw it behind a check for linuxy things. or at least nonwindows nonmacos things
+		System.setProperty("swing.aatext","true");
+		System.setProperty("org.graphstream.ui", "swing");
+		System.out.println("JRE: Vendor="+System.getProperty("java.vendor")+", Version="+System.getProperty("java.version"));
+		System.out.println("OS: Arch="+System.getProperty("os.arch")+" Name="+System.getProperty("os.name")+" Vers="+System.getProperty("os.version"));
+		System.out.println("AHA-GUI Version: "+AHAGUI.class.getPackage().getImplementationVersion()+" starting up.");
+		
+		boolean useMultiLineGraph=true, applyTheme=true, force100percentScale=true, updateFile=false;
+		String scoreFileName=null, inputFileName="", useAppleTopOfScreenMenubarIfApplicable="true", credentialsFileName="";
+		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
+		int verbosity=0;
+		
+		AHASettings settings=new AHASettings(args);
+		try
+		{
+			Properties props=settings.m_props; //will return any defaults loaded, overriden by any cli args. since config is not saved until user clicks save, this is transient until they save, but will show currently used options when viewing settings
+			if (props.getProperty("verbose").contains("true")) { verbosity=1; }
+			if (props.getProperty("debug").contains("true")) { verbosity=5; }
+			if (props.getProperty("single").contains("true")) { useMultiLineGraph=false; } //draw single lines between nodes
+			if (props.getProperty("bigfont").contains("true")) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); } //use 18pt font instead of default
+			if (props.getProperty("forcejmenu").contains("true")) { useAppleTopOfScreenMenubarIfApplicable="false"; } //draw single lines between nodes
+			if (props.getProperty("notheme").contains("true")) { applyTheme=false; } //draw single lines between nodes
+			if (props.getProperty("noforcescale").contains("true")) { force100percentScale=false; } //draw single lines between nodes
+			if (props.getProperty("credsfile")!=null) { credentialsFileName=props.getProperty("credsfile"); } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
+			if (props.getProperty("scorefile")!=null) { scoreFileName=props.getProperty("scorefile"); } //path to custom score file, and enable since...that makes sense in this case
+			if (props.getProperty("inputfile")!=null) { inputFileName=props.getProperty("inputfile"); } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
+		}
+		catch (Exception e) { e.printStackTrace(); }
+		
+		
+		for (String s : args)
+		{
+			try
+			{
+				String[] argTokens=s.split("=");
+				if (argTokens[0]==null) { continue; }
+				if (argTokens[0].equalsIgnoreCase("--updateFile")) { updateFile=true; } //print more debugs while running
+				if (argTokens[0].equalsIgnoreCase("--getenv"))
+				{
+					java.util.Properties p =System.getProperties();
+					for ( java.util.Map.Entry<Object,Object> e: p.entrySet())
+					{
+						System.out.printf("key='%s' value='%s'\n",e.getKey(), e.getValue());
+					}
+					ClassLoader cl = ClassLoader.getSystemClassLoader();
+			    java.net.URL[] urls = ((java.net.URLClassLoader)cl).getURLs();
+
+			    for(java.net.URL url: urls){ System.out.println(url.getFile()); }
+				}
+				if (argTokens[0].toLowerCase().contains("help")||argTokens[0].equals("?"))
+				{
+					System.out.println
+					(
+							"Possible arguments are as follows:\n"+
+							"--debug : print tons of additional information for debugging use to console while running\n"+
+							"--verbose : print additional information to console while running (but less than debug)\n"+
+							"--single : use single lines between nodes with multiple connections\n"+
+							"--bigfont : use 18pt font instead of the default 12pt font (good for demos). Will have no effect if used with --notheme\n"+
+							"--forceJMenu : on macs, force use of normal JMenu rather than using the traditional macOS menubar at the top of the screen\n"+
+							"--notheme : attempt to minimize theming information set on gui components so that the OS theme will be used. Unsupported / components may be oddly sized.\n"+
+							"--noforcescale : ignore the app attempting to force the scale down to 100% to avoid several existing graphstream bugs. \n"+
+							"--updateFile : update a given inputFile with information about attacksurface/threats from internet sources (presently aDolus)\n"+
+							"verboisty=[number] : use the specified positive numeric integer as the debug level\n"+
+							"scorefile=scorefile.csv : use the scorefile specified after the equals sign\n"+
+							"inputFile=inputFile.csv : use the inputFile specified after the equals sign\n"+
+							"credsFile=inputFile.csv : use the credsFile for the credentials to update the input file (used with --updateFile) specified after the equals sign\n"
+					); return;
+				}
+			} catch (Exception e) { e.printStackTrace(); }
+		}
+		System.setProperty("apple.laf.useScreenMenuBar", useAppleTopOfScreenMenubarIfApplicable); //FYI OpenJDK8 on macOS does not seem to do the correct MenuBar thing regardless
+		if (force100percentScale) { System.setProperty("sun.java2d.uiScale", "100%"); } //sad little hack to work around current issues on HiDPI machines 
+		if (applyTheme) { AHAGUIHelpers.applyTheme(uiFont); }
+		
+		if (updateFile) { FileUpdater.updateCSVFileWithRemoteVulnDBData(inputFileName, credentialsFileName, null, null, verbosity); }
+		else
+		{
+			AHAController ctrl=new AHAController(inputFileName, scoreFileName, verbosity, useMultiLineGraph, settings);
+			ctrl.start();
+		}
+	}
+	
 }
