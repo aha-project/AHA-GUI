@@ -1,34 +1,20 @@
 package esic;
 
-import java.awt.AWTKeyStroke;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.KeyboardFocusManager;
-import java.io.File;
-import java.util.Properties;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JTextField;
-import javax.swing.KeyStroke;
+import java.awt.*;
+import javax.swing.*;
 
 public class AHASettings
 {
 	public final static String s_settingsFileName="AHAGUI.settings";
-	
-	protected Properties m_props=new Properties();
+	private int m_verbosity=0;
+	private java.awt.Font m_uiFont=null;
+	protected java.util.Properties m_props=new java.util.Properties();
 	
 	public AHASettings (String args[]) { this(s_settingsFileName, args); }
 
 	public AHASettings (String fileName, String args[])
 	{
-		java.io.File settingsFile=new File(fileName);
-		try
-		{
-			if (!settingsFile.exists()) { System.out.println("No settings file found, at "+fileName); }
-			else { m_props.load(new java.io.FileInputStream(settingsFile)); }
-		} catch (Exception e) { e.printStackTrace(); }
+		loadFromDisk(fileName);
 		
 		java.util.TreeMap<String,String> argsMap=new java.util.TreeMap<>();
 		for (String s : args) //grab the args and put them in something that makes it easier to check them without iteration later (i.e. a map)
@@ -49,28 +35,25 @@ public class AHASettings
 			for ( String s : defaultFalse )
 			{
 				s=s.toLowerCase();
-				String prop=m_props.getProperty(s);
-				if (prop==null || prop.toLowerCase().contains("false")) { m_props.setProperty(s, "false"); }
-				else { m_props.setProperty(s, "true"); }
-				if (argsMap.get(s)!=null) { m_props.setProperty(s, "true"); }
+				String prop=getProperty(s);
+				if (prop==null || prop.toLowerCase().contains("false")) { setProperty(s, "false"); }
+				else { setProperty(s, "true"); }
+				if (argsMap.get(s)!=null) { setProperty(s, "true"); }
 			}
 			
-			String credsFile=m_props.getProperty("credsfile", "credentials.txt").trim(), inputFile=m_props.getProperty("inputfile", "BinaryAnalysis.csv").trim();
+			String credsFile=getProperty("credsfile", "credentials.txt").trim(), inputFile=getProperty("inputfile", "BinaryAnalysis.csv").trim();
 			if ( argsMap.get("credsfile")!=null ) { credsFile=argsMap.get("credsfile"); }
 			if ( argsMap.get("inputfile")!=null ) { inputFile=argsMap.get("inputfile"); }
-			m_props.setProperty("credsfile", credsFile);
-			m_props.setProperty("inputfile", inputFile);
+			setProperty("credsfile", credsFile);
+			setProperty("inputfile", inputFile);
 			if ( argsMap.get("scorefile")!=null ) //only deal with scoreFile if it's specified on the commandline, otherwise let whatever value we have lie (because null is the default)
 			{
-				m_props.setProperty("scorefile", argsMap.get("scorefile").trim());
+				setProperty("scorefile", argsMap.get("scorefile").trim());
 			}
 		} catch (Exception e) { e.printStackTrace(); }
+		validateSettings();
 		
-		if (m_props.get("verbose").equals("true") || m_props.get("debug").equals("true") )
-		{
-			System.out.println("Read in settings:");
-			for (java.util.Map.Entry<Object, Object> entry : m_props.entrySet()) { System.out.printf("key='%s' value='%s'\n", entry.getKey(), entry.getValue()); }
-		}
+		if ( m_verbosity > 0 ) { printProperties(); }
 	}
 
 	protected void showPrefsPane(AHAGUI parent) //shows the window that lists the listening sockets 
@@ -107,33 +90,26 @@ public class AHASettings
 				
 				gc.gridwidth=2;
 				gc.gridx=1;
-				JCheckBox verbose=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Verbose", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JCheckBox verbose=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Verbose", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y, getBooleanProperty("verbose"));
 				verbose.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				if (m_props.getProperty("verbose","false").toLowerCase().contains("true")) { verbose.setSelected(true); }
 				
-				JCheckBox debug=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Debug", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JCheckBox debug=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Debug", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y, getBooleanProperty("debug"));
 				debug.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				if (m_props.getProperty("debug","false").toLowerCase().contains("true")) { debug.setSelected(true); }
 				
-				JCheckBox single=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Single line graph", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JCheckBox single=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Single line graph", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y, getBooleanProperty("single"));
 				single.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				if (m_props.getProperty("single","false").toLowerCase().contains("true")) { single.setSelected(true); }
 				
-				JCheckBox bigfont=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Use Large Fonts", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JCheckBox bigfont=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Use Large Fonts", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y, getBooleanProperty("bigfont"));
 				bigfont.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				if (m_props.getProperty("bigfont","false").toLowerCase().contains("true")) { bigfont.setSelected(true); }
 				
-				JCheckBox forceJMenu=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Force JMenu", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JCheckBox forceJMenu=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Force JMenu", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y, getBooleanProperty("forcejmenu"));
 				forceJMenu.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				if (m_props.getProperty("forcejmenu","false").toLowerCase().contains("true")) { forceJMenu.setSelected(true); }
 				
-				JCheckBox notheme=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Disable Appearance Theming", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JCheckBox notheme=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Disable Appearance Theming", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y, getBooleanProperty("notheme"));
 				notheme.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				if (m_props.getProperty("notheme","false").toLowerCase().contains("true")) { notheme.setSelected(true); }
 				
-				JCheckBox noforcescale=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Do not force Java UI scale to 100%", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JCheckBox noforcescale=AHAGUIHelpers.addCheckbox(self.getContentPane(), null, "Do not force Java UI scale to 100%", "", JLabel.LEFT, gc, AHAGUIHelpers.DirectionToIncrement.INC_Y, getBooleanProperty("noforcescale"));
 				noforcescale.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
-				if (m_props.getProperty("noforcescale","false").toLowerCase().contains("true")) { noforcescale.setSelected(true); }
 
 				gc.gridwidth=1;
 				gc.gridx=1;
@@ -151,7 +127,7 @@ public class AHASettings
 				AHAGUIHelpers.addLabel(this, "Default Input Filename ", JLabel.RIGHT, gc, AHAGUIHelpers.DirectionToIncrement.INC_X);
 				gc.weightx=10;
 				
-				JTextField inputFile=AHAGUIHelpers.addTextfield(this, m_props.getProperty("inputfile",""), gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JTextField inputFile=AHAGUIHelpers.addTextfield(this, getProperty("inputfile",""), gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				gc.weightx=1;
 				inputFile.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
 				
@@ -160,7 +136,7 @@ public class AHASettings
 				AHAGUIHelpers.addLabel(this, "Default Credentials Filename ", JLabel.RIGHT, gc, AHAGUIHelpers.DirectionToIncrement.INC_X);
 				gc.weightx=10;
 				gc.gridwidth=2;
-				JTextField credsFile=AHAGUIHelpers.addTextfield(this, m_props.getProperty("credsfile",""), gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JTextField credsFile=AHAGUIHelpers.addTextfield(this, getProperty("credsfile",""), gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				gc.weightx=1;
 				credsFile.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
 				
@@ -169,7 +145,7 @@ public class AHASettings
 				AHAGUIHelpers.addLabel(this, "Default Scorefile Filename ", JLabel.RIGHT, gc, AHAGUIHelpers.DirectionToIncrement.INC_X);
 				gc.weightx=10;
 				gc.gridwidth=2;
-				JTextField scoreFile=AHAGUIHelpers.addTextfield(this, m_props.getProperty("scorefile",""), gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
+				JTextField scoreFile=AHAGUIHelpers.addTextfield(this, getProperty("scorefile",""), gc, AHAGUIHelpers.DirectionToIncrement.INC_Y);
 				gc.weightx=1;
 				scoreFile.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,newForwardKeys);
 				
@@ -192,26 +168,79 @@ public class AHASettings
 				{
           public void actionPerformed(java.awt.event.ActionEvent event)
           {
-          	m_props.setProperty("verbose", Boolean.toString(verbose.isSelected()).toLowerCase());
-          	m_props.setProperty("debug", Boolean.toString(debug.isSelected()).toLowerCase());
-          	m_props.setProperty("single", Boolean.toString(single.isSelected()).toLowerCase());
-          	m_props.setProperty("bigfont", Boolean.toString(bigfont.isSelected()).toLowerCase());
-          	m_props.setProperty("forcejmenu", Boolean.toString(forceJMenu.isSelected()).toLowerCase());
-          	m_props.setProperty("notheme", Boolean.toString(notheme.isSelected()).toLowerCase());
-          	m_props.setProperty("noforcescale", Boolean.toString(noforcescale.isSelected()).toLowerCase());
+          	setBooleanProperty("verbose", verbose.isSelected());
+          	setBooleanProperty("debug", debug.isSelected());
+          	setBooleanProperty("single", single.isSelected());
+          	setBooleanProperty("bigfont", bigfont.isSelected());
+          	setBooleanProperty("forcejmenu", forceJMenu.isSelected());
+          	setBooleanProperty("notheme", notheme.isSelected());
+          	setBooleanProperty("noforcescale", noforcescale.isSelected());
           	
-          	if (inputFile.getText()!=null && !inputFile.getText().equals("")) { m_props.setProperty("inputfile", inputFile.getText()); }
-          	if (credsFile.getText()!=null && !credsFile.getText().equals("")) { m_props.setProperty("credsfile", credsFile.getText()); }
-          	if (scoreFile.getText()!=null && !scoreFile.getText().equals("")) { m_props.setProperty("scorefile", scoreFile.getText()); }
+          	if (inputFile.getText()!=null && !inputFile.getText().equals("")) { setProperty("inputfile", inputFile.getText()); }
+          	if (credsFile.getText()!=null && !credsFile.getText().equals("")) { setProperty("credsfile", credsFile.getText()); }
+          	if (scoreFile.getText()!=null && !scoreFile.getText().equals("")) { setProperty("scorefile", scoreFile.getText()); }
           	
-          	try { m_props.store(new java.io.FileOutputStream(new File(s_settingsFileName)), "update settings "); } 
-          	catch (Exception e) { e.printStackTrace(); }
+          	storeToDisk(s_settingsFileName);
           	dispose();
           }
 				});
 				gc.gridx=0;
 			}
 		}.setVisible(true);
+	}
+	
+	// ---   Internal Operations   ---
+	private void loadFromDisk(String fileName)
+	{
+		java.io.File settingsFile=new java.io.File(fileName);
+		try
+		{
+			if (!settingsFile.exists()) { System.out.println("No settings file found, at "+fileName); }
+			else { m_props.load(new java.io.FileInputStream(settingsFile)); }
+		} catch (Exception e) { e.printStackTrace(); }
+	}
+	
+	private void storeToDisk(String fileName)
+	{
+		try { m_props.store(new java.io.FileOutputStream(new java.io.File(fileName)), "update settings "); } 
+  	catch (Exception e) { e.printStackTrace(); }
+	}
+	
+	private void printProperties()
+	{
+		System.out.println("AHA Settings:");
+		for (java.util.Map.Entry<Object, Object> entry : m_props.entrySet()) { System.out.printf("key='%s' value='%s'\n", entry.getKey(), entry.getValue()); }
+	}
+	
+	private synchronized void validateSettings() // ideally call anytime settings are changed. //TODO probably should call this ourselves within this class on every write
+	{
+		m_verbosity=0; //reset to 0
+		if (getBooleanProperty("verbose")) { m_verbosity=1; }
+		if (getBooleanProperty("debug")) { m_verbosity=5; }
+		if (m_uiFont==null) //TODO this will only happen once...but it would be weird if parts of the UI got big and parts didnt when it changed at runtime
+		{
+			m_uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
+			if (getBooleanProperty("bigfont")) { m_uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); }
+		}
+	}
+	
+	// ---   Getters   ---
+	protected synchronized String getProperty(String key) { return m_props.getProperty(key.toLowerCase()); }
+	protected synchronized String getProperty(String key, String defaultValue) { return m_props.getProperty(key.toLowerCase(), defaultValue); }
+	protected synchronized boolean getBooleanProperty(String key) { return (m_props.getProperty(key.toLowerCase(),"false")).toLowerCase().contains("true"); }
+	protected synchronized int getVerbosity() { return m_verbosity; }
+	protected synchronized java.awt.Font getDefaultFont() { return m_uiFont; }
+	
+	// ---   Setters   ---
+	protected synchronized void setProperty(String key, String value) 
+	{ 
+		m_props.setProperty(key.toLowerCase().trim(),value.trim());
+		validateSettings();
+	}
+	protected synchronized void setBooleanProperty(String key, boolean bool) 
+	{ 
+		m_props.setProperty(key.toLowerCase().trim(),Boolean.toString(bool).toLowerCase());
+		validateSettings();
 	}
 
 }

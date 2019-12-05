@@ -1,10 +1,6 @@
 package esic;
 //Copyright 2018 ESIC at WSU distributed under the MIT license. Please see LICENSE file for further info.
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Properties;
-import javax.swing.SwingUtilities;
 import esic.AHAGraph.AHANode;
 
 public class AHAController implements org.graphstream.ui.view.ViewerListener, java.awt.event.ActionListener, java.awt.event.MouseWheelListener, java.awt.event.WindowListener
@@ -16,14 +12,11 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	private java.util.concurrent.ExecutorService m_backgroundExec= java.util.concurrent.Executors.newCachedThreadPool();
 	protected AHASettings m_settings=null;
 	
-	public AHAController(String inputFileName, String scoreFileName, int verbosity, boolean useMultiLineGraph, AHASettings settings)
-	{
-		m_settings=settings;
-		m_model.set(new AHAModel(this, inputFileName, scoreFileName, verbosity));
-		m_gui=new AHAGUI(m_model.get(), this, useMultiLineGraph);
+	public void start() 
+	{ 
+		AHAModel m=model();
+		if (m!=null) { m.run(); }
 	}
-	
-	public void start() { model().run(); }
 	private AHAModel model() { return m_model.get(); }
 	
 	protected void openfileOrReload(boolean reload)
@@ -38,8 +31,9 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			m_currentlyDisplayedNode.set(null);
 			System.err.println("\n");
 			AHAModel oldModel=model();
+			m_settings.setProperty("inputfile", oldModel.m_inputFileName);
 			m_gui.setTitle(title+" "+oldModel.m_inputFileName);
-			AHAModel newModel=new AHAModel(this, oldModel.m_inputFileName, oldModel.m_scoreFileName, oldModel.m_verbosity);
+			AHAModel newModel=new AHAModel(this, m_settings);
 			m_model.set(newModel);
 			m_gui.initGraphView(newModel);
 			m_backgroundExec.execute(newModel);
@@ -85,11 +79,11 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 						m_layoutMode.set(layoutMethod);
 						moveExternalNodes(model()); 
 					}
-					else if (actionCommand.equals("updateFileFromRemoteDB")) { FileUpdater.updateCSVFileWithRemoteVulnDBData(model().m_inputFileName, "credentials.txt", m_gui, controller, model().m_verbosity); }
+					else if (actionCommand.equals("updateFileFromRemoteDB")) { FileUpdater.updateCSVFileWithRemoteVulnDBData(m_gui, controller, m_settings); }
 					else if (actionCommand.equals("search")) //both uses the graph and requires an update to the GUI
 					{ 
 						final String status=model().handleSearch(m_gui.m_btmPnlSearch.getText());
-						SwingUtilities.invokeLater(new Runnable()
+						javax.swing.SwingUtilities.invokeLater(new Runnable()
 						{
 							public void run() { m_gui.m_btmPnlSearchStatus.setText(status);  }
 						});
@@ -142,7 +136,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 								String today= new java.text.SimpleDateFormat("yyyy-MM-dd-hhmm").format(date);
 								System.out.println("calculated date as '"+today+"'");
 								String newFileName="BinaryAnalysis"+today+".csv";
-								Files.copy(Paths.get(dirName+"/BinaryAnalysis.csv"), Paths.get(newFileName), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+								java.nio.file.Files.copy(java.nio.file.Paths.get(dirName+"/BinaryAnalysis.csv"), java.nio.file.Paths.get(newFileName), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 								model().m_inputFileName=newFileName;
 								openfileOrReload(true);
 							}
@@ -291,15 +285,9 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 		System.out.printf("Layout alg=%s took %sms\n", layoutMode, (System.currentTimeMillis()-time));
 	}
 	
-	private void layoutTest1(AHAModel m)
-	{
-		System.out.println("Layout Test 1 not implemented yet.");
-	}
+	private void layoutTest1(AHAModel m) { System.out.println("Layout Test 1 not implemented yet."); }
 	
-	private void layoutTest2(AHAModel m)
-	{
-		System.out.println("Layout Test 2 not implemented yet.");
-	}
+	private void layoutTest2(AHAModel m) { System.out.println("Layout Test 2 not implemented yet."); }
 	
 	private void autoLayoutAlg(AHAModel m)
 	{
@@ -357,8 +345,6 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			AHAGraph g=m.m_graph;
 			for (AHANode n : g)
 			{
-				//int degree=n.graphNode.getDegree();
-				//System.out.printf("Node %s has degree %d\n", n.getId() , degree);
 				if (n.getAttribute("aha.realextnode")!=null) { leftSideNodes.add(n); }
 				else if (n.getAttribute("aha.externalNode")==null) { nodes.add(n); } //we have to ignore the 'virtual external node' here too
 			}
@@ -468,41 +454,12 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 	public void windowClosed(java.awt.event.WindowEvent e) { System.err.println("Window closed, exiting."); System.exit(0); } //lets us start a new window and open a new file
 	
 	
-	
-	
-	
-	
-	public static void main(String args[])
+	public AHAController(String args[])
 	{ 
-		System.setProperty("sun.java2d.opengl","true"); //hopefully improve linux java perf //TODO if this works probably throw it behind a check for linuxy things. or at least nonwindows nonmacos things
-		System.setProperty("swing.aatext","true");
-		System.setProperty("org.graphstream.ui", "swing");
-		System.out.println("JRE: Vendor="+System.getProperty("java.vendor")+", Version="+System.getProperty("java.version"));
-		System.out.println("OS: Arch="+System.getProperty("os.arch")+" Name="+System.getProperty("os.name")+" Vers="+System.getProperty("os.version"));
-		System.out.println("AHA-GUI Version: "+AHAGUI.class.getPackage().getImplementationVersion()+" starting up.");
-		
-		boolean useMultiLineGraph=true, applyTheme=true, force100percentScale=true, updateFile=false;
-		String scoreFileName=null, inputFileName="", useAppleTopOfScreenMenubarIfApplicable="true", credentialsFileName="";
-		java.awt.Font uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,12);
-		int verbosity=0;
-		
-		AHASettings settings=new AHASettings(args);
-		try
-		{
-			Properties props=settings.m_props; //will return any defaults loaded, overriden by any cli args. since config is not saved until user clicks save, this is transient until they save, but will show currently used options when viewing settings
-			if (props.getProperty("verbose").contains("true")) { verbosity=1; }
-			if (props.getProperty("debug").contains("true")) { verbosity=5; }
-			if (props.getProperty("single").contains("true")) { useMultiLineGraph=false; } //draw single lines between nodes
-			if (props.getProperty("bigfont").contains("true")) { uiFont=new java.awt.Font(java.awt.Font.MONOSPACED,java.awt.Font.PLAIN,18); } //use 18pt font instead of default
-			if (props.getProperty("forcejmenu").contains("true")) { useAppleTopOfScreenMenubarIfApplicable="false"; } //draw single lines between nodes
-			if (props.getProperty("notheme").contains("true")) { applyTheme=false; } //draw single lines between nodes
-			if (props.getProperty("noforcescale").contains("true")) { force100percentScale=false; } //draw single lines between nodes
-			if (props.getProperty("credsfile")!=null) { credentialsFileName=props.getProperty("credsfile"); } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
-			if (props.getProperty("scorefile")!=null) { scoreFileName=props.getProperty("scorefile"); } //path to custom score file, and enable since...that makes sense in this case
-			if (props.getProperty("inputfile")!=null) { inputFileName=props.getProperty("inputfile"); } //path to input file. ignore CLI filename on second time through here (means user asked to open a new file)
-		}
-		catch (Exception e) { e.printStackTrace(); }
-		
+		m_settings=new AHASettings(args); // construct settings object from defaults, overridden by user settings on disk (if exists), overridden by any command line arguments
+		System.setProperty("apple.laf.useScreenMenuBar", Boolean.toString(!m_settings.getBooleanProperty("forcejmenu"))); //FYI OpenJDK8 on macOS does not seem to do the correct MenuBar thing regardless
+		if (!m_settings.getBooleanProperty("noforcescale")) { System.setProperty("sun.java2d.uiScale", "100%"); } //sad little hack to work around current issues on HiDPI machines 
+		if (!m_settings.getBooleanProperty("notheme")) { AHAGUIHelpers.applyTheme(m_settings.getDefaultFont()); }
 		
 		for (String s : args)
 		{
@@ -510,8 +467,8 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			{
 				String[] argTokens=s.split("=");
 				if (argTokens[0]==null) { continue; }
-				if (argTokens[0].equalsIgnoreCase("--updateFile")) { updateFile=true; } //print more debugs while running
-				if (argTokens[0].equalsIgnoreCase("--getenv"))
+				if (argTokens[0].equalsIgnoreCase("--updateFile")) { FileUpdater.updateCSVFileWithRemoteVulnDBData(null, null, m_settings); return; } 
+				if (argTokens[0].equalsIgnoreCase("--getenv")) 
 				{
 					java.util.Properties p =System.getProperties();
 					for ( java.util.Map.Entry<Object,Object> e: p.entrySet())
@@ -544,16 +501,10 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 				}
 			} catch (Exception e) { e.printStackTrace(); }
 		}
-		System.setProperty("apple.laf.useScreenMenuBar", useAppleTopOfScreenMenubarIfApplicable); //FYI OpenJDK8 on macOS does not seem to do the correct MenuBar thing regardless
-		if (force100percentScale) { System.setProperty("sun.java2d.uiScale", "100%"); } //sad little hack to work around current issues on HiDPI machines 
-		if (applyTheme) { AHAGUIHelpers.applyTheme(uiFont); }
 		
-		if (updateFile) { FileUpdater.updateCSVFileWithRemoteVulnDBData(inputFileName, credentialsFileName, null, null, verbosity); }
-		else
-		{
-			AHAController ctrl=new AHAController(inputFileName, scoreFileName, verbosity, useMultiLineGraph, settings);
-			ctrl.start();
-		}
+		// In the case that we're not exiting due to one of the args above, then construct the objects, GUI, etc.
+		m_model.set(new AHAModel(this, m_settings));
+		m_gui=new AHAGUI(m_model.get(), this, !m_settings.getBooleanProperty("single"));
 	}
 	
 }

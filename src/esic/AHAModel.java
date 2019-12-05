@@ -506,7 +506,6 @@ public class AHAModel implements Runnable
 	
 	private void readInputFile()
 	{
-		System.out.println("Reading primary input file=\""+m_inputFileName+"\"");
 		m_knownAliasesForLocalComputer.put("127.0.0.1", "127.0.0.1"); //ensure these obvious ones are inserted in case we never see them in the scan
 		m_knownAliasesForLocalComputer.put("::1", "::1"); //ensure these obvious ones are inserted in case we never see them in the scan
 		java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<>();
@@ -1344,11 +1343,11 @@ public class AHAModel implements Runnable
 		return false;
 	}
 	
-	public AHAModel(AHAController controller, String inputFileName, String scoreFileName, int verbosity)
-	{
-		m_inputFileName=inputFileName;
-		m_scoreFileName=scoreFileName;
-		m_verbosity=verbosity;
+	public AHAModel(AHAController controller, AHASettings settings)
+	{ 
+		m_inputFileName=settings.getProperty("inputfile");//inputFileName;
+		m_scoreFileName=settings.getProperty("scorefile");//scoreFileName;
+		m_verbosity=settings.getVerbosity();//verbosity;
 		m_controller=controller;
 	}
 }

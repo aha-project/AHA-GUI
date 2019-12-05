@@ -3,10 +3,10 @@ package esic;
 
 public class FileUpdater
 {
-	protected static void updateCSVFileWithRemoteVulnDBData (String inputFileName, String credentialsFileName, AHAGUI parentGUI, AHAController controller, int verbosity)
+	protected static void updateCSVFileWithRemoteVulnDBData (AHAGUI parentGUI, AHAController controller, AHASettings settings)
 	{
-		String auth="";
-		int progress=0;
+		String auth="", inputFileName=settings.getProperty("inputfile"), credentialsFileName=settings.getProperty("credsfile");
+		int progress=0, verbosity=settings.getVerbosity();
 		javax.swing.ProgressMonitor pm=null;
 		AHAGUIHelpers.tryCancelSplashScreen();
 		try 
@@ -176,76 +176,79 @@ public class FileUpdater
 			}
 			catch (Exception e) { e.printStackTrace(); }
 		}
-		System.err.println("Got "+aDolusResults.size()+" result(s) from aDolus, updating file.");
-		AHAGUIHelpers.tryUpdateProgress(pm,progress++,-1,"Writing output...");
-		String updateTimestamp=Long.toString(System.currentTimeMillis());
-		
-		String originalHeaderLine=metadata.get("OriginalHeaderLine");
-		int numberOfColumnsAdded=0;
-		String[] newColumns={"aDolusScore","aDolusCVEs","aDolusCVEScore","aDolusNumCVEs","aDolusWorstCVEScore","aDolusDataSource","aDolusTimeChecked"}; //new column names 
-		for (String col:newColumns)
+		if ( aDolusResults.size()<1 ) { System.err.println("No new results, not updating file."); }
+		else
 		{
-			if (hdr.get(col.toLowerCase())==null) //check if this input file already had any of the columns
-			{
-				hdr.put(col.toLowerCase(), hdr.size());  //if it did not, add new column 
-				originalHeaderLine+=",\""+col+"\"";
-				numberOfColumnsAdded++;
-			}
-		}
-		
-		try
-		{
-			java.nio.file.Path source=java.nio.file.Paths.get(inputFileName), dest=java.nio.file.Paths.get(inputFileName+".bak");
-			java.nio.file.Files.copy(source, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-		} catch (Exception e) { System.err.println("Failed to copy backup file before updating (sorry):"); e.printStackTrace(); }
-		
-		try (java.io.FileWriter outputFile=new java.io.FileWriter(inputFileName, false))
-		{
-			String[] hashTypes= {"sumsha512","sumsha256","sumsha1","summd5"};
-			java.util.TreeMap<String,String> matchingResult=null;
+			System.err.println("Got "+aDolusResults.size()+" result(s) from aDolus, updating file.");
+			AHAGUIHelpers.tryUpdateProgress(pm,progress++,-1,"Writing output...");
+			String updateTimestamp=Long.toString(System.currentTimeMillis());
 			
-			outputFile.write(originalHeaderLine+"\n");
-			for (java.util.ArrayList<String> inputLine : inputLines)
+			String originalHeaderLine=metadata.get("OriginalHeaderLine");
+			int numberOfColumnsAdded=0;
+			String[] newColumns={"aDolusScore","aDolusCVEs","aDolusCVEScore","aDolusNumCVEs","aDolusWorstCVEScore","aDolusDataSource","aDolusTimeChecked"}; //new column names 
+			for (String col:newColumns)
 			{
-				for (int i=0;i<numberOfColumnsAdded;i++) { inputLine.add(""); } //add new columns to internal data representation if needed to make output easier 
-				for (String colName : hashTypes)
+				if (hdr.get(col.toLowerCase())==null) //check if this input file already had any of the columns
 				{
-					try
-					{
-						Integer column=hdr.get(colName);
-						String hash=inputLine.get(column);
-						matchingResult=aDolusResults.get(hash);
-						if (matchingResult!=null) { break; }
-					} catch (Exception e) { e.printStackTrace(); }
+					hdr.put(col.toLowerCase(), hdr.size());  //if it did not, add new column 
+					originalHeaderLine+=",\""+col+"\"";
+					numberOfColumnsAdded++;
 				}
-				if (matchingResult!=null) //add data we got from aDolus to the line
-				{
-					try
-					{
-						inputLine.set(hdr.get("adolusscore"), matchingResult.get("adolusscore"));
-						inputLine.set(hdr.get("adoluscves"), matchingResult.get("adoluscves"));
-						inputLine.set(hdr.get("adoluscvescore"), matchingResult.get("adoluscvescore"));
-						inputLine.set(hdr.get("adolusnumcves"), matchingResult.get("adolusnumcves"));
-						inputLine.set(hdr.get("adolusworstcvescore"), matchingResult.get("adolusworstcvescore"));
-						inputLine.set(hdr.get("adolusdatasource"), matchingResult.get("adolusdatasource"));
-						inputLine.set(hdr.get("adolustimechecked"), updateTimestamp);
-					} catch (Exception e) { e.printStackTrace(); }
-				}
-				StringBuilder outputLine=new StringBuilder("");
-				for (int j=0;j<inputLine.size();j++) //write the line out
-				{
-					outputLine.append("\"");
-					outputLine.append(inputLine.get(j));
-					outputLine.append("\",");
-				}
-				outputLine.replace(outputLine.length()-1, outputLine.length(), "\n");
-				outputFile.write(outputLine.toString());
 			}
-		} catch (Exception e) { System.out.println("Exception while writing output file...probably not a good sign. Exception:"); e.printStackTrace();  }
-		
+			
+			try
+			{
+				java.nio.file.Path source=java.nio.file.Paths.get(inputFileName), dest=java.nio.file.Paths.get(inputFileName+".bak");
+				java.nio.file.Files.copy(source, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+			} catch (Exception e) { System.err.println("Failed to copy backup file before updating (sorry):"); e.printStackTrace(); }
+			
+			try (java.io.FileWriter outputFile=new java.io.FileWriter(inputFileName, false))
+			{
+				String[] hashTypes= {"sumsha512","sumsha256","sumsha1","summd5"};
+				java.util.TreeMap<String,String> matchingResult=null;
+				
+				outputFile.write(originalHeaderLine+"\n");
+				for (java.util.ArrayList<String> inputLine : inputLines)
+				{
+					for (int i=0;i<numberOfColumnsAdded;i++) { inputLine.add(""); } //add new columns to internal data representation if needed to make output easier 
+					for (String colName : hashTypes)
+					{
+						try
+						{
+							Integer column=hdr.get(colName);
+							String hash=inputLine.get(column);
+							matchingResult=aDolusResults.get(hash);
+							if (matchingResult!=null) { break; }
+						} catch (Exception e) { e.printStackTrace(); }
+					}
+					if (matchingResult!=null) //add data we got from aDolus to the line
+					{
+						try
+						{
+							inputLine.set(hdr.get("adolusscore"), matchingResult.get("adolusscore"));
+							inputLine.set(hdr.get("adoluscves"), matchingResult.get("adoluscves"));
+							inputLine.set(hdr.get("adoluscvescore"), matchingResult.get("adoluscvescore"));
+							inputLine.set(hdr.get("adolusnumcves"), matchingResult.get("adolusnumcves"));
+							inputLine.set(hdr.get("adolusworstcvescore"), matchingResult.get("adolusworstcvescore"));
+							inputLine.set(hdr.get("adolusdatasource"), matchingResult.get("adolusdatasource"));
+							inputLine.set(hdr.get("adolustimechecked"), updateTimestamp);
+						} catch (Exception e) { e.printStackTrace(); }
+					}
+					StringBuilder outputLine=new StringBuilder("");
+					for (int j=0;j<inputLine.size();j++) //write the line out
+					{
+						outputLine.append("\"");
+						outputLine.append(inputLine.get(j));
+						outputLine.append("\",");
+					}
+					outputLine.replace(outputLine.length()-1, outputLine.length(), "\n");
+					outputFile.write(outputLine.toString());
+				}
+			} catch (Exception e) { System.out.println("Exception while writing output file...probably not a good sign. Exception:"); e.printStackTrace();  }
+		}
 		System.out.println("Task complete.");
-		AHAGUIHelpers.tryUpdateProgress(pm,progress,progress,"Task complete.");
-		if (controller!=null) { controller.openfileOrReload(true); /*.terminateGUI(true, false);*/ } //if we got launched from the gui, this will termiante the current gui and reload the updated file
+		AHAGUIHelpers.tryUpdateProgress(pm,progress,progress,"Task complete. Updated "+aDolusResults.size()+" records.");
+		if (controller!=null && aDolusResults.size()>0 ) { controller.openfileOrReload(true); } //if we got launched from the gui, this will termiante the current gui and reload the updated file, if we updated the file.
 	}
 	
 	private static String getResultFromWebCall ( javax.net.ssl.HttpsURLConnection httpsConnection )

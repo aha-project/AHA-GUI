@@ -417,7 +417,17 @@ public class AHAGUI extends JFrame
 		}
 	}
 	
-	// we bouncepass from here, the main entry point, to AHAController, where things actually occur, so that the application shows up as "AHAGUI" without any real platform specific work on our part.
-	public static void main(String args[]) { AHAController.main(args); }
+	// we bounce pass from here, the main entry point, to AHAController, where things actually occur, so that the application shows up as "AHAGUI" without any real platform specific work on our part.
+	public static void main(String args[]) 
+	{ 		
+		System.setProperty("sun.java2d.opengl","true"); //hopefully improve linux java perf //TODO if this works probably throw it behind a check for Linux-y things. or at least nonwindows nonmacos things
+		System.setProperty("swing.aatext","true");
+		System.setProperty("org.graphstream.ui", "swing");
+		System.out.println("JRE: Vendor="+System.getProperty("java.vendor")+", Version="+System.getProperty("java.version"));
+		System.out.println("OS: Arch="+System.getProperty("os.arch")+" Name="+System.getProperty("os.name")+" Vers="+System.getProperty("os.version"));
+		System.out.println("AHA-GUI Version: "+AHAGUI.class.getPackage().getImplementationVersion()+" starting up.");
+		AHAController ctrl=new AHAController(args);
+		ctrl.start();
+	}
 	
 }

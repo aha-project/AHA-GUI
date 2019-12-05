@@ -358,12 +358,13 @@ public class AHAGUIHelpers
 		return b;
 	}
 	
-	public static JCheckBox addCheckbox(java.awt.Container parent, java.awt.event.ActionListener al, String name, String action, int horizontalAlignment, GridBagConstraints gc, DirectionToIncrement d)
+	public static JCheckBox addCheckbox(java.awt.Container parent, java.awt.event.ActionListener al, String name, String action, int horizontalAlignment, GridBagConstraints gc, DirectionToIncrement d, boolean selected)
 	{
 		JCheckBox c=new JCheckBox(name);
 		c.setActionCommand(action.trim());
 		c.addActionListener(al);
 		c.setHorizontalAlignment(horizontalAlignment);
+		c.setSelected(selected);
 		if (parent!=null) { parent.add(c, gc); }
 		incConstraint(d,gc);
 		return c;
