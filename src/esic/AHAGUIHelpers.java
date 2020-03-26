@@ -225,7 +225,7 @@ public class AHAGUIHelpers
 		return "<html><p style='font-style:bold;color:black;background:white;'>"+s+"</p></html>";
 	}
 	
-	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][] columnTooltips, Object[][][] initialData, javax.swing.JTable[] tableRefs, int[] columnWidths)
+	public static javax.swing.JScrollPane createTablesInScrollPane(String[][] columnHeaders, String[][] columnTooltips, Object[][][] initialData, javax.swing.JTable[] tableRefs, int[][] columnWidths)
 	{
 		javax.swing.JPanel scrollContent=new javax.swing.JPanel();
 		scrollContent.setLayout(new javax.swing.BoxLayout(scrollContent, javax.swing.BoxLayout.Y_AXIS));
@@ -293,7 +293,13 @@ public class AHAGUIHelpers
 			tableRefs[i].setAlignmentY(javax.swing.JTable.TOP_ALIGNMENT);
 			tableRefs[i].getTableHeader().setAlignmentY(javax.swing.JTable.TOP_ALIGNMENT);
 			tableRefs[i].setAutoCreateRowSorter(true);
-			for (int j=0;j<tableRefs[i].getColumnModel().getColumnCount() && j<columnWidths.length; j++) { tableRefs[i].getColumnModel().getColumn(j).setPreferredWidth(columnWidths[j]); }
+			int j=0;
+			try
+			{
+				int columWidthsToUse=i;
+				if (i>=columnWidths.length) { columWidthsToUse=columnWidths.length-1; System.err.println("Warning: Column widths not specified, using most recent column width specified");} 
+				for (j=0;j<tableRefs[i].getColumnModel().getColumnCount() && j<columnWidths.length; j++) { tableRefs[i].getColumnModel().getColumn(j).setPreferredWidth(columnWidths[columWidthsToUse][j]); }
+			} catch (Exception e) { System.err.printf("Failed to set column widths. i=%d j=%d\n", i,j); e.printStackTrace(); }
 			scrollContent.add(tableRefs[i].getTableHeader());
 			scrollContent.add(tableRefs[i]);
 		}

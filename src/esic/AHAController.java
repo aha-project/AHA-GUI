@@ -157,8 +157,8 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 			{
 				if ( node==null || (occuredFromMouseOver && !m_gui.m_infoPnlUpdateOnMouseover.isSelected()) ) { return; } //if element is null, or triggered from mosueover and we're presently supposed to ignore that, return
 				m_currentlyDisplayedNode.set(node);
-				Object[][] infoData=node.getSidebarAttributes("aha.SidebarGeneralInfo"), intPorts=node.getSidebarAttributes("aha.SidebarInternalPorts"), extPorts=node.getSidebarAttributes("aha.SidebarExternalPorts"), connectionData={{"None",""}}, scoreReasons=null;
-				
+				Object[][] infoData=node.getSidebarAttributes("aha.SidebarGeneralInfo"), intPorts=node.getSidebarAttributes("aha.SidebarInternalPorts"), extPorts=node.getSidebarAttributes("aha.SidebarExternalPorts");
+				Object[][] connectionData={{"None",""}}, scoreReasons=null, signData=node.getSidebarAttributes("aha.SidebarSigningInfo"), stampData=node.getSidebarAttributes("aha.SidebarTStampInfo");
 				try
 				{ //update the fourth "Connected Process Name" table. This is updated in the controller because the user can toggle IP/FQDN view at runtime, thus the names of some nodes will change
 					if (node.graphNode.getDegree()>0)
@@ -238,7 +238,7 @@ public class AHAController implements org.graphstream.ui.view.ViewerListener, ja
 					
 				} catch (Exception e) { e.printStackTrace(); }
 
-				final Object[][][] data={infoData,intPorts,extPorts,connectionData,scoreReasons}; // create final pointer to pass to swing.infokelater. as long as this order of these object arrays is correct, everything will work :)
+				final Object[][][] data={infoData,intPorts,extPorts,connectionData,scoreReasons, signData, stampData}; // create final pointer to pass to swing.infokelater. as long as this order of these object arrays is correct, everything will work :)
 				javax.swing.SwingUtilities.invokeLater(new Runnable() //perform task on gui thread
 				{
 					public void run()

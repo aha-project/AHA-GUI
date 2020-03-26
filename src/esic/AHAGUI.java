@@ -19,8 +19,8 @@ public class AHAGUI extends JFrame
 	private JPanel m_topLeftOverlay=new JPanel();
 	private JScrollPane m_inspectorPanel=null;
 	private final int m_menuShortcutKey;
-	protected final String[][] m_infoPnlColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process", "PID"}, {"Score Metric", "Value"}}; //right now things would break if the number of these ever got changed at runtime, so made static.
-	private final String[][] m_infoPnlColumnTooltips={{"Info"},{"Port that is able to be connected to from other processes internally.", "Protocol in use."},{"Port that is able to be connected to from other external hosts/processes.", "Protocol in use."},{"Names of processes connected to this one", "Process Identifier"}, {"The scoring metric checked against.", "Result of the checked metric."}};
+	protected final String[][] m_infoPnlColumnHeaders={{"Info"},{"Open Internal Port", "Proto"},{"Open External Port", "Proto"},{"Connected Process", "PID"}, {"Score Metric", "Value"}, {"Signature", "Value"}, {"SecureTimestamp", "Value"}}; //right now things would break if the number of these ever got changed at runtime, so made static.
+	private final String[][] m_infoPnlColumnTooltips={{"Info"},{"Port that is able to be connected to from other processes internally.", "Protocol in use."},{"Port that is able to be connected to from other external hosts/processes.", "Protocol in use."},{"Names of processes connected to this one", "Process Identifier"}, {"The scoring metric checked against.", "Result of the checked metric."}, {"Name of certificate field", "Information extracted from signing certificate"}, {"Name of timestamp field", "Information extracted from timestamping certificate"}};
 	protected final JTable[] m_infoPnlTables= new JTable[m_infoPnlColumnHeaders.length]; //if you need more tables just add another column header set above
 	private final JLabel[] m_overlayLabels= new JLabel[4]; 
 	private final java.util.concurrent.atomic.AtomicReference<Thread> m_graphRefreshThread=new java.util.concurrent.atomic.AtomicReference<>(null);
@@ -51,7 +51,7 @@ public class AHAGUI extends JFrame
 		setPreferredSize(s_preferredTotalSize);
 		setMinimumSize(new java.awt.Dimension(800,600));
 		String title="AHA-GUI";
-		try { title=AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0]; } catch (Exception e) {}
+		try { title=(AHAGUI.class.getPackage().getImplementationVersion().split(" B")[0])+" "+model.m_inputFileName; } catch (Exception e) {}
 		setTitle(title); //This should result in something like "AHA-GUI v0.5.6b1" being displayed
 
 		java.awt.Font boldFont=m_btmPnlSearchStatus.getFont().deriveFont(java.awt.Font.BOLD);
@@ -166,8 +166,8 @@ public class AHAGUI extends JFrame
 		ToolTipManager.sharedInstance().setInitialDelay(500);
 		
 		setLayout(new java.awt.BorderLayout(1,0));
-		String[][][] initialData={{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},}; //digging this new 3d array literal initializer: this is a String[5][1][1] where element[i][0][0]="None".
-		m_inspectorPanel=AHAGUIHelpers.createTablesInScrollPane(m_infoPnlColumnHeaders, m_infoPnlColumnTooltips, initialData, m_infoPnlTables, new int[]{160,40});
+		String[][][] initialData={{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},{{"None"}},}; //digging this new 3d array literal initializer: this is a String[5][1][1] where element[i][0][0]="None".
+		m_inspectorPanel=AHAGUIHelpers.createTablesInScrollPane(m_infoPnlColumnHeaders, m_infoPnlColumnTooltips, initialData, m_infoPnlTables, new int[][]{{160}, {160,40}, {160,40}, {160,40}, {160,40}, {70,90}, {70,90}});
 
 		m_topLeftOverlay.setBounds(0, 0, m_topLeftOverlay.getPreferredSize().width, m_topLeftOverlay.getPreferredSize().height);
 		initGraphView(model);
@@ -356,7 +356,7 @@ public class AHAGUI extends JFrame
 						{ // Find data for, create table, etc for the "Graph Data" view
 							AHAModel.TableDataHolder t=model.generateReport();
 							String[][] columTooltips= {{"Global data from the scan which took place.", "The result for this metric."},{"The name of the process.","Process ID of the process.", "User under which the process is running.", "The number of connections this process has.", "The number of ports this process has opened that external hosts/processes could connect to.", "Whether or not this process is codesigned. Code signing is recomended and allows executalbes to be authenticated as genuine.", "Address Space Layout Randomization is a recomended security feature which helps to reduce succeptability to malicious attacks.", "Data Execution Prevention is a recomended security feature which ensures that areas of memory which are writable (and could have code stored to by an attacker) are not executable.", "Control Flow Guard is a recomended security feature which helps prevent attackers from subverting normal code execution, reducing ease of attack.", "HiVA is an improved ASLR with additional etropy to further complicate any possible attacks.", "This is the score granted to the process by the 'Normal' scoring methodology which uses the MetricsTable.cfg to determine the score.","This is a beta scoring method.","This is a beta scoring method."}};
-							tabBar.add("Vulnerability Metrics", AHAGUIHelpers.createTablesInScrollPane(t.columnNames, columTooltips, t.tableData, new JTable[t.tableData.length], new int[]{180,40,200,86,80,50,44,44,44,44,44,44,60}) ); 
+							tabBar.add("Vulnerability Metrics", AHAGUIHelpers.createTablesInScrollPane(t.columnNames, columTooltips, t.tableData, new JTable[t.tableData.length], new int[][]{{240,800},{180,40,200,86,80,50,44,44,44,44,44,44,60},}) ); 
 						}
 						{ // Find data for, create table, etc for the "Listening Processes" tab
 							JTable[] fwTables=new JTable[2];
@@ -408,7 +408,7 @@ public class AHAGUI extends JFrame
 								dataset=model.m_extListeningProcessMap;
 							}
 							String[][] columTooltips= {{"Processes which have open ports that can only be connected to by processes on this host.", "Process ID of the process.", "The protocol of this listening port, such as TCP or UDP.", "The port number.", "The number of connections to this open port."},{"Processes which have open ports that can be connected to by remote hosts/processes.", "Process ID of the process.", "The protocol of this listening port, such as TCP or UDP.", "The port number.", "The number of connections to this open port."}};
-							tabBar.add("Listening Processes", AHAGUIHelpers.createTablesInScrollPane(columnHeaders,columTooltips, tableData, fwTables, new int[]{200,50,50,50})); 
+							tabBar.add("Listening Processes", AHAGUIHelpers.createTablesInScrollPane(columnHeaders,columTooltips, tableData, fwTables, new int[][]{{200,50,50,50},})); 
 						}
 					}
 				};

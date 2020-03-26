@@ -506,8 +506,8 @@ public class AHAModel implements Runnable
 	
 	private void readInputFile()
 	{
-		m_knownAliasesForLocalComputer.put("127.0.0.1", "127.0.0.1"); //ensure these obvious ones are inserted in case we never see them in the scan
-		m_knownAliasesForLocalComputer.put("::1", "::1"); //ensure these obvious ones are inserted in case we never see them in the scan
+		m_knownAliasesForLocalComputer.put("127.0.0.1", "IP"); //ensure these obvious ones are inserted in case we never see them in the scan
+		m_knownAliasesForLocalComputer.put("::1", "IP"); //ensure these obvious ones are inserted in case we never see them in the scan
 		java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<>();
 		java.util.TreeMap<Integer,String> reverseHdr=new java.util.TreeMap<>();
 		java.util.ArrayList<java.util.ArrayList<String>> inputLines=new java.util.ArrayList<>(512);
@@ -543,7 +543,8 @@ public class AHAModel implements Runnable
 			}
 			if (connectionState.contains("listen") )
 			{
-				m_knownAliasesForLocalComputer.put(localAddr, localAddr);
+				if (!proto.equals("pipe")) { m_knownAliasesForLocalComputer.put(localAddr, "IP"); }
+				else { m_knownAliasesForLocalComputer.put(localAddr, "pipe"); }
 				m_allListeningProcessMap.put(protoLocalPort,fromNode); //push a map entry in the form of (proto_port, procname_PID) example map entry (tcp_49263, alarm.exe_5)
 				if (m_verbosity>4) { System.out.printf("ListenMapPush: localPort=|%s| fromNode=|%s|\n",protoLocalPort,fromNode); }
 				String portMapKey="aha.localListeningPorts";
@@ -596,6 +597,8 @@ public class AHAModel implements Runnable
 			}
 			if (lineNumber<5 && hdr.get("addedon")!=null && tokens.get(hdr.get("addedon"))!=null) { m_miscMetrics.put("detectiontime", tokens.get(hdr.get("addedon"))); } //only try to set the first few read lines
 			if (lineNumber<5 && hdr.get("detectiontime")!=null && tokens.get(hdr.get("detectiontime"))!=null) { m_miscMetrics.put("detectiontime", tokens.get(hdr.get("detectiontime"))); } //only try to set the first few read lines //back compat for old scans, remove someday
+			if (lineNumber<5 && hdr.get("ahascraperversion")!=null && tokens.get(hdr.get("ahascraperversion"))!=null) { m_miscMetrics.put("ahascraperversion", tokens.get(hdr.get("ahascraperversion"))); }
+			if (lineNumber<5 && hdr.get("aharuntimeenvironment")!=null && tokens.get(hdr.get("aharuntimeenvironment"))!=null) { m_miscMetrics.put("aharuntimeenvironment", tokens.get(hdr.get("aharuntimeenvironment"))); }
 		}
 
 		if (m_verbosity>4)
@@ -859,6 +862,7 @@ public class AHAModel implements Runnable
 			
 			for (AHANode node:m_graph) 
 			{ 
+				seeking=args[1].toLowerCase(); //important to do every loop since seeking may be modified if it is inverted
 				if (m_verbosity > 1) { System.out.println("attr='"+attribute+"' seeking='"+seeking+"' potentialMatch='"+node.getAttribute(attribute)+"'"); }
 				try
 				{
@@ -880,16 +884,10 @@ public class AHAModel implements Runnable
 					}
 					else if (attrValue!=null && seeking!=null && notInverseSearch==attrValue.equals(seeking))
 					{
-						if (notInverseSearch==false) { seeking="!"+seeking; }
+						
 						if (hide) { hideReasons.put(seeking, seeking); } //TODO seems like critieria would be better here
 						else { hideReasons.remove(seeking); }
 					}
-//					else if (attrValue!=null && seeking!=null && seeking.contains("*") && notInverseSearch==attrValue.matches(seeking)) //attempt to find regexp if we see a star
-//					{
-//						if (notInverseSearch==false) { seeking="!"+seeking; }
-//						if (hide) { hideReasons.put(attribute+seeking, attribute+seeking); }
-//						else { hideReasons.remove(attribute+seeking); }
-//					}
 					else { hideReasons=null; }
 					if (hideReasons!=null)
 					{
@@ -1087,7 +1085,44 @@ public class AHAModel implements Runnable
 					sourceKey="aha.extListeningPorts";
 				}
 			} // end updating data for internal/external ports
+			
+			
+			try
+			{	// prepare the top part of the sidebar, node signature info
+				String[] signItems={"SignerCertSubject","SignerCertIssuer","SignerCertValidDates","SignerStatusMsg","SignerType","SignerIsOSBinary","SignerCertAlgorithm","SignerCertSerial","SignerCertThumbprint"};
+				String[][] signInfo=new String[signItems.length][2];
+				int outCt=0;
+				
+				for (String s : signItems)
+				{
+					signInfo[outCt][0]=s.replace("Signer", "");
+					signInfo[outCt][1]=node.getAttribute(s.toLowerCase());
+					outCt++;
+				}
+				
+				node.putSidebarAttribute("aha.SidebarSigningInfo", signInfo);
+			} catch (Exception e) { e.printStackTrace(); node.putSidebarAttribute("aha.SidebarSigningInfo",(new String[][]{{"Error"}}) ); }
+			// end updating data for general node info
+			
+			
+			try
+			{	// prepare the top part of the sidebar, node signature info
+				String[] stampItems= {"TimestamperCertSubject","TimestamperCertIssuer","TimestamperCertValidDates","TimestamperCertAlgorithm","TimestamperCertSerial","TimestamperCertThumbprint",};
+				String[][] stampInfo=new String[stampItems.length][2];
+				int outCt=0;
+				
+				for (String s : stampItems)
+				{
+					stampInfo[outCt][0]=s.replace("Timestamper", "");
+					stampInfo[outCt][1]=node.getAttribute(s.toLowerCase());
+					outCt++;
+				}
+				
+				node.putSidebarAttribute("aha.SidebarTStampInfo", stampInfo);
+			} catch (Exception e) { e.printStackTrace(); node.putSidebarAttribute("aha.SidebarTStampInfo",(new String[][]{{"Error"}}) ); }
+			// end updating data for general node info
 		}
+		
 	}
 	
 	public void run()
@@ -1152,30 +1187,42 @@ public class AHAModel implements Runnable
 				String[][] columnHeaders= {{"Scan Information", "Value"},{"Process", "PID", "User","Connections","ExtPorts","Signed","ASLR","DEP","CFG","HiVA", "Score", "WPScore","RelativeScore",},{}};
 				Object[][][] tableData=new Object[NUM_SCORE_TABLES][][];
 				{ //general info
-					Object[][] data=new Object[9][2];
+					Object[][] data=new Object[10][2];
 					int i=0;
-					data[i][0]="Local Addresses of Scanned Machine";
-					data[i++][1]=m_knownAliasesForLocalComputer.keySet().toString();
+					data[i][0]="Host Environment";
+					data[i++][1]="AHA-Scraper Version: "+m_miscMetrics.get("ahascraperversion")+"  Environment: "+m_miscMetrics.get("aharuntimeenvironment"); 
 					data[i][0]="Local Time of Host Scan";
 					data[i++][1]=m_miscMetrics.get("detectiontime");
 					data[i][0]="Scan File Name";
 					data[i++][1]=m_inputFileName;
+					data[i][0]="Local Addresses of Scanned Machine";
+					StringBuilder addresses=new StringBuilder();
+					for (java.util.Map.Entry<String,String> entry: m_knownAliasesForLocalComputer.entrySet())
 					{
-						int numExt=0, worstScore=100;
+						if (!entry.getValue().toUpperCase().equals("PIPE"))
+						{
+							addresses.append(entry.getKey()+", ");
+						}
+					}
+					if (addresses.length()>1) { addresses.replace(addresses.length()-2, addresses.length()-1, ""); }
+					data[i++][1]=addresses.toString(); //m_knownAliasesForLocalComputer.keySet().toString();
+					{
+						int numExt=0, worstScore=Integer.MAX_VALUE; //future proof very high number, hopefully
 						double denominatorAccumulator=0.0d;
-						String worstScoreName="";
+						String worstScoreName="N/A";
 						for (AHANode n : m_graph)
 						{
-							if (n.getAttribute("username")!=null && n.getAttribute("aha.hasExternalConnection")!=null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
+							if (n.getAttribute("username")!=null && n.getAttribute("aha.hasExternalConnection")!=null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror") && n.graphNode.getDegree()>0) 
 							{ 
 								numExt++;
 								String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
 								try
 								{
-									Integer temp=Integer.parseInt(normalScore);
-									if (worstScore > temp) { worstScore=temp; worstScoreName=n.getId();}
+									int temp=Integer.parseInt(normalScore);
+									System.out.printf("Testing %s score=%d worstscore=%d worstScorename=%s\n", n.getId(), temp, worstScore, worstScoreName);
+									if (worstScore > temp) { worstScore=temp; worstScoreName=n.getId(); }
 									denominatorAccumulator+=(1.0d/(double)temp);
-								} catch (Exception e) {}
+								} catch (Exception e) { e.printStackTrace(); }
 							}
 						}
 						data[i][0]="Number of Externally Acccessible Processes";
@@ -1189,27 +1236,30 @@ public class AHAModel implements Runnable
 					}
 					
 					{
-						int numInt=0, worstScore=100;
+						int numInt=0, worstScore=Integer.MAX_VALUE;
 						double denominatorAccumulator=0.0d;
-						String worstScoreName="";
+						String worstScoreName="N/A";
 						for (AHANode n : m_graph)
 						{
-							if (n.getAttribute("username")!=null && n.getAttribute("aha.hasExternalConnection")==null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror")) 
+							if (n.getAttribute("username")!=null && n.getAttribute("aha.hasExternalConnection")==null && n.getAttribute("aslr")!=null && !n.getAttribute("aslr").equals("") && !n.getAttribute("aslr").equals("scanerror") && n.graphNode.getDegree()>0) 
 							{ 
 								numInt++;
 								String normalScore=n.getAttribute(AHAModel.scrMethdAttr(ScoreMethod.Normal));
 								try
 								{
-									Integer temp=Integer.parseInt(normalScore);
-									if (worstScore > temp) { worstScore=temp; worstScoreName=n.getId();}
+									int temp=Integer.parseInt(normalScore);
+									if (worstScore > temp) { worstScore=temp; worstScoreName=n.getId(); }
 									denominatorAccumulator+=(1.0d/(double)temp);
-								} catch (Exception e) {}
+								} catch (Exception e) { e.printStackTrace(); }
 							}
 						}
+						int foo=worstScore;
 						data[i][0]="Number of Internally Acccessible Processes";
-						data[i++][1]=Integer.toString(numInt);
+						data[i++][1]=""+numInt;
+						
 						data[i][0]="Score of Worst Internally Accessible Scannable Process";
-						data[i++][1]="Process: "+worstScoreName+"  Score: "+worstScore;
+						data[i++][1]=String.format("Process: %s  Score: %d ",worstScoreName,foo);
+						
 						data[i][0]="Harmonic Mean of Scores of all Internally Accessible Processes";
 						String harmonicMean="Harominc Mean Computation Error";
 						if (denominatorAccumulator > 0.000001d) { harmonicMean=String.format("%.2f", ((double)numInt)/denominatorAccumulator); }

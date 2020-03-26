@@ -3,6 +3,15 @@ package esic;
 
 public class FileUpdater
 {
+	
+	private static void showError(AHAGUI parentGUI, javax.swing.ProgressMonitor pm,String message)
+	{
+		System.err.println("!!! "+message+" !!!");
+		try { if (pm!=null) { pm.close(); } } catch (Exception e) {}
+		if (parentGUI!=null) { javax.swing.JOptionPane.showMessageDialog(parentGUI, message, "File Update Error", javax.swing.JOptionPane.WARNING_MESSAGE); }
+
+	}
+	
 	protected static void updateCSVFileWithRemoteVulnDBData (AHAGUI parentGUI, AHAController controller, AHASettings settings)
 	{
 		String auth="", inputFileName=settings.getProperty("inputfile"), credentialsFileName=settings.getProperty("credsfile");
@@ -15,8 +24,9 @@ public class FileUpdater
 			pm=new javax.swing.ProgressMonitor(parentGUI,message,"Preparing to start updating file...",progress++,5); 
 			pm.setMillisToDecideToPopup(1);
 			pm.setMillisToPopup(1); 
+			Thread.sleep(2);
 		} catch (Exception e) {} //in case we're running headlessly
-		AHAGUIHelpers.tryUpdateProgress(pm,progress++,-1,"Opening input file ...");
+		AHAGUIHelpers.tryUpdateProgress(pm,progress++,5,"Opening input file ...");
 		java.util.TreeMap<String,Integer> hdr=new java.util.TreeMap<>();
 		java.util.TreeMap<String,String[]> binaries=new java.util.TreeMap<>();
 		java.util.ArrayList<java.util.ArrayList<String>> inputLines=new java.util.ArrayList<>(512);
@@ -26,11 +36,16 @@ public class FileUpdater
 		try
 		{
 			byte[] tempCreds=java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(credentialsFileName));
-			if (tempCreds.length<6) { System.out.println("Failed to open credentials file, bailing."); return; }
 			auth= new String(tempCreds,"UTF8").trim();
-			if (!AHAModel.readCSVFileIntoArrayList(inputFileName, metadata,hdr, inputLines)) { System.out.println("Failed to read input file, bailing."); return; }
+			AHAModel.readCSVFileIntoArrayList(inputFileName, metadata,hdr, inputLines);
 		} catch (Exception e) { e.printStackTrace(); } 
 		AHAGUIHelpers.tryUpdateProgress(pm,progress++,40,"Processing input file...");
+		if (auth==null || auth.length()<6)
+		{
+			showError(parentGUI, pm, "Credentials file is malformed or nonexistant\nPlease check credentials file and try again.");
+			return;
+		}
+		
 		
 		int lineNumber=1;
 		for (java.util.ArrayList<String> tokens: inputLines)
@@ -59,9 +74,7 @@ public class FileUpdater
 		
 		if (binaries.isEmpty())
 		{
-			System.err.println("!!! No hashes found in provided BinaryAnalysis.csv to update, aborting. !!!");
-			try { if (pm!=null) { pm.close(); } } catch (Exception e) {}
-			if (parentGUI!=null) { javax.swing.JOptionPane.showMessageDialog(parentGUI, "No hashes found in provided BinaryAnalysis.csv to use for updating, aborting.\nPlease use a file from a newer version of the scraper.", "Unable to update file", javax.swing.JOptionPane.WARNING_MESSAGE); }
+			showError(parentGUI, pm, "No hashes found in provided BinaryAnalysis.csv to use for updating, aborting.\nPlease use a file from a newer version of the scraper.");
 			return;
 		}
 		
@@ -102,12 +115,11 @@ public class FileUpdater
 						scoreDetails=JSONSteamRoller.pave(getResultFromWebCall(httpsConnection));
 					}
 				}
-				else if ( firstResponseCode==401 && !userWasWarnedAboutCreds )
+				else if ( (firstResponseCode==401 || firstResponseCode==403) && !userWasWarnedAboutCreds )
 				{
-					userWasWarnedAboutCreds=true;
-					System.err.println("!!! Check that your credentials.txt file has current credentials in it! We will continue trying these creds without additional warnings !!!");
-					if (parentGUI!=null) { javax.swing.JOptionPane.showMessageDialog(null,  "Check that your credentials.txt file has current credentials in it!\n We will continue trying these creds without additional warnings", "Check Credentails", javax.swing.JOptionPane.WARNING_MESSAGE); }
-					continue; //use "null" as parent for JOptionPane otherwise it will try to show under the progress manager, which is annoying
+					userWasWarnedAboutCreds=true; //TODO: there was previously a note about this warning dialog and progressmonitor conflciting. testing on java8 didn't show that. restest on jdk11?
+					showError(parentGUI, pm, "Check that your credentials.txt file has current credentials in it!\n We will continue trying these creds without additional warnings");
+					continue; 
 				}
 				else {} //TODO: do something else for other resp codes?
 				
@@ -248,7 +260,16 @@ public class FileUpdater
 		}
 		System.out.println("Task complete.");
 		AHAGUIHelpers.tryUpdateProgress(pm,progress,progress,"Task complete. Updated "+aDolusResults.size()+" records.");
+		
 		if (controller!=null && aDolusResults.size()>0 ) { controller.openfileOrReload(true); } //if we got launched from the gui, this will termiante the current gui and reload the updated file, if we updated the file.
+		else 
+		{
+			try 
+			{ 
+				if (pm!=null) { pm.close(); } 
+			}
+			catch (Exception e) { e.printStackTrace(); }
+		}
 	}
 	
 	private static String getResultFromWebCall ( javax.net.ssl.HttpsURLConnection httpsConnection )
